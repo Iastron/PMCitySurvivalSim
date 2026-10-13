@@ -2212,6 +2212,80 @@ EVENTS.push(
   {id:'os_hunt_board',exile:true,when:[0,1,2],w:2,title:'정착지의 제압 의뢰',text:'사냥꾼들이 환상체의 흔적을 등급별로 표시해 두었다. ZAYIN에서 ALEPH로 갈수록 강해진다. 모든 도전은 패배 시 사망한다.',
     build(){return [...OS_ABNORMALITIES.map(a=>({t:`[${a.risk}] ${a.name} — 제압 대금 ${won(a.reward[0])}~${won(a.reward[1])}`,fn(){huntOutskirts(a.key);}})),{t:'이번에는 의뢰를 받지 않는다',def:true,fn(){say('장비를 정비한 뒤 돌아오기로 했다.');}}];}}
 );
+// 도시의 창작 환상체/뒤틀림: 격리 등급과 현장 전투 위험도는 별개다.
+const CITY_RISK_GUIDE = '문자(ZAYIN~ALEPH)는 격리·관리 난도, 숫자(1~10)는 현장 전투 위험도입니다. 숫자가 높을수록 전투 능력과 제압 보상이 높습니다. WAW-4가 HE-8보다 전투력이 낮을 수 있습니다.';
+const CITY_RISK_TIERS = ['ZAYIN','TETH','HE','WAW','ALEPH'];
+const CITY_THREAT = [
+  {hp:38,stg:22,min:2,max:5,slots:1,light:2,regen:1,reward:20000},
+  {hp:55,stg:30,min:3,max:6,slots:1,light:2,regen:1,reward:45000},
+  {hp:78,stg:40,min:4,max:8,slots:2,light:3,regen:2,reward:90000},
+  {hp:108,stg:52,min:5,max:9,slots:2,light:4,regen:2,reward:180000},
+  {hp:145,stg:68,min:6,max:11,slots:2,light:4,regen:2,reward:350000},
+  {hp:195,stg:88,min:7,max:13,slots:3,light:5,regen:3,reward:700000},
+  {hp:255,stg:110,min:8,max:15,slots:3,light:6,regen:3,reward:1500000},
+  {hp:325,stg:138,min:10,max:17,slots:3,light:6,regen:3,reward:3000000},
+  {hp:420,stg:172,min:11,max:20,slots:4,light:8,regen:4,reward:6000000},
+  {hp:540,stg:210,min:13,max:23,slots:4,light:8,regen:4,reward:12000000}
+];
+const CITY_THREAT_WEIGHTS = [14,16,16,15,12,10,7,5,3,2];
+const CITY_ANOMALY_TYPES = [
+  {id:'lost_ticket',risk:'ZAYIN',kind:'환상체',name:'주인 없는 승차권',type:'관통',effect:'para',moves:['개찰','종이 절단','접힌 표'],desc:'아무도 타지 않은 버스 정류장에 승차권이 쌓인다.',contain:'밀폐된 표함과 정해진 수거 시간으로 관리할 수 있다.'},
+  {id:'paper_worker',risk:'ZAYIN',kind:'뒤틀림',name:'종이 출근자',type:'참격',effect:'bleed',moves:['서류 제출','재단','서류철'],desc:'야근하던 사람이 접힌 종이처럼 골목을 기어 다닌다.',contain:'출근 도장을 치워 두면 한 구역에 머무른다.'},
+  {id:'silent_phone',risk:'TETH',kind:'환상체',name:'응답 없는 공중전화',type:'타격',effect:'para',moves:['발신음','수화기 강타','통화 대기'],desc:'폐쇄된 전화 부스에서 당신의 목소리가 먼저 들려온다.',contain:'소리를 차단한 독립 부스와 교대 감시가 필요하다.'},
+  {id:'lamp_lighter',risk:'TETH',kind:'뒤틀림',name:'골목 점등원',type:'관통',effect:'burn',moves:['점등','깨진 전구','그을린 전선'],desc:'가로등을 등에 멘 사람이 꺼진 거리만 찾아 걷는다.',contain:'조명을 일정하게 유지해야 이탈하지 않는다.'},
+  {id:'empty_table',risk:'HE',kind:'환상체',name:'한 사람 몫의 빈 식탁',type:'타격',effect:'bleed',moves:['빈 접시','식기 난무','접객'],desc:'문 닫은 식당의 식탁 하나가 지나가는 사람 수를 센다.',contain:'식사 의식을 매일 반복하고 빈자리를 감시해야 한다.'},
+  {id:'fare_collector',risk:'HE',kind:'뒤틀림',name:'마지막 요금 징수원',type:'관통',effect:'para',moves:['미납 고지','검표 펀치','차단봉'],desc:'버려진 승강장에서 동전 소리와 함께 검표기가 걸어 나온다.',contain:'이동 경로를 통제하고 징수 규칙을 지켜야 한다.'},
+  {id:'returning_door',risk:'WAW',kind:'환상체',name:'돌아오는 문',type:'타격',effect:'para',moves:['문 두드리기','문틈 압박','잠금장치'],desc:'철거한 문이 이웃집 벽에 다시 생겼다. 직접 공격보다 끊임없는 재출현이 문제다.',contain:'봉쇄해도 다른 건물에 재출현한다. 격리는 까다롭지만 현장 전투력은 숫자로 따로 평가한다.'},
+  {id:'echo_tenant',risk:'WAW',kind:'뒤틀림',name:'메아리 세입자',type:'참격',effect:'bleed',moves:['층간 메아리','유리창 파편','빈 벽'],desc:'비어 있는 임대방마다 같은 사람의 발소리가 울린다.',contain:'분리된 여러 방에서 동시에 재출현하여 한 곳에 가두기 어렵다.'},
+  {id:'unwritten_address',risk:'ALEPH',kind:'환상체',name:'기록되지 않는 주소',type:'관통',effect:'erosion',moves:['주소 말소','번지 지우기','빈 지도'],desc:'한 건물의 주소를 읽는 순간 도시 지도에서 그 자리가 사라진다.',contain:'기록과 관측 자체를 변형하므로 광역 관리가 필요하다. 당장 맞서는 형상의 힘은 숫자로 표시한다.'},
+  {id:'midnight_editor',risk:'ALEPH',kind:'뒤틀림',name:'자정의 교정자',type:'타격',effect:'erosion',moves:['오탈자 삭제','문장 파쇄','교정선'],desc:'사라진 교정자의 붉은 펜이 건물과 사람의 이름을 고친다.',contain:'이름과 기록을 따라 영향을 넓혀 격리 실패의 파급이 크다. 현장 전투 위협과는 별개다.'}
+];
+const CITY_ANOMALIES = [];
+for(const type of CITY_ANOMALY_TYPES) for(let level=1;level<=10;level++) {
+  const b=CITY_THREAT[level-1],key='city_'+type.id+'_'+level,label=type.risk+'-'+level;
+  const hit = {[type.effect]:Math.max(1,Math.floor(level/4))};
+  const attack=[[type.type,b.min,b.max]];
+  if(level>=3)attack.push([type.type,Math.max(2,b.min-2),Math.max(4,b.max-3)]);
+  const card='trace_'+type.id+'_'+level;
+  CARDS[card]={name:type.moves[0]+' · '+label,cost:level<=3?1:level<=6?2:level<=8?3:4,dice:attack.map(d=>[...d]),onHit:{...hit},desc:'적중 시 '+STATUS_NAME[type.effect]+' '+hit[type.effect]+' · '+type.name+' 제압 전리품'};
+  const entry={key,risk:type.risk,level,label,kind:type.kind,card,merit:Math.ceil(level/2)};
+  CITY_ANOMALIES.push(entry);
+  ENEMIES[key]={elite:true,abnormality:type.kind==='환상체',distortion:type.kind==='뒤틀림',risk:type.risk,threatLevel:level,
+    name:'['+label+'] '+type.name+' — '+type.kind,
+    desc:type.desc+' 격리: '+type.contain+' 전투 위험도 '+level+'/10. (이 게임의 창작 개체)',
+    hp:b.hp,stg:b.stg,slots:b.slots,light:b.light,lightRegen:b.regen,res:{참격:1,관통:1,타격:1},reward:[b.reward,Math.round(b.reward*1.5)],
+    pool:[{name:type.moves[0],cost:level>=3?2:1,dice:attack,onHit:hit},
+      {name:type.moves[1],cost:2,dice:[[type.type,b.min+2,b.max+3]]},
+      {name:type.moves[2],cost:1,dice:[['방어',b.min,b.max]],onUse:{nextProt:Math.floor(level/4)}}]};
+}
+function rollCityThreat() {
+  let r=Math.random()*CITY_THREAT_WEIGHTS.reduce((a,b)=>a+b,0);
+  for(let i=0;i<CITY_THREAT_WEIGHTS.length;i++){r-=CITY_THREAT_WEIGHTS[i];if(r<0)return i+1;}
+  return 10;
+}
+function fightCityAnomaly(key) {
+  const a=CITY_ANOMALIES.find(x=>x.key===key);
+  if(!S||S.exiled||S.phase!=='day'||!a)return;
+  fight(key,{lethal:true,win(){merit(a.merit);say(a.label+' '+a.kind+' 제압 완료. 회수품 대금과 전투 기록을 확보했다.','l-good');}});
+}
+const CITY_ANOMALY_FACTIONS = [...new Set(Object.values(AFFS).map(a=>a.faction))];
+for(const type of CITY_ANOMALY_TYPES) EVENTS.push({
+  id:'city_sighting_'+type.id,fac:CITY_ANOMALY_FACTIONS,when:[0,1,2,3],w:[1.1,0.9,0.7,0.45,0.2][CITY_RISK_TIERS.indexOf(type.risk)],cond:()=>!S.exiled,
+  title:'',text:'',build(){
+    const level=rollCityThreat(),key='city_'+type.id+'_'+level,d=ENEMIES[key];
+    this.title='도시 이상현상 — '+type.risk+'-'+level+' '+type.kind;
+    this.text=type.desc+'<br>격리·관리: '+type.contain+'<br><b>'+CITY_RISK_GUIDE+'</b><br>제압 실패 시 사망합니다.';
+    return [{t:d.name+'에 맞선다',fn(){fightCityAnomaly(key);}},
+      {t:'격리선 밖에서 현상을 관찰하고 지나간다',def:true,fn(){say('접촉을 피한 채 '+type.risk+'-'+level+' 관측 기록을 남겼다.');}}];
+  }
+});
+EVENTS.push({id:'city_anomaly_board',fac:CITY_ANOMALY_FACTIONS,when:[0,1,2],w:1.2,cond:()=>!S.exiled,title:'도시 이상현상 제압 공고',text:'',build(){
+  this.text=CITY_RISK_GUIDE+'<br>문자 등급별 현장 보고 하나씩이 게시되어 있다. 제압 실패 시 사망합니다.';
+  const offers=CITY_RISK_TIERS.map(risk=>{const type=pick(CITY_ANOMALY_TYPES.filter(t=>t.risk===risk)),level=rollCityThreat();return CITY_ANOMALIES.find(a=>a.key==='city_'+type.id+'_'+level);});
+  return [...offers.map(a=>({t:ENEMIES[a.key].name+' — 제압 대금 '+won(ENEMIES[a.key].reward[0])+'~'+won(ENEMIES[a.key].reward[1]),fn(){fightCityAnomaly(a.key);}})),
+    {t:'공고만 확인하고 지나간다',def:true,fn(){say('위험도를 확인하고 다음 기회를 기다렸다.');}}];
+}});
+
 const OS_GOODS = [
   {id:'meal',name:'따뜻한 보급식',cost:10000,limit:1,desc:'체력 15 회복 · 하루 1회',ok:()=>S.hp<S.maxHp,apply:()=>heal(15)},
   {id:'treatment',name:'정착지 치료사의 처치',cost:30000,limit:2,desc:'최대 체력의 40% 회복 · 하루 2회',ok:()=>S.hp<S.maxHp,apply:()=>heal(Math.round(S.maxHp*0.4))},
@@ -3457,8 +3531,8 @@ function endCombat(win) {
       S.vpCaptive = CAPTIVES[capKey]; T.pendingChain = 'vp_fate'; T.timeLeft = Math.max(T.timeLeft, 20);
     }
     const libraryCards = libraryRewardCards(C.key);
-    const abnormality = OS_ABNORMALITIES.find(a => a.key === C.key);
-    rewardModal(opts.rare, libraryCards || (abnormality ? [abnormality.card] : null), libraryCards ? '사서의 책장 — 1장을 선택하세요 (퓨리오소 제외)' : abnormality ? abnormality.risk + ' 제압 전리품 — 환상체의 흔적' : undefined);
+    const abnormality = OS_ABNORMALITIES.find(a => a.key === C.key) || CITY_ANOMALIES.find(a => a.key === C.key);
+    rewardModal(opts.rare, libraryCards || (abnormality ? [abnormality.card] : null), libraryCards ? '사서의 책장 — 1장을 선택하세요 (퓨리오소 제외)' : abnormality ? (abnormality.label || abnormality.risk) + ' 제압 전리품 — ' + (abnormality.kind || '환상체') + '의 흔적' : undefined);
   } else {
     if (opts.lethal === false) {
       print(opts.noRob ? '⚔ 패배 — 정신을 잃었다.' : '⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
@@ -3597,6 +3671,7 @@ function showHelp() {
   <b>정신 압박</b> — 부상·패배·공포로 쌓이고 회복·휴식으로 줄어듭니다. 100%가 되면 자신과 마주하게 됩니다.<br>
   · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 두 번 외면해도 뒤틀립니다. E.G.O 개화는 어렵고, 뒤틀림은 쉽습니다.<br>
   · 뒤틀리면 소속을 잃고 하나 협회 토벌대에게 사냥당합니다. Limbus Company에게 "지면" 해소됩니다. 머리 소속은 흔들리지 않습니다.<br>
+  <b>도시 이상현상</b> — 도시에서 환상체와 뒤틀림을 만납니다. ZAYIN~ALEPH는 격리·관리 난도, 뒤의 1~10은 전투 위험도입니다. WAW-4가 HE-8보다 전투력이 낮을 수 있으며, 제압 보상도 숫자를 기준으로 정해집니다.<br>
   <b>외곽</b> — 「외곽으로」 이벤트로 직접 갈 수 있고, 외곽 열차로 다음 날부터 돌아올 수 있습니다. 외곽에서는 괴물 및 ZAYIN~ALEPH 환상체를 사냥하거나 황무지의 도서관에 도전할 수 있습니다. 상단의 「외곽 정착지」에서 안으로 치료·보급·장비·숙소를 구매할 수 있습니다.<br>
   <b>금기와 조율자</b> — 날개의 금기를 4번 어기거나(금기 사냥꾼 처치 포함) 발톱을 죽이면 불순물로 지정되어 조율자가 찾아옵니다.
   조율자는 죽지 않습니다. 체력을 다 깎으면 외곽으로 축출되고, 지면 죽습니다. 외곽 열차로 도시에 돌아갈 수 있지만 조율자가 다시 기다립니다.<br>
