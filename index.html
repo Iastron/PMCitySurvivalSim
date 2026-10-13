@@ -473,7 +473,7 @@ const FINGER_DECKS = {
 };
 /* 특색 명칭 = 두 글자 색 + 상징(무기·기술·나타났을 때의 영향). 원작 특색과 겹치는 이름은 쓰지 않는다
    상징마다 고유 카드(col_sig)의 성능이 정해진다 */
-const COLORS = ['붉은', '검은', '푸른', '하얀', '노란', '잿빛', '은빛', '금빛', '핏빛', '쪽빛', '주홍', '진홍', '청록', '남빛', '연두', '자색'];
+const COLORS = ['붉은', '검은', '푸른', '하얀', '노란', '잿빛', '은빛', '금빛', '회색', '쪽빛', '주홍', '진홍', '청록', '남빛', '연두', '자색'];
 const COLOR_SYMBOLS = {
   '번개': { kind: '번개 같은 연속 찌르기', dice: [['관통', 5, 9], ['관통', 5, 9], ['관통', 5, 9]] },
   '낙인': { kind: '지워지지 않는 불의 낙인', dice: [['타격', 9, 15]], onHit: { burn: 4 } },
@@ -1719,6 +1719,8 @@ function fight(key, opts = {}) {
   const E = { d, name: opts.name || d.name, desc: opts.desc || d.desc, maxHp: Math.round(d.hp * m), maxStg: Math.round(d.stg * m), res: d.res,
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, isEnemy: true };
   E.hp = E.maxHp; E.stg = E.maxStg;
+  // 적의 빛: 예고 칸 수 + 1에서 시작, 매 막 회복 (일반 +1, 강적 +2)
+  E.maxLight = d.light || d.slots + 1; E.light = E.maxLight; E.lightRegen = d.lightRegen || (d.elite ? 2 : 1);
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
   C = { E, P, key, opts, round: 0, drawPile: shuffle([...S.deck]), hand: [], discard: [], played: [], intents: [], busy: false };
@@ -1763,11 +1765,18 @@ function startRound() {
   if (S.armor) P.st.prot += S.armor;   // 재단사 원단
   if (C.round > 1) P.light = Math.min(P.maxLight, P.light + 1);   // 빛은 매 막 1씩만 회복
   if (C.round > 1) drawCards((P.emoLv > 0 ? 3 : 2) + (H().extraDraw || 0));
-  // 적의 행동 예고
+  // 적의 행동 예고 — 적도 빛을 써서 카드를 낸다. 빛이 모자라면 숨을 고른다
+  if (C.round > 1) E.light = Math.min(E.maxLight, E.light + E.lightRegen);
   C.intents = [];
   if (!E.staggered) {
     const pool = shuffle([...E.d.pool]);
-    for (let i = 0; i < E.d.slots; i++) C.intents.push(pool[i % pool.length]);
+    for (let i = 0; i < E.d.slots; i++) {
+      const c = pool.find(x => ecost(x) <= E.light);
+      if (!c) break;
+      C.intents.push(c); E.light -= ecost(c);
+      pool.push(pool.splice(pool.indexOf(c), 1)[0]);   // 같은 카드 연속 사용을 줄인다
+    }
+    if (C.intents.length < E.d.slots) clog(`${E.name} — 빛이 모자라 숨을 고른다 (예고 ${C.intents.length}/${E.d.slots})`, 'l-good');
   }
   C.played = [];
   clog(`— 제 ${C.round}막 —`, 'l-turn');
@@ -1775,6 +1784,9 @@ function startRound() {
   if (P.staggered) clog('흐트러짐 상태 — 이번 막에는 카드를 낼 수 없다.', 'l-bad');
   renderCombat();
 }
+
+// 적 카드 비용: 명시값, 없으면 주사위 1개 = 1, 2개 이상 = 2
+const ecost = c => c.cost !== undefined ? c.cost : (c.dice.length >= 2 ? 2 : 1);
 
 function playCard(hi) {
   if (C.busy || C.P.staggered) return;
@@ -2051,10 +2063,12 @@ function renderCombat() {
   if (!C) return;
   const { P, E } = C;
   const resTxt = Object.entries(E.res).map(([k, v]) => `${k} ${v > 1 ? '취약' : v < 1 ? '내성' : '보통'}`).join(' · ');
-  $('#eBox').innerHTML = `<div class="nm">${E.name}</div><div class="desc">${E.desc}<br>저항: ${resTxt}${E.d.passive ? ` · 특성: ${E.d.passive}` : ''}</div>${barsHtml(E)}<div class="status">${statusHtml(E)}</div>`;
+  $('#eBox').innerHTML = `<div class="nm">${E.name}</div><div class="desc">${E.desc}<br>저항: ${resTxt}${E.d.passive ? ` · 특성: ${E.d.passive}` : ''}</div>${barsHtml(E)}
+    <div style="margin-top:6px;font-size:13px">빛 <span class="light">${Array.from({ length: E.maxLight }, (_, i) => `<i class="${i < E.light ? 'f' : ''}"></i>`).join('')}</span> <span class="dim">(매 막 +${E.lightRegen})</span></div>
+    <div class="status">${statusHtml(E)}</div>`;
   $('#intents').innerHTML = C.intents.length ? C.intents.map((ec, i) => {
     const pair = C.played.find(p => p.slot === i);
-    return `<div class="intent"><div class="slot">예고 ${i + 1}</div><b>${ec.name}</b><div>${ec.dice.map(d => dieHtml(d)).join(' ')}</div>
+    return `<div class="intent"><div class="slot">예고 ${i + 1} · 빛 ${ecost(ec)}</div><b>${ec.name}</b><div>${ec.dice.map(d => dieHtml(d)).join(' ')}</div>
       ${ec.desc ? `<div class="dim" style="font-size:11px">${ec.desc}</div>` : ''}
       <div class="vs">${pair ? `합: <b>${CARDS[pair.id].name}</b>` : '<span class="l-bad">막는 카드 없음 → 일방 공격</span>'}</div></div>`;
   }).join('') : '<div class="dim">적이 행동하지 않는다.</div>';
@@ -2096,7 +2110,8 @@ function showHelp() {
   · 공격 vs 회피: 회피가 같거나 높으면 피해 없음 + 흐트러짐 회복<br>
   · 막지 못한 예고는 <b>일방 공격</b>, 예고보다 많이 낸 카드는 적에게 일방 공격<br>
   · <b>흐트러짐</b> 게이지가 0이 되면 다음 막 행동 불가 + 받는 피해 2배. 타격은 흐트러짐 피해 1.5배<br>
-  · <b>빛</b>은 첫 막에 가득 차 있고, 이후 매 막 <b>1씩만</b> 회복됩니다<br>
+  · <b>빛</b>은 첫 막에 가득 차 있고, 이후 매 막 <b>1씩만</b> 회복됩니다<br>  · <b>적도 빛을 씁니다.</b> 적 카드도 비용(주사위 1개=1, 2개 이상=2)이 있고, 빛이 모자라면 예고 칸이 비어 숨을 고릅니다. (일반 적 매 막 +1, 강적 +2)<br>
+
   · 합에서 이기면 <b>감정</b>이 쌓이고, 감정 단계가 오르면 최대 빛 +1 + 빛 전부 회복<br><br>
   <b>위상의 힘</b> — 승급할 때마다 최대 체력 +12, 흐트러짐 +5, 완치, 카드 1장 선택. 6급·3급에 최대 빛 +1. 위상이 높을수록 모든 주사위 위력 상승(1급 +4).
   위상이 적의 격보다 크게 높으면 일반 적은 싸우기 전에 물러납니다(압도). 강적은 예외.<br>
