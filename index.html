@@ -2541,11 +2541,12 @@ EVENTS.push(
 ========================================================= */
 for (const id of Object.keys(RELICS)) RELICS[id].tier = 'minor';
 for (const id of ['relic_lantern', 'relic_bell', 'relic_compass', 'relic_fang', 'relic_mirror']) CARDS[id].name = CARDS[id].name.replace(/^유물 — /, '하위 유물 — ');
-Object.assign(STATUS_NAME, { tremor: '진동', scar: '검흔', curse: '주살' });
+Object.assign(STATUS_NAME, { tremor: '진동', scar: '검흔', curse: '주살', rupture: '파열' });
 Object.assign(STATUS_DESC, {
   tremor: '궁니르의 떨림. 적중할 때마다 수치만큼 추가 피해, 15 이상이면 붕괴',
   scar: '사라지지 않는 검흔. 막 종료 시 최대 체력의 8%×수치 피해, 체력 흡수 불가',
   curse: '괴문자의 주살. 막 종료 시 수치×3 피해 (감소하지 않음)',
+  rupture: '적중될 때마다 수치만큼 추가 피해, 이후 1 감소',
 });
 const CANON_RELICS = {
   gungnir: { tier: 'canon', name: '궁니르', owner: '베스파 크라브로', grade: '최상위',
@@ -3612,7 +3613,7 @@ EVENTS.push(
 const W_STATUS = [
   { key: '원활', grades: [1, 2], desc: '위협이 될 승객이 거의 없다' },
   { key: '지연', grades: [3], desc: '전투가 불가피한 승객이 있다. 3등급 미만 출입 금지' },
-  { key: '혼잡', grades: [4], desc: '보급형 장비로는 상대할 수 없다. 4등급 이상 투입' },
+  { key: '혼잡', grades: [4], desc: '희귀 유형과 저항이 거센 승객이 있다. 3·4등급 정리 요원 다수, 혹은 CCA를 장비한 4등급 정리 요원 투입' },
   { key: '결항', grades: [5], desc: '1급 해결사 혹은 그에 준하는 위협. 5등급 투입' },
   { key: '탈선', grades: [0], desc: '정리 요원으로 해결할 수 없다. R사에 의뢰' },
 ];
@@ -3725,11 +3726,11 @@ EVENTS.push(
   { id: 'wp_arrival', warp: true, when: [0, 1, 2, 3], w: 100, cond: () => S.warp && S.warp.arrived, title: '정리 작업',
     build() {
       const st = W_STATUS[S.warp.status], g = pick(st.grades);
-      const who = st.key === '탈선' ? 'R사 토끼팀' : `W사 ${g}등급 정리 요원`;
+      const who = st.key === '탈선' ? 'R사 토끼팀' : g === 4 ? 'W사 4등급 정리 요원 - CCA' : `W사 ${g}등급 정리 요원`;
       this.text = `열차 상황 분류: 「${st.key}」 — ${st.desc}. ${josa(who, '이', '가')} 들어와 승객들의 살점을 검사기로 찍어 하나하나 제자리에 맞춘다. 정리가 끝나면 '현상 복구'가 시작된다. 모든 것이 출발 직전으로 돌아가고, 아무것도 기억하지 못하게 된다.`;
-      const enemy = st.key === '탈선' ? 'r_rabbit' : 'w_agent';
-      const scale = st.key === '탈선' ? {} : { name: who, hpMul: 0.6 + g * 0.3, power: Math.max(0, g - 2), count: g <= 2 ? 2 : 1,
-        desc: g >= 4 ? '높은 실적의 고등급 정리 요원. 충전식 엑소 슈트 「클리닝 아머」를 입었다.' : ENEMIES.w_agent.desc };
+      const enemy = st.key === '탈선' ? 'r_rabbit' : g === 4 ? 'w_cca' : 'w_agent';
+      const scale = st.key === '탈선' ? {} : g === 4 ? {} : { name: who, hpMul: 0.6 + g * 0.3, power: Math.max(0, g - 2), count: g <= 2 ? 2 : 1,
+        desc: g >= 5 ? '1급 해결사 혹은 그 이상의 위협을 맡는 5등급 정리 요원.' : ENEMIES.w_agent.desc };
       return [
         { t: '정리 작업을 받아들인다 — 현상 복구 (열차 안의 모든 것을 잊는다)', def: true, fn() { finishWarp(true); } },
         { t: `복구를 거부하고 저항한다 — ${who}와 전투`, fn() {
@@ -3998,6 +3999,20 @@ EVENTS.push(
 /* ---------- 혈귀의 워프 열차 — 정체를 숨기고 탄다. 사고는 확정, 내리고 싶을 때 내린다.
    열차 안의 승객은 죽지 않으니 피주머니에 한도가 없다. 대신 오래 머물수록 하나 협회와 W사 정리 요원이 쫓아온다(특색은 고등급 CCA 정리 요원). ---------- */
 CAPTIVES.w_agent = CAPTIVES.w_agent || { label: 'W사 정리 요원', pow: 3, yield: 2, feed: 3 };
+// 컨제스천 클리닝 아머(Congestion Cleaning Armor, CCA) — 4등급 이상, 높은 실적의 정리 요원에게만 허가되는 엑소 슈트.
+// '혼잡' 열차와 신분을 속이고 일반석에 탄 강자(부정 승차자)를 제압할 때 투입된다. 기술명·내성은 「W사 4등급 정리 요원 - CCA」 기준
+ENEMIES.w_cca = { elite: true, name: 'W사 4등급 정리 요원 - CCA',
+  desc: '컨제스천 클리닝 아머를 장착한 4등급 정리 요원. 어마어마한 가격 탓에 실적 높은 4등급 이상에게만 착용이 허가된다. 팔꿈치에서 푸른 공간 절단의 검이 솟는다.',
+  hp: 260, stg: 110, slots: 3, light: 5, lightRegen: 2, res: { 참격: 1, 관통: 2, 타격: 0.5 }, reward: [0, 0],
+  passive: '컨제스천 클리닝 아머 · 방어지향 충전 — 매 막 충전이 쌓여 보호(최대 6)를 얻고, 3막마다 과충전으로 힘 +2',
+  onRound: e => { e.chg = (e.chg || 0) + 1; e.st.prot += Math.min(6, e.chg); if (e.chg % 3 === 0) e.st.str += 2; },
+  pool: [
+    { name: '혼잡승객 정리', dice: [['타격', 3, 7], ['타격', 3, 11], ['타격', 3, 15]], onHit: { rupture: 2 } },
+    { name: '부스트 엘보 커터', dice: [['타격', 5, 11], ['타격', 5, 17]], onHit: { rupture: 3 } },
+    { name: '공간 절단 - CCA 오버드라이브', dice: [['타격', 3, 5], ['타격', 3, 7], ['타격', 3, 9], ['참격', 3, 21]], onHit: { rupture: 2 } },
+    { name: 'CCA 과충전', dice: [['방어', 3, 13]] },
+  ] };
+CAPTIVES.w_cca = { label: 'CCA 정리 요원', pow: 4, yield: 3, feed: 4 };
 const stowTrain = () => !!(S.warp && S.warp.stow && !S.warp.arrived);   // 정체를 숨기고 탄 혈귀·특색
 const vampTrain = () => stowTrain() && S.warp.stow === 'vamp';
 // 추격 확률: 열차 안 시간이 길어질수록 오른다 (첫날 거의 없음 → 3만 일 무렵 대부분)
@@ -4043,7 +4058,7 @@ EVENTS.push(
       { t: '타지 않는다', def: true, fn() { say('열차가 떠났다. 다음 기회는 또 온다.'); } },
     ] },
   { id: 'col_warp_board', when: [0, 1, 2], w: 1, cond: () => !S.warp && !S.exiled && (faction() === 'color' || S.colorBadge), title: '부정 승차',
-    text: '특색은 일반 열차에 탈 수 없다. 특색 전용 열차는 W사가 미리 준비하고, 정리 요원이 동승한다. 하지만 코트를 바꿔 입고 일반석 표를 사면 — 검표원은 당신의 얼굴까지는 모른다. 이 열차가 "사고"를 내면 그 안에서 얼마든 머물 수 있다.',
+    text: '특색은 별도의 차량에 태우는 것이 W사의 방침이다. 하지만 요즘은 일등석에 타야 할 강자들이 신분을 속이고 일반석에 탄다. 사람들은 그들을 부정 승차자라 부른다. 코트를 바꿔 입고 일반석 표를 사면 — 검표원은 당신의 얼굴까지는 모른다. 이 열차가 "사고"를 내면 그 안에서 얼마든 머물 수 있다.',
     choices: [
       { t: '정체를 숨기고 일반석에 탄다 (30만 안) — 사고 열차', cost: 300000, fn() {
         spend(300000); enterWarp(); S.warp.stow = 'color';
@@ -4086,22 +4101,22 @@ EVENTS.push(
         ];
       }
       if (S.warp.stow === 'color') {   // 특색의 부정 승차 — 고등급 CCA 정리 요원
-        const g = p < 0.4 ? 4 : 5, cnt = p < 0.2 ? 1 : p < 0.6 ? 2 : 3;
-        const who = `W사 ${g}등급 CCA 정리 요원${cnt > 1 ? ' ' + cnt + '명' : ''}`;
-        this.text = `열차 안 ${dayStr(d)}째. 객차 문이 열리고 충전식 엑소 슈트 「클리닝 아머」의 구동음이 들린다. ${josa(who, '이', '가')} 들어온다. "부정 승차 확인. 특색 등급 위협. 정리합니다."`;
+        const cnt = p < 0.2 ? 1 : p < 0.6 ? 2 : 3;
+        const who = `W사 4등급 정리 요원 - CCA${cnt > 1 ? ' ' + cnt + '명' : ''}`;
+        this.text = `열차 안 ${dayStr(d)}째. 안내 방송: "4등급 정리 요원의, 컨제스천 클리닝 아머 장착이 허가되었습니다." 객차 문이 열리고 아머의 구동음이 들린다. ${josa(who, '이', '가')} 들어온다. "다른 칸까지 물러나 있어. 이 새끼… 부정 승차자다."`;
         return [
           { t: `맞선다 — ${who} (패배하면 제압 — 기억 소거)`, fn() {
-            refuse(); fight('w_agent', { count: cnt, name: `W사 ${g}등급 CCA 정리 요원`, desc: '높은 실적의 고등급 정리 요원. 충전식 엑소 슈트 「클리닝 아머」를 입었다.',
-              noCow: true, noRob: true, lethal: false, hpMul: 0.6 + g * 0.3 + p * 0.8, power: g - 2 + Math.floor(p * 3),
-              win() { merit(3); say('정리 요원들이 쓰러졌다. 클리닝 아머의 충전 표시등이 꺼진다.'); }, lose() { stowSubdued(); } });
+            refuse(); fight('w_cca', { count: cnt, captive: 'w_cca',
+              noCow: true, noRob: true, lethal: false, hpMul: 1 + p * 0.6, power: Math.floor(p * 3),
+              win() { merit(3); say('CCA의 동력이 바닥나는 소리. 정리 요원들이 무릎을 꿇었다.'); }, lose() { stowSubdued(); } });
           } },
           STOW_SUBMIT,
           { ...VAMP_LEAVE, t: '맞서지 않고 열차에서 내린다 (바깥에서는 몇 초)', def: true },
         ];
       }
       const hana = p < 0.3 ? 'hana_low' : p < 0.7 ? 'hana_mid' : 'hana_high';
-      const team = [hana, 'w_agent', hana].slice(0, n);
-      const who = n === 1 ? '하나 협회 해결사 한 명' : n === 2 ? '하나 협회 해결사와 W사 정리 요원' : '하나 협회 토벌대와 W사 정리 요원들';
+      const team = [hana, p < 0.7 ? 'w_agent' : 'w_cca', hana].slice(0, n);
+      const who = n === 1 ? '하나 협회 해결사 한 명' : n === 2 ? '하나 협회 해결사와 W사 정리 요원' : '하나 협회 토벌대와 CCA를 장착한 W사 4등급 정리 요원';
       this.text = `열차 안 ${dayStr(d)}째. 객차 문이 바깥에서 열린다 — 이 열차에 "바깥"이 있다면. ${josa(who, '이', '가')} 들어온다. "혈귀 탑승 신고. 열차 안 체류 ${dayStr(d)}. 정리합니다."`;
       return [
         { t: `맞선다 — ${who} (패배하면 제압 — 기억 소거)`, fn() {
@@ -4663,7 +4678,8 @@ function applyHit(card, atk, def) {
     const v = Math.round(def.maxHp * h.pctDmg); def.hp -= v; lastStand(def);
     clog(`→ 「${card.name}」 — ${def.name}의 최대 체력 ${Math.round(h.pctDmg * 100)}%, <b>${v}</b> 피해`, def === C.P ? 'l-bad' : 'l-good');
   }
-  for (const k of ['bleed', 'burn', 'para', 'erosion', 'tremor', 'scar', 'curse']) if (h[k]) { def.st[k] = (def.st[k] || 0) + h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
+  if (def.st.rupture > 0) { const r = def.st.rupture; def.hp -= r; lastStand(def); def.st.rupture--; clog(`→ 파열 — ${def.name} ${r} 추가 피해`, def === C.P ? 'l-bad' : 'l-good'); }
+  for (const k of ['bleed', 'burn', 'para', 'erosion', 'tremor', 'scar', 'curse', 'rupture']) if (h[k]) { def.st[k] = (def.st[k] || 0) + h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
   if (h.healSelf) {
     if (atk.st.scar > 0) clog(`→ 검흔이 ${atk.name}의 회복을 막는다`, 'l-good');
     else { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
