@@ -170,6 +170,7 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
   <div class="wrap" style="padding-top:0;padding-bottom:0">
     <div class="bar-row">
       <span class="stat" id="clock"></span>
+      <span class="stat" id="sLoc" style="color:var(--gold)"></span>
       <span class="stat">HP <b id="sHp"></b></span>
       <span class="stat">자금 <b id="sMoney"></b></span>
       <span class="stat dim" id="sPay"></span>
@@ -1019,6 +1020,7 @@ function renderTop() {
   saveHistory();
   if (!S) return;
   const t = TURNS[S.turn];
+  $('#sLoc').textContent = S.warp ? '📍 W사 워프 열차 안' : S.loc ? '📍 ' + S.loc.label : '';
   $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${t.name} ${t.time}</span>`;
   const hp = S.phase === 'combat' && C ? C.P.hp : S.hp;
   $('#sHp').textContent = `${hp}/${S.maxHp}`;
@@ -3144,6 +3146,7 @@ function startTurn() {
   if (S.warp) S.warp.turns++;
   const t = TURNS[S.turn];
   T = { timeLeft: TURN_TIME, queue: [], lineCd: 0, ambCd: 6, eventShown: false, awaiting: null, resolved: false };
+  if (S.travelPending && !S.travelSkip && !S.warp) { arrive(S.travelPending); S.travelPending = null; }   // 걸어서 이동한 경우 도착
   print(`— ${t.name} ${t.time} —`, t.cls);
   const amb = shuffle([...ambientPool()]);
   say(amb[0], 'l-amb'); say(amb[1], 'l-amb');
@@ -3314,6 +3317,7 @@ function enterWarp(test) {
 }
 function exitWarp() {
   const w = S.warp; S.warp = null;
+  if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; }
   print(`✦ 열차가 멈췄다. 열차 안에서 ${WARP_INNER.toLocaleString()}일. 바깥에서는 ${WARP_DAYS}일이 지났을 뿐이다.`, 'l-day');
   const money = w.test ? 50000000 : 10000000; S.money += money;
   print(`W사가 ${w.test ? '시험 운행 생존 보상금' : '사고 위로금'}을 지급했다. +${won(money)} (보유 ${won(S.money)})`, 'l-good');
@@ -3427,6 +3431,82 @@ EVENTS.push({ id: 'contract_run', when: [0, 1, 2], w: 0, cond: () => false, titl
       { t: '의뢰를 포기한다 — 위약금, 실적 -1', fn() { contractForfeit(); } },
     ];
   }, text: '' });
+
+/* =========================================================
+   이동 — 매일 첫 턴에 머물지, 다른 구(날개)·외곽으로 떠날지 정한다
+   머문다: 바로 다음 턴 / W사 열차: 다음 턴 도착(50% 확률로 열차 안 사건) / 걸어서: 2턴 소모 / 외곽: 외곽 열차
+========================================================= */
+const TRAVEL_TRAIN_COST = 50000, TRAVEL_OS_COST = 200000;
+function travelArea() {   // 날개·머리 소속과 둥지에 사는 사람은 둥지로, 나머지는 뒷골목으로
+  const f = faction();
+  return ['wing', 'head'].includes(f) || (S.loc && S.loc.area === '둥지' && f !== 'street' && f !== 'gang') ? '둥지' : '뒷골목';
+}
+function makeCityLoc(n) {
+  const L = String.fromCharCode(64 + n), area = travelArea();
+  return { area, n, letter: L, label: `${n}구 ${L}사 ${area}`, note: WING_NOTE[L] || '' };
+}
+function arrive(loc) {
+  S.loc = loc; S.cityLoc = loc;
+  say(`📍 도착 — ${loc.label}${loc.note ? ' · ' + loc.note : ''}`, 'l-day');
+}
+const endTurnNow = () => { T.timeLeft = 0; };
+// 이동 결정은 턴을 쓰지 않는다: 같은 턴에 그 자리(또는 도착지)의 이벤트로 이어진다
+const nextEvent = () => chooseEvent().id;
+EVENTS.push(
+  { id: 'travel_choice', when: [0], w: 0, cond: () => false, title: '오늘은 어디로',
+    build() {
+      const here = S.loc || OUTSKIRTS, nums = shuffle(Array.from({ length: 25 }, (_, i) => i + 1).filter(n => n !== here.n)).slice(0, 5);
+      this.text = `현재 위치: <b>${here.label}</b>${here.note ? ' — ' + here.note : ''}. 이곳에 머물지, 다른 구로 떠날지 정한다. (이 결정은 시간을 쓰지 않는다. 걸어서 이동할 때만 두 턴이 걸린다.)`;
+      return [
+        { t: `${here.label}에 머문다`, def: true, fn() { say('오늘은 이 구역에서 지내기로 했다.'); return nextEvent(); } },
+        ...nums.map(n => { const L = String.fromCharCode(64 + n); return { t: `${n}구 ${L}사로 떠난다${WING_NOTE[L] ? ' — ' + WING_NOTE[L] : ''}`, fn() { S.travelDest = n; return 'travel_method'; } }; }),
+        { t: `외곽으로 떠난다 — 외곽 열차 (${won(TRAVEL_OS_COST)}), 바로 도착`, cost: TRAVEL_OS_COST, fn() {
+          spend(TRAVEL_OS_COST); leaveCity('외곽 열차가 도시의 경계를 넘었다. 창밖으로 빌딩 숲이 끝나고 황무지가 펼쳐진다.'); return nextEvent();
+        } },
+      ];
+    }, text: '' },
+  { id: 'travel_method', chainOnly: true, when: [0, 1, 2, 3], w: 0, title: '어떻게 갈까',
+    build() {
+      const dest = makeCityLoc(S.travelDest);
+      this.text = `목적지: <b>${dest.label}</b>. W사 워프 열차를 타면 바로 도착한다(열차 안에서 무슨 일이 생길 수도 있다). 걸어가면 두 턴이 걸린다.`;
+      return [
+        { t: `W사 열차를 탄다 (${won(TRAVEL_TRAIN_COST)}) — 바로 도착`, cost: TRAVEL_TRAIN_COST, fn() {
+          spend(TRAVEL_TRAIN_COST);
+          if (Math.random() < 0.5) { S.travelPending = dest; return 'warp_onboard'; }
+          say('눈을 한 번 감았다 뜨니 승강장이었다.'); arrive(dest); return nextEvent();
+        } },
+        { t: '걸어서 간다 — 무료, 2턴 소모', def: true, fn() {
+          say('골목과 검문소를 몇 개나 지났다. 구역 경계마다 통행 절차가 길다.'); S.travelSkip = 1; S.travelPending = dest; endTurnNow();
+        } },
+        { t: '그만둔다 — 머문다', fn() { say('떠나지 않기로 했다.'); return nextEvent(); } },
+      ];
+    }, text: '' },
+  { id: 'warp_onboard', chainOnly: true, when: [0, 1, 2, 3], w: 0, title: 'W사 열차 안',
+    build() {
+      const dest = S.travelPending, r = Math.random();
+      const done = (line) => { if (line) say(line); arrive(dest); S.travelPending = null; return nextEvent(); };
+      if (r < 0.15) {
+        this.text = '출발 신호. 그리고 도착 신호가 오지 않는다. 창밖의 색이 사라진다.';
+        return [{ t: '…', def: true, fn() { S.travelPending = null; enterWarp(false); S.flags.warpDest = dest; return nextEvent(); } }];
+      }
+      if (r < 0.45) {
+        this.text = '옆자리 승객의 손이 당신의 주머니 쪽으로 슬그머니 움직인다. 워프는 눈 깜짝할 사이지만, 소매치기도 그렇다.';
+        return [
+          { t: '손목을 붙잡는다', fn() { if (Math.random() < 0.6) return done('소매치기가 사과하며 슬그머니 다른 칸으로 사라졌다.'); else { say('소매치기가 칼을 꺼냈다!', 'l-bad'); S.travelPending = null; fight('rat', { lethal: false, win() { arrive(dest); } }); } } },
+          { t: '모른 척한다', def: true, fn() { const lost = Math.min(S.money, 30000); if (lost) spend(lost, true); return done('도착하고 보니 지갑이 가볍다.'); } },
+        ];
+      }
+      if (r < 0.75) {
+        this.text = 'W사 승무원이 검표를 한다. "정상 운행 중입니다. 잠시 시간 감각이 어긋날 수 있습니다." 창밖의 풍경이 한순간 몇 년치를 감았다 푼 듯하다.';
+        return [{ t: '눈을 감고 기다린다', def: true, fn() { stress(6); return done('머리가 띵하다. 몇 초였을까, 몇 시간이었을까.'); } }];
+      }
+      this.text = '열차 칸 끝의 CAFE에서 커피 향이 난다. 워프 열차의 몇 안 되는 사치다.';
+      return [
+        { t: '커피를 산다 (1만 안)', cost: 10000, fn() { spend(10000); heal(10); stress(-5); return done('따뜻한 커피를 마시는 사이 도착 안내가 나왔다.'); } },
+        { t: '그냥 앉아 있는다', def: true, fn() { return done('창밖의 색이 번졌다가, 승강장이 나타났다.'); } },
+      ];
+    }, text: '' },
+);
 
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
@@ -3565,6 +3645,9 @@ EVENTS.push(
 
 function chooseEvent() {
   if (S.flags.crisis && !S.seenToday.includes('crisis')) return EVENTS.find(e => e.id === 'crisis');
+  if (S.turn === 0 && S.day >= 2 && !S.exiled && !S.warp && faction() !== 'head' && S.flags.travelDay !== S.day) {
+    S.flags.travelDay = S.day; return EVENTS.find(e => e.id === 'travel_choice');
+  }
   if (S.pendingContract && !S.warp && !S.exiled && S.turn !== 3 && turnKey() >= S.pendingContract.at && !S.seenToday.includes('contract_run')) {
     if (!isFixer()) { print(`해결사가 아니게 되어 의뢰 「${S.pendingContract.c.t}」가 취소되었다.`, 'l-sys'); S.pendingContract = null; }
     else return EVENTS.find(e => e.id === 'contract_run');
@@ -3682,6 +3765,7 @@ function choose(i, auto = false) {
 
 function endTurn() {
   S.turn++;
+  if (S.travelSkip > 0 && S.turn <= 3) { S.travelSkip--; print('— 이동 중 — 이 시간대는 길 위에서 보냈다.', 'l-amb'); S.turn++; }
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
     if (inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
