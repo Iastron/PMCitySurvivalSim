@@ -2353,10 +2353,7 @@ const CANON_ANOMALIES = [
     pool:[{name:'등불의 유혹',cost:2,dice:[['방어',9,15]],onUse:{enemy:{para:2}}},{name:'거대한 부리',cost:3,dice:[['관통',15,23],['타격',8,13]]},{name:'수많은 눈',cost:1,dice:[['회피',9,15]]}]},
   {key:'canon_nothing',name:'아무것도 없는',risk:'ALEPH',level:10,kind:'환상체',w:0.22,desc:'뒤틀린 살덩이가 사람의 목소리를 흉내 낸다. 익숙한 인사말이 들려도 대답해서는 안 된다.',passive:'모방 — 매 막 체력 8 회복, 체력 절반 이하부터 힘 3·보호 2',onRound:e=>{if(e.hp<=e.maxHp/2)e.mimic=true;e.hp=Math.min(e.maxHp,e.hp+8);if(e.mimic){e.st.str+=3;e.st.prot+=2;}},
     pool:[{name:'Hello',cost:2,dice:[['타격',12,20],['참격',9,16]]},{name:'Goodbye',cost:4,dice:[['참격',24,36]],onHit:{bleed:3}},{name:'I love you',cost:2,dice:[['관통',13,21]],onHit:{healSelf:8}}]},
-  {key:'canon_children',name:'울고 있는 아이들',risk:'WAW',level:8,kind:'뒤틀림',w:0.4,desc:'눈과 귀와 입을 가린 아이들이 울고 있다. 녹은 밀랍과 불길 사이로 필립의 흔적이 남아 있다.',passive:'타오르는 슬픔 — 매 막 상대에게 화상 1',onRound:(e,P)=>{P.st.burn+=1;},
-    pool:[{name:'보지 않는 눈',cost:2,dice:[['방어',9,15],['타격',7,12]]},{name:'듣지 않는 귀',cost:2,dice:[['관통',10,17],['관통',7,12]],onHit:{burn:2}},{name:'말하지 않는 입',cost:3,dice:[['참격',14,22]],onHit:{burn:4}}]},
-  {key:'canon_pianist',name:'피아니스트',risk:'ALEPH',level:10,kind:'뒤틀림',w:0.18,desc:'거대한 피아노와 오선이 건물 사이를 가로지른다. 이미 끝났어야 할 참사의 연주가 다시 들려온다.',passive:'크레셴도 — 매 막 힘 1씩 누적',onRound:e=>{e.cresc=(e.cresc||0)+1;e.st.str+=e.cresc;},
-    pool:[{name:'첫 악장',cost:2,dice:[['타격',12,20],['타격',10,17]]},{name:'불협화음',cost:3,dice:[['관통',15,23]],onHit:{para:2}},{name:'건반의 비명',cost:3,dice:[['타격',11,18],['관통',9,16],['타격',8,14]],onHit:{bleed:2}}]}
+
 ];
 for(const a of CANON_ANOMALIES){
   const b=CITY_THREAT[a.level-1];a.label=a.risk+'-'+a.level;a.merit=Math.ceil(a.level/2);a.card='reward_'+a.key;
