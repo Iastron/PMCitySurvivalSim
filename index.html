@@ -786,6 +786,7 @@ function changeAff(id, after) {
   if (AFF().locked) { say('머리에 속한 자는 소속을 바꿀 수 없다.', 'l-bad'); return; }
   const old = S.aff, oldF = faction();
   S.aff = id; S._h = null;
+  if (S.office && !['fixer', 'street'].includes(id)) { say(`「${S.office.name} 사무소」를 떠났다.`, 'l-sys'); S.office = null; }
   if (AFFS[id].hooks && AFFS[id].hooks.monthlyPay) S.payDay = S.day + 30;
   say(`◆ 소속 변경: ${affName(old)} → <b>${affName(id)}</b>`, 'l-day');
   say(`새 패시브: ${AFF().passive}`, 'l-sys');
@@ -942,7 +943,7 @@ function moneyStress(lost, before, forced) {
 function spend(n, forced = false) {
   moneyStress(n, S.money, forced);
   if (n > S.money) {   // 모자란 만큼은 사채로 메운다
-    const short = n - S.money, owe = Math.ceil(short * (1 + DEBT_RATE));
+    const short = n - S.money, owe = Math.ceil(short * (1 + (H().noInterest ? 0 : DEBT_RATE)));
     if (!S.debt) S.debtDue = S.day + DEBT_DAYS;
     S.debt += owe; S.money = 0;
     say(`-${won(n)} — 모자란 ${won(short)}을(를) 엄지 계열 사채로 빌렸다. 갚을 돈 ${won(owe)} 추가 (총 빚 ${won(S.debt)}, ${S.debtDue}일차까지)`, 'l-bad');
@@ -956,7 +957,7 @@ function spend(n, forced = false) {
    기한까지 갚지 못하면 손가락 조직원이 추심하러 온다
 ========================================================= */
 const DEBT_CAP = 200000, DEBT_RATE = 0.2, DEBT_DAYS = 3;
-const debtNeeded = cost => Math.max(0, Math.ceil((cost - S.money) * (1 + DEBT_RATE)));
+const debtNeeded = cost => Math.max(0, Math.ceil((cost - S.money) * (1 + (H().noInterest ? 0 : DEBT_RATE))));
 const canPay = cost => S.money >= cost || S.debt + debtNeeded(cost) <= DEBT_CAP;
 const avail = c => (!c.req || c.req()) && (!c.cost || canPay(c.cost));
 function repayDebt(amount, immediate) {
@@ -2338,6 +2339,235 @@ EVENTS.push(
       {t:'보관함을 그대로 둔다',def:true,fn(){say('누군가 언젠가 돌아와 찾아갈지도 모른다.');}}]}
 );
 
+/* =========================================================
+   원작 유물 (Project Moon 세계관 — 나무위키 「도시(Project Moon 세계관)」 6.2.1 유물 항목 기준)
+   lore: 원작에서 확인된 명칭·설정 / adapt: 이 게임의 각색(원작 수치·효과가 아님)
+   원작 설정상 유물은 유적 깊은 곳에서 발굴되며, 적성이 없으면 들지 못하거나 성능이 약화된다.
+   기존 창작 유물 5종은 '하위 유물'로 구분한다.
+========================================================= */
+for (const id of Object.keys(RELICS)) RELICS[id].tier = 'minor';
+for (const id of ['relic_lantern', 'relic_bell', 'relic_compass', 'relic_fang', 'relic_mirror']) CARDS[id].name = CARDS[id].name.replace(/^유물 — /, '하위 유물 — ');
+Object.assign(STATUS_NAME, { tremor: '진동', scar: '검흔', curse: '주살' });
+Object.assign(STATUS_DESC, {
+  tremor: '궁니르의 떨림. 적중할 때마다 수치만큼 추가 피해, 15 이상이면 붕괴',
+  scar: '사라지지 않는 검흔. 막 종료 시 최대 체력의 8%×수치 피해, 체력 흡수 불가',
+  curse: '괴문자의 주살. 막 종료 시 수치×3 피해 (감소하지 않음)',
+});
+const CANON_RELICS = {
+  gungnir: { tier: 'canon', name: '궁니르', owner: '베스파 크라브로', grade: '최상위',
+    lore: '노란색 작살 형태. 사용자의 의지로 회수할 수 있고, 박힌 상대는 공격받을수록 강해지는 떨림으로 끝내 무너진다.',
+    adapt: '공격 적중 시 진동 +2, 진동이 있는 적에게 적중하면 진동만큼 추가 피해. 진동 15 이상이면 붕괴(진동×2 피해·흐트러짐). 전용 카드는 사용 후 손으로 돌아온다.',
+    passive: '진동 — 적중 시 진동 +2, 진동만큼 추가 피해, 15 이상에서 붕괴', cards: ['canon_gungnir'], hooks: { gungnir: true } },
+  laevateinn: { tier: 'canon', name: '레바테인', owner: '마티아스 (중지가 유적 심층에서 발견)', grade: '불명',
+    lore: '평상시에는 거대한 쇳덩어리 같은 보호구로 억제되어 있다. 봉인을 단계적으로 해제하면 검의 형상이 드러나며 강한 열로 주변을 불태운다.',
+    adapt: '봉인 상태에서는 방어 주사위 +3. 「봉인 해제」(전투당 2회)로 1단계: 공격 +3·적중 시 화상 2 / 2단계: 공격 +6·화상 4·매 막 적에게 화상 3, 대신 매 막 자신도 화상 1.',
+    passive: '봉인 — 방어 +3. 봉인 해제 단계에 따라 공격·화상 강화', cards: ['canon_laev_unseal', 'canon_laev_strike'], hooks: { laevateinn: true } },
+  odin: { tier: 'canon', name: '예지안 — 오딘의 눈', owner: '보냐텔리 패밀리 → 발렌치나', grade: '불명',
+    lore: '기계식 녹색 의안. 시야의 모든 것을 분석해 다가올 찰나를 예측하는 계산기에 가깝다. 오래 쓰면 과열되어 눈이 뜨거워지고 시야가 붉어진다. 세 갈래로 쪼개진 유물의 파편 중 하나.',
+    adapt: '예측 — 내 모든 주사위를 두 번 굴려 높은 값 사용. 3막 연속 사용하면 과열: 다음 막은 예측 정지, 체력 -5, 마비 1.',
+    passive: '예측 — 주사위 두 번 굴려 높은 값 (3막마다 과열)', cards: ['canon_odin'], hooks: { foresight: true } },
+  mambrino: { tier: 'canon', name: '맘브리노의 투구', owner: '장로 돈키호테 → LCB 3번 수감자 돈키호테', grade: '불명',
+    lore: '화려한 황금 눈가리개. 착용자를 보는 대상이 착용자를 자신과 동등한 지위로 인식한다. 한번 착용하면 강하게 달라붙어 떼어내기 어렵고, 떼어내도 흉터가 남는다.',
+    adapt: '대등 — 매 막 적의 힘·인내·보호·추가 위력을 지운다(상대가 당신을 "동등"하게 여겨 우위를 잃는다). 전용 카드로 적의 예고 하나를 무효화.',
+    passive: '대등 — 매 막 적의 힘·인내·보호·추가 위력 무효', cards: ['canon_mambrino'], hooks: { equal: true } },
+  arayashiki: { tier: 'canon', name: '천살성도 — 아라야시키', owner: '거미집 → 료슈', grade: '최상위',
+    lore: '희고 투명한 대태도. 시간을 인지하는 혈통과 감각이 있어야 쓸 수 있다. 사용할 때마다 소중한 기억이 휘발되며, 벤 것에는 어떤 방법으로도 사라지지 않는 검흔이 남는다. 평소에는 검집째 휘두른다.',
+    adapt: '검집째 휘두르기 — 공격 +2. 「발도」 적중 시 검흔(막마다 최대 체력 8%×수치 피해, 체력 흡수 불가). 대신 발도할 때마다 덱의 카드 1장이 영구히 사라진다(기억 휘발).',
+    passive: '검집 — 공격 +2. 발도 시 검흔, 대가로 기억(카드) 휘발', cards: ['canon_arayashiki'], hooks: { rollBonus(P, d) { return OFF(d[0]) ? 2 : 0; } } },
+  tianjiu: { tier: 'canon', name: '천구성도', owner: '자로', grade: '불명',
+    lore: '붉은 도신의 대검. 평상시에는 검집과 금제로 힘을 봉인한다. 금제를 해방하고 뽑으면 더 강한 피해를 주며, 검날의 괴문자로 주살을 부여한다.',
+    adapt: '주살 — 공격 적중 시 주살 +1(막 종료 시 수치×3 피해, 감소 없음). 「금제 해방」은 자신에게 피해를 입히는 대신 주살 4.',
+    passive: '주살 — 적중 시 주살 +1, 막마다 수치×3 피해', cards: ['canon_tianjiu'], hooks: { curseOnHit: 1 } },
+  dihui: { tier: 'canon', name: '지혜성도', owner: '시오미 요루 → 아라야', grade: '불명',
+    lore: '푸른 검신의 오오타치. 대상에게 검흔을 남기고, 베고 지나간 자리에 글리치 같은 검기가 생긴다. 적성이 높으면 분신을 만들어 협공한다.',
+    adapt: '분신 — 공격 적중 시 40% 확률로 분신이 추가 공격(참격 6~11). 「분신 협공」을 쓴 막에는 확률 100%.',
+    passive: '분신 — 적중 시 40%로 분신 추가 공격', cards: ['canon_dihui'], hooks: { clone: 0.4 } },
+};
+Object.assign(RELICS, CANON_RELICS);
+Object.assign(CARDS, {
+  canon_gungnir: { name: '원작 유물 — 궁니르 투척', cost: 1, dice: [['관통', 8, 13]], onHit: { tremor: 4 }, returnHand: true, desc: '적중 시 진동 4. 사용 후 손으로 회수된다' },
+  canon_laev_unseal: { name: '원작 유물 — 봉인 해제', cost: 1, instant: true, fx: { laevUnseal: true }, desc: '즉시: 레바테인 봉인 1단계씩 해제 (전투당 2회)' },
+  canon_laev_strike: { name: '원작 유물 — 레바테인', cost: 3, dice: [['참격', 12, 20], ['타격', 8, 14]], onHit: { burn: 2 }, desc: '적중 시 화상 2 (봉인 해제 단계만큼 더 강해진다)' },
+  canon_odin: { name: '원작 유물 — 찰나의 계산', cost: 1, instant: true, fx: { maxRoll: true }, desc: '즉시: 이번 막 내 모든 주사위가 최대값. 다음 막 과열' },
+  canon_mambrino: { name: '원작 유물 — 동등한 시선', cost: 1, instant: true, fx: { cancelIntent: true }, desc: '즉시: 대상 적의 가장 강한 예고 하나를 무효화' },
+  canon_arayashiki: { name: '원작 유물 — 발도: 아라야시키', cost: 3, dice: [['참격', 18, 30]], onHit: { scar: 1 }, onUse: { forget: true }, desc: '적중 시 검흔. 사용 시 덱의 카드 1장 영구 소실' },
+  canon_tianjiu: { name: '원작 유물 — 금제 해방', cost: 2, dice: [['참격', 12, 20]], onHit: { curse: 4 }, onUse: { selfDmg: 6 }, desc: '적중 시 주살 4. 사용 시 자신에게 6 피해' },
+  canon_dihui: { name: '원작 유물 — 분신 협공', cost: 2, dice: [['참격', 6, 10], ['참격', 6, 10]], onUse: { cloneAll: true }, desc: '이번 막 공격 적중 시 분신 추가 공격 확정' },
+});
+// 유물 표시: 원작/하위 구분, 원작 설정과 게임 각색을 나눠 보여준다
+relicPassiveText = function () {
+  return (S.relics || []).filter(id => RELICS[id]).map(id => {
+    const r = RELICS[id], cards = (r.cards || [r.card]).map(c => CARDS[c].name).join(', ');
+    return r.tier === 'canon'
+      ? `<br>[원작 유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}<br><span class="dim">　원작: ${r.lore} (소유: ${r.owner})<br>　게임 각색: ${r.adapt}</span>`
+      : `<br>[하위 유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}`;
+  }).join('');
+};
+acquireRelic = function (id) {
+  if (!S || !RELICS[id]) return false;
+  S.relics = S.relics || [];
+  if (S.relics.includes(id)) return false;
+  S.relics.push(id); S._h = null;
+  const r = RELICS[id], cards = r.cards || [r.card];
+  cards.forEach(addCard);
+  if (r.tier === 'canon') {
+    say(`★ 원작 유물 발견 — 「${r.name}」`, 'l-day');
+    say(`원작 설정: ${r.lore}`, 'l-sys');
+    say(`[게임 각색 패시브] ${r.adapt}`, 'l-good');
+  } else {
+    say(`◆ 하위 유물 발견 — 「${r.name}」`, 'l-day');
+    say(`[추가 패시브] ${r.passive} / [전용 스킬] ${cards.map(c => CARDS[c].name).join(', ')}`, 'l-good');
+  }
+  say('이번 삶 동안 소지한 유물의 패시브가 함께 적용된다. 도시로 돌아가거나 소속이 바뀌어도 유지된다.', 'l-sys');
+  return true;
+};
+// canonChance: 이 발견에서 원작 유물이 나올 확률. 하위 유물을 다 모으면 원작 유물 확률이 오르고, 모두 모으면 파편 판매
+discoverRelic = function (canonChance = 0.08) {
+  const owned = S.relics || [];
+  const minor = Object.keys(RELICS).filter(id => RELICS[id].tier !== 'canon' && !owned.includes(id));
+  const canon = Object.keys(RELICS).filter(id => RELICS[id].tier === 'canon' && !owned.includes(id));
+  const chance = Math.min(1, canonChance + (H().relicFind || 0) * 0.5 + (minor.length ? 0 : 0.25));
+  if (canon.length && Math.random() < chance) return acquireRelic(pick(canon));
+  if (minor.length) return acquireRelic(pick(minor));
+  if (canon.length) { say('하위 유물은 모두 모았다. 이번에 나온 것은 원작 유물의 부서진 파편뿐이다. 디에치 협회 연구소에 팔았다.'); gain(1000000); return false; }
+  say('이미 모든 유물을 확보했다. 남은 파편은 연구용으로 판매했다.'); gain(3000000); return false;
+};
+ENEMIES.ruin_warden = { elite: true, monster: true, name: '유적의 수호자', desc: '유적 심층에서 유물을 지키는 존재. 원작 설정상 유적의 괴물은 HE급 환상체 이상이며, 일부는 손가락 상위 간부도 쉽게 쓰러뜨린다. (이 개체 자체는 게임 창작)',
+  hp: 300, stg: 120, slots: 3, light: 6, lightRegen: 3, res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [20000000, 40000000],
+  passive: '심층의 압력 — 매 막 힘 1, 보호 2', onRound: e => { e.st.str += 1; e.st.prot += 2; },
+  pool: [{ name: '심층의 손톱', dice: [['참격', 10, 16], ['참격', 8, 12]] }, { name: '암반 붕괴', dice: [['타격', 14, 22]], onHit: { para: 1 } },
+    { name: '고대 장갑', dice: [['방어', 11, 16]] }, { name: '유물의 맥동', dice: [['관통', 9, 14], ['관통', 9, 14]], onHit: { burn: 2 } }] };
+// 기존 탐사 이벤트에 원작 유물 확률 연결 (발굴 8% / 장비 발굴 12% / 보관함 10% / 괴물 25%)
+(() => {
+  const ex = EVENTS.find(e => e.id === 'os_relic_excavation'), ar = EVENTS.find(e => e.id === 'os_relic_archive'), gd = EVENTS.find(e => e.id === 'os_relic_guardian');
+  ex.text += '<br><span class="dim">드물게 원작 유물(희귀)이 섞여 나온다. 화면에 「원작 유물」/「하위 유물」로 구분된다.</span>';
+  ex.choices[0].fn = function () { if (Math.random() < 0.35) discoverRelic(0.08); else { say('유물은 부서졌지만 오래된 금속 조각은 챙겼다.'); gain(15000); } };
+  ex.choices[1].fn = function () { if (!buy(150000, '유물 발굴 장비와 인부')) return; if (Math.random() < 0.75) discoverRelic(0.12); else say('발굴은 끝났지만 내부는 텅 비어 있었다. 인부들은 약속한 품삯을 받고 돌아갔다.'); };
+  ar.choices[0].fn = function () { if (Math.random() < 0.5) discoverRelic(0.1); else { say('잠금장치가 튀어 손을 긁었다. 안에는 젖은 탐사 일지만 남아 있다.', 'l-bad'); hurt(6); } };
+  gd.choices[0].fn = function () { fight('os_carapace', { lethal: true, win() { merit(3); discoverRelic(0.25); } }); };
+  gd.choices[0].t = '암반 등딱지를 사냥한다 — 승리 시 유물 확정 (원작 유물 25%)';
+})();
+EVENTS.push({ id: 'os_ruin_depths', exile: true, when: [1, 2], w: 0.5,
+  cond: () => S.day >= 3 && Object.keys(RELICS).some(id => RELICS[id].tier === 'canon' && !(S.relics || []).includes(id)),
+  title: '유적의 심층',
+  text: '무너진 지반 아래로 끝없는 계단이 이어진다. 유적이다. 어느 깊이를 넘으면 그 아래는 도시에 속하지 않는다고 한다. 가장 깊은 곳에서 원작 유물의 맥동이 느껴진다. 수호자를 쓰러뜨리면 확정으로 얻는다. 패배 시 사망.',
+  choices: [
+    { t: '심층으로 내려간다 — 유적의 수호자 (원작 유물 확정)', fn() { fight('ruin_warden', { lethal: true, noCow: true, win() { merit(5); discoverRelic(1); } }); } },
+    { t: '돌아선다', def: true, fn() { say('계단 아래의 어둠은 아직 이르다.'); } },
+  ] });
+
+/* =========================================================
+   해결사 협회 — 원작의 12협회 중 업무가 밝혀진 곳을 추가 (나무위키 「해결사(Project Moon 세계관)」 6장 기준)
+   12협회는 이름·업무 불명, 13협회는 발족 준비 중이라 제외. 패시브·카드는 각 협회 업무를 바탕으로 한 게임 각색.
+========================================================= */
+Object.assign(CARDS, {
+  hana_judge: { name: '하나 — 등급 심사', cost: 2, dice: [['참격', 9, 14], ['방어', 7, 11]] },
+  hana_order: { name: '하나 — 총괄 지휘', cost: 1, instant: true, fx: { nextStr: 2, nextEnd: 1, draw: 1 }, desc: '즉시: 다음 막 힘 2·인내 1, 카드 1장' },
+  tres_patent: { name: '트레스 — 특허 검증', cost: 1, dice: [['타격', 6, 10]], onHit: { para: 1 }, desc: '적중 시 마비 1' },
+  tres_proto: { name: '트레스 — 시제품 시험', cost: 2, dice: [['관통', 7, 12], ['관통', 5, 9]] },
+  cinq_duel: { name: '섕크 — 결투 신청', cost: 1, dice: [['참격', 6, 11]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1' },
+  cinq_parry: { name: '섕크 — 받아넘기기', cost: 1, dice: [['회피', 7, 11], ['참격', 5, 9]] },
+  seven_profile: { name: '세븐 — 프로파일링', cost: 0, instant: true, fx: { draw: 2 }, desc: '즉시: 카드 2장 뽑기' },
+  seven_strike: { name: '세븐 — 약점 공략', cost: 1, dice: [['관통', 7, 12]] },
+  eight_harpoon: { name: '에잇 — 작살 투척', cost: 1, dice: [['관통', 7, 12]], onHit: { bleed: 1 }, desc: '적중 시 출혈 1' },
+  eight_sound: { name: '에잇 — 측심', cost: 0, instant: true, fx: { draw: 1, nextEnd: 1 }, desc: '즉시: 카드 1장, 다음 막 인내 1' },
+  devjat_case: { name: '제뱌찌 — 배달 가방 강타', cost: 1, dice: [['타격', 6, 10], ['회피', 5, 9]] },
+  devjat_rush: { name: '제뱌찌 — 약속된 시간', cost: 1, instant: true, fx: { light: 2 }, desc: '즉시: 빛 2 회복' },
+  dieci_key: { name: '디에치 — 황금 열쇠', cost: 1, dice: [['방어', 6, 10]], onUse: { draw: 1 }, desc: '사용 시 카드 1장' },
+  dieci_relic: { name: '디에치 — 성물의 복제품', cost: 2, dice: [['참격', 8, 13], ['관통', 6, 10]], desc: '원작: 디에치 해결사의 제식 무기는 성물의 복제품이자 열화판' },
+  oufi_halberd: { name: '외우피 — 할버드 집행', cost: 2, dice: [['관통', 8, 13], ['참격', 6, 10]] },
+  oufi_contract: { name: '외우피 — 계약 이행', cost: 1, instant: true, fx: { nextStr: 1, nextProt: 2 }, desc: '즉시: 다음 막 힘 1·보호 2' },
+});
+const OUTSKIRTS_MONSTERS = ['gnome', 'toothgear', 'giant', 'os_carapace', 'ruin_warden'];
+Object.assign(AFFS, {
+  hana: { name: '하나 협회', faction: 'assoc', fixer: true, passive: '해결사 업무 총괄(원작: 제1협회) — 의뢰 보수 +30%, 매 막 보호 1·인내 1.',
+    hooks: { payBonus: 0.3, roundStart(P) { P.st.prot += 1; P.st.end += 1; } }, cards: ['hana_judge', 'hana_order'] },
+  tres: { name: '트레스 협회', faction: 'assoc', fixer: true, passive: '공방 발명품 심사(원작: 제3협회) — 공방 카드 30% 할인, 매 막 카드 1장 추가.',
+    hooks: { shopDiscount: 0.3, extraDraw: 1 }, cards: ['tres_patent', 'tres_proto'] },
+  cinq: { name: '섕크 협회', faction: 'assoc', fixer: true, passive: '결투 대리(원작: 제5협회) — 공격 주사위 동률이면 승리, 상대가 하나일 때 공격 위력 +2.',
+    hooks: { tieWin: true, rollBonus(P, d) { return OFF(d[0]) && C && combatEnemies().filter(e => e.hp > 0).length === 1 ? 2 : 0; } }, cards: ['cinq_duel', 'cinq_parry'] },
+  seven: { name: '세븐 협회', faction: 'assoc', fixer: true, passive: '정보 조사·탐정업(원작: 제7협회) — 첫 막에 적의 약점을 파악해 마비 2, 매 막 카드 1장 추가.',
+    hooks: { roundStart(P, E) { if (C.round === 1) combatEnemies().forEach(e => { e.st.para += 2; }); }, extraDraw: 1 }, cards: ['seven_profile', 'seven_strike'] },
+  eight: { name: '에잇 협회', faction: 'assoc', fixer: true, passive: '항해·외곽 탐사(원작: 제8협회, 업무는 추정) — 외곽의 괴물 상대 공격 위력 +3.',
+    hooks: { rollBonus(P, d) { return OFF(d[0]) && C && OUTSKIRTS_MONSTERS.includes(C.E.key || C.key) ? 3 : 0; } }, cards: ['eight_harpoon', 'eight_sound'] },
+  devjat: { name: '제뱌찌 협회', faction: 'assoc', fixer: true, passive: '운송(원작: 제9협회) — 회피 주사위 위력 +3, 도주 성공률 상승.',
+    hooks: { rollBonus(P, d) { return d[0] === '회피' ? 3 : 0; }, flee: 0.9 }, cards: ['devjat_case', 'devjat_rush'] },
+  dieci: { name: '디에치 협회', faction: 'assoc', fixer: true, passive: '지식·유적 탐사(원작: 제10협회) — 유물 발견 시 원작 유물 확률 상승, 매 막 카드 1장 추가.',
+    hooks: { relicFind: 0.2, extraDraw: 1 }, cards: ['dieci_key', 'dieci_relic'] },
+  oufi: { name: '외우피 협회', faction: 'assoc', fixer: true, passive: '거래 중개·규정 위반 제재(원작: 제11협회) — 전투 보상 안 +25%, 사채 이자 없음.',
+    hooks: { moneyMul: 1.25, noInterest: true }, cards: ['oufi_halberd', 'oufi_contract'] },
+});
+ASSOC_KEYS.push('tres', 'cinq', 'seven', 'eight', 'devjat', 'dieci', 'oufi');
+EVENTS.push({ id: 'hana_offer', when: [0, 1], w: 1.2, cond: () => isFixer() && ['fixer', 'assoc'].includes(faction()) && S.aff !== 'hana' && S.grade <= 3,
+  title: '하나 협회의 호출',
+  text: '하나 협회 본부에서 서신이 왔다. 해결사 업무를 총괄하는 제1협회. 3급 이상의 실적을 쌓은 해결사에게만 문이 열린다.',
+  choices: [
+    { t: '하나 협회에 들어간다', fn() { say('하나 협회의 문장이 새겨진 배지를 받았다. 이제 모든 해결사의 기록이 당신의 책상을 거친다.'); S.office = null; changeAff('hana'); } },
+    { t: '사양한다', def: true, fn() { say('"언제든 다시 연락드리죠."'); } },
+  ] });
+
+/* =========================================================
+   해결사 사무소 — 무소속 해결사(또는 면허 없는 잡일꾼)가 사무소에 들어가 일한다
+   사무소 이름은 게임 창작 (원작 사무소의 인물·사건과 겹치지 않도록)
+========================================================= */
+const OFFICE_NAMES = ['은방울', '부엉이', '철쭉', '모래시계', '등대', '물레방아', '바늘', '청동 저울', '회색 우산', '작은 망치', '종이학', '녹슨 열쇠'];
+const OFFICE_TIERS = [
+  { label: '소규모 사무소', wage: 300000, jobs: [['rat', '골목의 쥐떼 소탕', 2], ['kong', '전당포 거리 수금원 정리', 1]] },
+  { label: '중견 사무소', wage: 2000000, jobs: [['thumb', '엄지 하부 조직과의 분쟁', 1], ['smile', '웃는 얼굴들 목격 지역 조사', 1]] },
+  { label: '대형 사무소', wage: 10000000, jobs: [['finger_exec', '손가락 간부 경호 차단', 1], ['twisted', '도시 괴담 원인 제거', 1]] },
+];
+const OFFICE_HOOKS = { payBonus: 0.1, roundStart(P) { if (C.round === 1) P.st.prot += 2; } };
+const inOffice = () => !!(S && S.office && ['fixer', 'street'].includes(S.aff));
+const _H = H;
+H = function () {
+  if (!S) return {};
+  if (S._h) return S._h;
+  const base = _H();
+  if (!inOffice()) return base;
+  const out = { ...base };
+  out.payBonus = (out.payBonus || 0) + OFFICE_HOOKS.payBonus;
+  const rs = out.roundStart; out.roundStart = (...a) => { const r = rs ? rs(...a) : 0; OFFICE_HOOKS.roundStart(...a); return r; };
+  return (S._h = out);
+};
+const _affName = affName;
+affName = function (...args) {
+  if (!args.length && inOffice()) return `${S.office.name} 사무소 ${S.aff === 'street' ? '잡일꾼 (무면허)' : '소속 해결사'}`;
+  return _affName(...args);
+};
+const _passiveText = passiveText;
+passiveText = function () { return _passiveText() + (inOffice() ? `<br>[사무소 「${S.office.name}」 ${OFFICE_TIERS[S.office.tier].label}] 동료의 엄호 — 첫 막 보호 2, 의뢰 보수 +10%, 7일마다 급여` : ''); };
+EVENTS.push(
+  { id: 'office_recruit', when: [0, 1, 2], w: 1.6, cond: () => !S.office && !AFF().locked && ['fixer', 'street'].includes(S.aff),
+    title: '해결사 사무소의 구인',
+    build() {
+      const tier = S.aff === 'street' ? 0 : S.grade <= 2 ? 2 : S.grade <= 5 ? 1 : 0, name = pick(OFFICE_NAMES), t = OFFICE_TIERS[tier];
+      this.text = S.aff === 'street'
+        ? `「${name} 사무소」 문 앞에 구인 쪽지가 붙어 있다. "잡일꾼 구함. 면허 불문." 의뢰 보조와 뒷정리. 해결사는 아니지만, 사무소의 이름이 조금은 방패가 된다.`
+        : `「${name} 사무소」(${t.label})에서 사람을 찾는다. 사무소에 들어가면 배정된 의뢰를 맡고, 7일마다 급여(${won(t.wage)})를 받는다.`;
+      return [
+        { t: `「${name} 사무소」에 들어간다`, fn() { S.office = { name, tier, joined: S.day }; S._h = null; say(`◆ 「${name} 사무소」에 들어갔다. 책상 하나와 낡은 사물함이 생겼다.`, 'l-day'); } },
+        { t: '거절한다', def: true, fn() { say('혼자 일하는 편이 마음 편하다.'); } },
+      ];
+    }, text: '' },
+  { id: 'office_job', when: [0, 1, 2], w: 3, cond: () => inOffice(), title: '사무소 의뢰 배정',
+    build() {
+      const t = OFFICE_TIERS[S.office.tier];
+      this.text = `「${S.office.name} 사무소」 대표가 서류를 건넨다. "이번 건, 자네가 맡아." 사무소 의뢰는 보수가 확실하다.`;
+      return [
+        ...t.jobs.map(([enemy, title, count]) => ({ t: `${title} — 전투`, fn() {
+          fight(enemy, { lethal: S.office.tier >= 1, count, noCow: true, win() { say('사무소에 보고서를 올렸다. 대표가 고개를 끄덕였다.'); gain(pay(t.wage)); merit(2); } });
+        } })),
+        { t: '서류 작업과 뒷정리를 돕는다', def: true, fn() { say('하루 종일 보고서를 정리했다.'); gain(pay(Math.round(t.wage / 5))); merit(1); } },
+      ];
+    }, text: '' },
+  { id: 'office_leave', when: [0, 1, 2], w: 0.5, cond: () => inOffice() && S.day >= (S.office.joined || 0) + 5, title: '사무소를 떠날까',
+    text: '사무소 생활에 익숙해졌다. 하지만 혼자 움직이는 편이 나을 때도 있다.',
+    choices: [
+      { t: '사무소를 그만둔다', fn() { say(`「${S.office.name} 사무소」 사물함을 비웠다.`); S.office = null; S._h = null; } },
+      { t: '남는다', def: true, fn() { say('오늘도 출근했다.'); } },
+    ] },
+);
+
 // 원작 개체: 환상체 문자 등급은 Lobotomy Corporation, 뒤틀림 분류는 Library of Ruina 기준.
 // 숫자 위험도·뒤틀림 문자 등급·전투 및 재등장 방식은 이 게임의 각색이다.
 // 참고: https://lobotomycorporation.wiki.gg/wiki/List_of_Abnormalities
@@ -3137,6 +3367,7 @@ function endTurn() {
   S.turn++;
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
+    if (inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
     if (faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
     print(S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
       : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
@@ -3289,6 +3520,15 @@ function startRound() {
   for (const e of foes) { if (e.d.onRound) e.d.onRound(e, P); if (e.power) e.st.str += e.power; }
   if (H().roundStart) H().roundStart(P, C.E);
   if (S.armor) P.st.prot += S.armor;
+  // 유물: 막 단위 처리
+  P.maxRoll = false; P.cloneAll = false; C.preCancel = new Set();
+  if (H().foresight) {
+    P.overheat = (P.fsUse || 0) >= 3;
+    if (P.overheat) { P.fsUse = 0; P.hp = Math.max(1, P.hp - 5); P.st.para += 1; clog('예지안 과열 — 눈이 타는 듯하고 시야가 붉어진다 (이번 막 예측 정지, 체력 -5, 마비 1)', 'l-bad'); }
+    else P.fsUse = (P.fsUse || 0) + 1;
+  }
+  if (H().equal) for (const e of foes) { e.st.str = 0; e.st.end = 0; e.st.prot = 0; }
+  if (P.laev === 2) { for (const e of foes) e.st.burn += 3; P.st.burn += 1; clog('레바테인의 열기 — 적 전원 화상 3, 자신 화상 1', 'l-sys'); }
   if (C.round > 1) { P.light = Math.min(P.maxLight, P.light + 1); drawCards((P.emoLv > 0 ? 3 : 2) + (H().extraDraw || 0)); }
   C.intents = []; C.intentOwners = [];
   for (const e of foes) {
@@ -3354,6 +3594,21 @@ function applyFx(fx, self, foe) {
   if (fx.draw && self === C.P) drawCards(fx.draw);
   if (fx.selfDmg) { self.hp -= fx.selfDmg; clog(`${self.name} 자신에게 ${fx.selfDmg} 피해`, 'l-bad'); lastStand(self); }
   if (fx.prot) self.st.prot += fx.prot;
+  if (fx.laevUnseal && self === C.P) {
+    if ((self.laev || 0) >= 2) clog('레바테인은 이미 완전히 해방되었다.', 'l-amb');
+    else { self.laev = (self.laev || 0) + 1; clog(self.laev === 1 ? '✦ 봉인 1단계 해제 — 쇳덩어리가 갈라지며 검날이 드러난다 (공격 +3, 적중 시 화상 2)' : '✦ 봉인 2단계 해제 — 레바테인이 열을 뿜는다 (공격 +6, 화상 4, 매 막 적 화상 3 / 자신 화상 1)', 'l-day'); }
+  }
+  if (fx.maxRoll && self === C.P) { self.maxRoll = true; self.fsUse = 3; clog('찰나의 계산 — 이번 막의 모든 주사위가 최대값이 된다. 다음 막 과열', 'l-day'); }
+  if (fx.cancelIntent && self === C.P) {
+    let best = -1, bestSum = -1;
+    C.intents.forEach((c, i) => { if (C.intentOwners[i] !== foe || (C.preCancel || new Set()).has(i)) return; const sum = c.dice.reduce((n, d) => n + d[2], 0); if (sum > bestSum) { bestSum = sum; best = i; } });
+    if (best >= 0) { C.preCancel = C.preCancel || new Set(); C.preCancel.add(best); clog(`동등한 시선 — ${foe.name}의 「${C.intents[best].name}」이(가) 무효화되었다`, 'l-day'); }
+  }
+  if (fx.forget && self === C.P) {
+    const pool = S.deck.filter(id => !CARDS[id].returnHand && !id.startsWith('canon_') && !id.startsWith('relic_'));
+    if (pool.length > 5) { const lost = pick(pool); S.deck.splice(S.deck.indexOf(lost), 1); clog(`기억 휘발 — 「${CARDS[lost].name}」을(를) 영영 잊었다 (덱에서 영구 제거)`, 'l-bad'); stress(4); }
+  }
+  if (fx.cloneAll && self === C.P) self.cloneAll = true;
   if (fx.cleanse) { self.st.bleed = 0; self.st.burn = 0; clog(`${self.name}의 출혈·화상이 사라졌다`, 'l-good'); }
   if (fx.heal) { const v = Math.min(fx.heal, self.maxHp - self.hp); self.hp += v; clog(`${self.name} 체력 +${v}`, 'l-good'); }
   if (fx.nextStr) self.next.str += fx.nextStr;
@@ -3368,14 +3623,35 @@ function applyHit(card, atk, def) {
     const v = Math.round(def.maxHp * h.pctDmg); def.hp -= v; lastStand(def);
     clog(`→ 「${card.name}」 — ${def.name}의 최대 체력 ${Math.round(h.pctDmg * 100)}%, <b>${v}</b> 피해`, def === C.P ? 'l-bad' : 'l-good');
   }
-  for (const k of ['bleed', 'burn', 'para', 'erosion']) if (h[k]) { def.st[k] += h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
-  if (h.healSelf) { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
+  for (const k of ['bleed', 'burn', 'para', 'erosion', 'tremor', 'scar', 'curse']) if (h[k]) { def.st[k] = (def.st[k] || 0) + h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
+  if (h.healSelf) {
+    if (atk.st.scar > 0) clog(`→ 검흔이 ${atk.name}의 회복을 막는다`, 'l-good');
+    else { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
+  }
+}
+// 유물 적중 효과 (플레이어 공격이 적중했을 때마다)
+function relicOnHit(def) {
+  const R = H();
+  if (R.gungnir) {
+    if (def.st.tremor > 0) { const t = def.st.tremor; def.hp -= t; lastStand(def); clog(`→ 궁니르의 떨림 — 진동 ${t} 추가 피해`, 'l-good'); }
+    def.st.tremor = (def.st.tremor || 0) + 2;
+    if (def.st.tremor >= 15) { const t = def.st.tremor; def.hp -= t * 2; stgDmg(def, t * 2); def.st.tremor = 0; clog(`✦ 붕괴 — 쌓인 진동이 ${def.name}을(를) 무너뜨린다 (${t * 2} 피해·흐트러짐)`, 'l-day'); }
+  }
+  if (R.curseOnHit) def.st.curse = (def.st.curse || 0) + R.curseOnHit;
+  if (C.P.laev >= 1) def.st.burn += C.P.laev === 2 ? 4 : 2;
+  if (R.clone && def.hp > 0 && (C.P.cloneAll || Math.random() < R.clone)) {
+    const v = rnd(6, 11) + rankPower(); clog('→ 분신이 뒤따라 벤다', 'l-good'); dmg(def, v, '참격');
+  }
 }
 
 function roll(u, die, foe) {
   const [type, min, max] = die;
   let v;
-  if (u.st.para > 0) { v = min; u.st.para--; } else v = rnd(min, max);
+  if (u.st.para > 0) { v = min; u.st.para--; }
+  else if (u === C.P && u.maxRoll) v = max;
+  else if (u === C.P && H().foresight && !u.overheat) v = Math.max(rnd(min, max), rnd(min, max));
+  else v = rnd(min, max);
+  if (u === C.P && H().laevateinn) v += !u.laev ? (OFF(type) ? 0 : 3) : (OFF(type) ? (u.laev === 2 ? 6 : 3) : 0);
   if (OFF(type)) {
     v += u.st.str;
     if (u.st.bleed > 0) {
@@ -3456,7 +3732,7 @@ async function resolveMassAttack(card) {
     await wait(420);
     clog('광역 합산 「' + card.name + '」 → ' + enemy.name + ': ' + attack + ' vs ' + defense, 'l-choice');
     if (attack > defense) {
-      dmg(enemy, attack, die[0]); applyHit(dieHitCard(card, die), P, enemy);
+      dmg(enemy, attack, die[0]); applyHit(dieHitCard(card, die), P, enemy); relicOnHit(enemy);
       if (index >= 0) C.cancelledIntents.add(index);
     } else clog(enemy.name + '이(가) 광역 공격을 막았다.', 'l-sys');
     renderCombat();
@@ -3466,7 +3742,7 @@ async function clash(pc, ec) {
   const { P, E } = C;
   clog(`⚔ 합: 「${pc.name}」 vs 「${ec.name}」`, 'l-choice');
   if (pc.onUse) applyFx(pc.onUse, P, E);
-  if (ec.onUse) applyFx(ec.onUse, E, P);
+  if (ec.onUse) applyFx(ec.onUse, E, P);   // (적 카드에는 유물 효과가 없다)
   const pd = [...pc.dice], ed = [...ec.dice];
   while (pd.length || ed.length) {
     if (dead()) return;
@@ -3492,8 +3768,8 @@ function clashDie(a, pc, b, ec) {
   clog(`${dieHtml(a, ra)} vs ${dieHtml(b, rb)}`);
   const ao = OFF(a[0]), bo = OFF(b[0]);
   if (ao && bo) {
-    if (ra > rb) { clog('합 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(dieHitCard(pc, a), P, E); gainEmo(1); shiPassive(); }
-    else if (ra === rb && H().tieWin) { clog('결전의 예 — 동률 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(dieHitCard(pc, a), P, E); gainEmo(1); shiPassive(); }
+    if (ra > rb) { clog('합 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(dieHitCard(pc, a), P, E); relicOnHit(E); gainEmo(1); shiPassive(); }
+    else if (ra === rb && H().tieWin) { clog('결전의 예 — 동률 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(dieHitCard(pc, a), P, E); relicOnHit(E); gainEmo(1); shiPassive(); }
     else if (rb > ra) { clog('합 패배', 'l-bad'); dmg(P, rb, b[0]); applyHit(dieHitCard(ec, b), E, P); }
     else clog('상쇄');
   } else if (ao && !bo) attackVsDef(P, a, ra, pc, E, b, rb, true);
@@ -3506,12 +3782,12 @@ function clashDie(a, pc, b, ec) {
 }
 function attackVsDef(atk, ad, ra, acard, def, dd, rd, playerAttacks) {
   if (dd[0] === '방어') {
-    if (ra > rd) { dmg(def, ra - rd, ad[0]); applyHit(dieHitCard(acard, ad), atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); } }
+    if (ra > rd) { dmg(def, ra - rd, ad[0]); applyHit(dieHitCard(acard, ad), atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); relicOnHit(def); } }
     else if (rd > ra) { clog(`방어 성공 — ${atk.name} 흐트러짐 피해 ${rd - ra}`, playerAttacks ? 'l-bad' : 'l-good'); stgDmg(atk, rd - ra); if (!playerAttacks) gainEmo(1); }
     else clog('막아냈다.');
   } else { // 회피
     if (rd >= ra) { clog(`회피 성공 — ${def.name} 흐트러짐 ${rd} 회복`, playerAttacks ? 'l-bad' : 'l-good'); if (!def.staggered) def.stg = Math.min(def.maxStg, def.stg + rd); if (!playerAttacks) gainEmo(1); }
-    else { dmg(def, ra, ad[0]); applyHit(dieHitCard(acard, ad), atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); } }
+    else { dmg(def, ra, ad[0]); applyHit(dieHitCard(acard, ad), atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); relicOnHit(def); } }
   }
 }
 function shiPassive() { if (H().onClashWin) H().onClashWin(C.P, C.E); }
@@ -3521,6 +3797,7 @@ function oneSide(atk, die, card, def) {
   const r = roll(atk, die, def);
   clog(`일방 공격 ${dieHtml(die, r)}`);
   dmg(def, r, die[0]); applyHit(dieHitCard(card, die), atk, def);
+  if (atk === C.P) relicOnHit(def);
 }
 
 const dead = () => C.P.hp <= 0 || C.E.hp <= 0;
@@ -3539,7 +3816,7 @@ async function resolveRoundInner() {
     if (pc.onUse) applyFx(pc.onUse, P, target);
     for (const die of pc.dice) { if (dead() || P.staggered) break; await wait(380); oneSide(P, die, pc, target); renderCombat(); }
   };
-  C.cancelledIntents = new Set();
+  C.cancelledIntents = new Set(C.preCancel || []);
   for (const entry of C.played.filter(p => CARDS[p.id].mass)) {
     if (encounterOver()) break;
     await resolveMassAttack(CARDS[entry.id]);
@@ -3565,12 +3842,14 @@ async function resolveRoundInner() {
     const target = combatEnemies()[card.target];
     await attackAlone(CARDS[card.id], target && target.hp > 0 ? target : combatEnemies().find(e => e.hp > 0));
   }
-  C.played.forEach(p => C.discard.push(p.id)); C.played = [];
+  C.played.forEach(p => { if (CARDS[p.id].returnHand && C.hand.length < 8) { C.hand.push(p.id); clog(`「${CARDS[p.id].name}」 — 손으로 회수했다`, 'l-sys'); } else C.discard.push(p.id); }); C.played = [];
   if (!encounterOver()) {
     await wait(300);
     for (const u of [P, ...combatEnemies().filter(e => e.hp > 0)]) {
       if (u.st.erosion > 0) { const n = u.st.erosion; u.hp -= n; u.st.erosion--; lastStand(u); clog(u.name + ' 침식으로 ' + n + ' 피해', u === P ? 'l-bad' : 'l-good'); }
       if (u.st.burn > 0) { const b = u.st.burn; u.hp -= b; u.st.burn = Math.floor(b / 2); lastStand(u); clog(u.name + ' 화상으로 ' + b + ' 피해', u === P ? 'l-bad' : 'l-good'); }
+      if (u.st.scar > 0) { const n = Math.round(u.maxHp * 0.08 * u.st.scar); u.hp -= n; lastStand(u); clog(u.name + ' 검흔이 타오른다 — ' + n + ' 피해 (사라지지 않는다)', u === P ? 'l-bad' : 'l-good'); }
+      if (u.st.curse > 0) { const n = u.st.curse * 3; u.hp -= n; lastStand(u); clog(u.name + ' 주살로 ' + n + ' 피해', u === P ? 'l-bad' : 'l-good'); }
       if (u.staggered) { u.sr++; if (u.sr >= 2) { u.staggered = false; u.stg = u.maxStg; clog(u.name + ' 흐트러짐에서 회복', 'l-sys'); } }
     }
   }
