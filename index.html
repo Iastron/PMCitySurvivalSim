@@ -5244,7 +5244,7 @@ document.addEventListener('keydown', e => {
 /* ---------- 무작위 출신 결정 ---------- */
 const totalW = ORIGINS.reduce((a, o) => a + o.w, 0);
 const originLabel = o => o.label ? o.label + (o.variant === 'finger' ? ' (엄지·검지·중지·약지·소지)' : o.variant === 'fixer' ? ' (무소속/협회)' : '') : o.name;
-$('#oddsTable').innerHTML = '<table>' + ORIGINS.map(o =>
+$('#oddsTable').innerHTML = '<table>' + [...ORIGINS].sort((x, y) => x.tier - y.tier || y.w - x.w).map(o =>
   `<tr><td><span class="tier tier-${o.tier}">${TIER_NAME[o.tier]}</span></td><td>${originLabel(o)}</td><td>${(o.w / totalW * 100).toFixed(o.w / totalW < 0.01 ? 2 : 1)}%</td></tr>`).join('') + '</table>';
 
 renderHistory();
