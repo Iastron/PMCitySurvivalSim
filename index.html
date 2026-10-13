@@ -3974,6 +3974,9 @@ function trainFoe(extra = {}) {
     : { name: '미쳐버린 승객', desc: `${dayStr(d)}째 같은 칸에 갇힌 승객. 제 내장을 늘어뜨린 채 웃는다. 찢겨도 죽지 못한다.` };
   return { ...o, ...extra };
 }
+// 혈귀는 죽지 않는 존재들 사이에서 오히려 버틴다 — 열차 안에서 받는 정신 압박 절반
+const _stressVamp = stress;
+stress = function (n) { if (n > 0 && S && S.warp && (faction() === 'vampire' || S.vampRank)) n = Math.ceil(n / 2); return _stressVamp(n); };
 const _origWarpFight = fightInTrain;
 // 기존 이벤트들의 'warp_mad' 전투도 단계에 맞춘 이름·설명으로
 fightInTrain = (key, opts = {}) => _origWarpFight(key, key === 'warp_mad' ? trainFoe(opts) : opts);
@@ -4128,9 +4131,9 @@ EVENTS.push(
       return [
         { t: '승객을 붙잡아 피주머니로 만든다 — 매일 피 +1 (열차 안에서는 한도 없음)', fn() {
           S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + 1; S.warp.pouchesMade++; S.warp.yieldMade = (S.warp.yieldMade || 0) + 1;
-          say(`좌석에 묶인 승객의 목에 송곳니를 박았다. 그는 죽지 않는다. (피주머니 ${S.pouches}, 매일 피 +${S.pouchYield})`);
+          say(`좌석에 묶인 승객의 목에 송곳니를 박았다. 그는 죽지 않는다. (피주머니 ${S.pouches}, 매일 피 +${S.pouchYield})`); stress(-8);
         } },
-        { t: '그 자리에서 마신다 — 피 +2, 체력 회복', def: true, fn() { S.blood = (S.blood || 0) + 2; heal(15); say(`목을 물었다. 상처가 금방 아문다. 다시 물었다. (피 ${S.blood})`); } },
+        { t: '그 자리에서 마신다 — 피 +2, 체력 회복', def: true, fn() { S.blood = (S.blood || 0) + 2; heal(15); say(`목을 물었다. 상처가 금방 아문다. 다시 물었다. (피 ${S.blood})`); stress(-12); say('피가 목을 타고 넘어가자, 열차 안의 시간이 조금 멀어졌다.', 'l-sys'); } },
         { t: '저항하는 승객을 사냥한다 — 전투 후 처분', fn() { say('승객 하나가 당신의 송곳니를 보고 달려들었다.', 'l-bad'); S.vpCaptive = CAPTIVES.warp_mad; fightInTrain('warp_mad', { captive: 'warp_mad' }); } },
       ];
     }, text: '' },
@@ -4189,11 +4192,13 @@ EVENTS.push(
   fate.build = function () {
     const ch = ob.call(this);
     if (S.warp) {
+      const fi = ch.findIndex(c => c.t.startsWith('섭취한다'));
+      if (fi >= 0) { const of = ch[fi].fn; ch[fi] = { ...ch[fi], fn() { const r = of.call(this); stress(-12); return r; } }; }
       this.text = this.text.replace(`피주머니 ${S.pouches || 0}/5`, `피주머니 ${S.pouches || 0} · 열차 안에서는 한도 없음`);
       const i = ch.findIndex(c => c.t.startsWith('피주머니로 만든다'));
       if (i >= 0) ch[i] = { t: `피주머니로 만든다 — 매일 피 +${(S.vpCaptive || CAPTIVES.citizen).yield} (열차 안: 한도 없음, 악명 없음)`, fn() {
         const c = S.vpCaptive || CAPTIVES.citizen; S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + c.yield; S.warp.pouchesMade = (S.warp.pouchesMade || 0) + 1; S.warp.yieldMade = (S.warp.yieldMade || 0) + c.yield;
-        say(`${josa(c.label, '을', '를')} 좌석에 묶었다. 죽지 않는 피주머니. (피주머니 ${S.pouches}, 매일 피 +${S.pouchYield})`);
+        say(`${josa(c.label, '을', '를')} 좌석에 묶었다. 죽지 않는 피주머니. (피주머니 ${S.pouches}, 매일 피 +${S.pouchYield})`); stress(-8);
       } };
     }
     return ch;
@@ -4505,7 +4510,7 @@ fight = function (key, opts = {}) {
     C.allies = opts.mates.map(m => ({ kind: 'mate', ...m, hp: m.maxHp }));
     clog(`👥 동료 — ${C.allies.map(a => a.name).join(', ')}`, 'l-sys'); renderCombat(); return;
   }
-  if (!C || S.phase !== 'combat' || faction() !== 'vampire' || C.allies) return;
+  if (!C || S.phase !== 'combat' || !(faction() === 'vampire' || (S.vampRank && (S.thralls || S.pouches))) || C.allies) return;
   const th = Math.min(5, S.thralls || 0), po = Math.min(3, S.pouches || 0);
   const avgPow = th ? (S.thrallPow || 0) / (S.thralls || 1) : 0, avgYield = (S.pouches ? (S.pouchYield || S.pouches) / S.pouches : 1);
   C.allies = [
@@ -4824,7 +4829,7 @@ function endTurn() {
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
     if (!S.warp && inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
-    if ((!S.warp || S.warp.stow) && faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
+    if ((!S.warp || S.warp.stow) && (faction() === 'vampire' || S.vampRank) && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
     print(S.warp ? `열차 안 ${warpInner().toLocaleString()}일째 — 창밖은 여전히 색이 없다.` : S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
       : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
