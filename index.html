@@ -622,6 +622,13 @@ function buildOrigin(o, fingerKey) {
     const deck = r >= 7 ? ['vp_claw', 'vp_claw', 'vp_mist', 'vp_mist', 'shi_flurry', 'md_needle', 'st_feint', 'combo']
       : r >= 4 ? ['vp_claw', 'vp_claw', 'vp_lance', 'vp_lance', 'vp_mist', 'vp_mist', 'hi_vamp', 'combo', 'deflect']
       : ['vp_feast', 'vp_feast', 'vp_claw', 'vp_claw', 'vp_lance', 'vp_lance', 'vp_mist', 'vp_mist', 'flow'];
+    // 덱 크기를 유지하며 피의 연회 1장과 혈무 1장을 해당 권속 전용 책장으로 교체한다.
+    const signature = {
+      1: ['vp_first_banquet', 'vp_first_throne'],
+      2: ['vp_second_impale', 'vp_second_armor'],
+      3: ['vp_third_hunt', 'vp_third_step'],
+    }[r];
+    if (signature) { deck[0] = signature[0]; deck[6] = signature[1]; }
     return { id: 'vampire', tier: o.tier, w: o.w, name: `혈귀 — 제${r}권속`, vampRank: r, aff: 'bloodkin', grade: r,
       hp: r === 1 ? 220 : Math.round((50 + up * 12) * 1.1), stg: r === 1 ? 110 : Math.round((28 + up * 6) * 1.1), light: r === 1 ? 5 : r === 2 ? 4 : 3, money: [0, 3000000000, 1000000000, 300000000, 80000000, 30000000, 10000000, 3000000, 1000000, 300000][r],
       trait: `혈귀 제${r}권속 — 서열은 바뀌지 않는다. 피를 모으고 권속을 거느려 강해진다.${r === 1 ? ' 제1권속: 기본 공격 위력 +3, 방어·회피 위력 +2.' : ' 기본 공격 위력 +1.'}`, deck,
@@ -2155,6 +2162,13 @@ Object.assign(ENEMIES.rift_chefs, { name: '균열의 잔영 — 8인의 셰프 �
    흡혈로 '피'를 모으고, 피를 나눠 권속을 만들어 강해진다.
 ========================================================= */
 Object.assign(CARDS, {
+  // 권속별 전용 책장: 해당 서열의 시작 덱에서만 획득한다.
+  vp_third_hunt: { name: '혈조의 사냥', cost: 2, dice: [['참격', 7, 11], ['관통', 6, 10]], onHit: { bleed: 2 }, desc: '제3권속 전용 · 공격 주사위 적중마다 출혈 2' },
+  vp_third_step: { name: '붉은 안개걸음', cost: 1, dice: [['회피', 7, 11], ['관통', 4, 7]], onUse: { draw: 1 }, desc: '제3권속 전용 · 사용 시 카드 1장 뽑기' },
+  vp_second_impale: { name: '혈형의 꿰뚫기', cost: 3, dice: [['관통', 11, 17], ['관통', 8, 12]], onHit: { bleed: 3, healSelf: 2 }, desc: '제2권속 전용 · 공격 주사위 적중마다 출혈 3, 체력 2 흡수' },
+  vp_second_armor: { name: '응고된 혈갑', cost: 1, dice: [['방어', 9, 14]], onUse: { nextEnd: 2, light: 1 }, desc: '제2권속 전용 · 사용 시 빛 1 회복, 다음 막 인내 2' },
+  vp_first_banquet: { name: '군주의 만찬', cost: 4, dice: [['참격', 12, 18], ['관통', 9, 15], ['참격', 9, 15]], onHit: { bleed: 2, healSelf: 4 }, desc: '제1권속 전용 · 공격 주사위 적중마다 출혈 2, 체력 4 흡수' },
+  vp_first_throne: { name: '진홍의 옥좌', cost: 2, dice: [['방어', 12, 18], ['회피', 9, 14]], onUse: { heal: 12, nextStr: 2 }, desc: '제1권속 전용 · 사용 시 체력 12 회복, 다음 막 힘 2' },
   vp_claw:  { name: '혈귀의 손톱', cost: 1, dice: [['참격', 4, 7], ['참격', 3, 6]], onHit: { healSelf: 1 }, desc: '적중 시 체력 1 흡수' },
   vp_lance: { name: '피의 창', cost: 1, dice: [['관통', 6, 10]], onHit: { bleed: 1 }, desc: '적중 시 출혈 1' },
   vp_mist:  { name: '혈무', cost: 0, dice: [['회피', 4, 8]] },
