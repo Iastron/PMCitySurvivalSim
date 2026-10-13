@@ -696,7 +696,10 @@ function hurt(n, lethal = false) {
   S.hp -= n; say(`체력 -${n}`, 'l-bad'); stress(Math.ceil(n / 2));
   if (S.hp <= 0) { if (lethal) { gameOver('뒷골목에서 숨이 끊어졌다.'); return; } S.hp = 1; say('간신히 의식을 붙잡았다.', 'l-bad'); }
 }
+// 위상이 높을수록 같은 일도 더 큰 실적으로 인정된다 (9급 ×1.0 → 1급 ×3.0). 감점에는 배율 없음
+const meritMul = () => 1 + (9 - S.grade) * 0.25;
 function merit(n) {
+  if (n > 0) n = Math.round(n * meritMul());
   S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
   while (S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
     const tierBefore = fingerTier(S.grade);
