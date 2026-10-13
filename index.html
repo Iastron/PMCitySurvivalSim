@@ -178,6 +178,7 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       <span class="stat"><span id="sRole" class="dim"></span> <b id="sGrade"></b></span>
       <span class="stat">실적 <b id="sMerit"></b></span>
       <button id="cityBtn" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">도시 시설</button>
+      <button id="boardBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--cyan)">의뢰 게시판</button>
       <button id="deckBtn" style="padding:3px 9px;font-size:13px">덱 보기</button>
       <button id="helpBtn" style="padding:3px 9px;font-size:13px">도움말</button>
       <div class="speed">
@@ -1024,6 +1025,8 @@ function renderTop() {
   $('#sPay').innerHTML += S.exiled ? ` <span class="l-bad">[${S.flags.impurity ? '외곽 축출' : '외곽'}]</span>` : S.flags.impurity ? ' <span class="l-bad">[불순물]</span>' : S.flags.taboo ? ` <span class="l-bad">금기 위반 ${S.flags.taboo}/${TABOO_LIMIT}</span>` : '';
   if (monsterAtStar()) $('#sPay').innerHTML += ` <span class="l-bad">하나협회 처치 ${hanaStarKills()}명 · 다음 토벌대 ${hanaSquadSize()}명</span>`;
   if (faction() === 'vampire') $('#sPay').innerHTML += ` <span class="l-bad">피 ${S.blood || 0} · 권속 ${S.thralls || 0}/5(힘 +${S.thrallPow || 0}) · 피주머니 ${S.pouches || 0}(매일 +${S.pouchYield || 0}) · 재해 등급 「${VDIS[vLevel()]}」(${S.notoriety || 0})</span>`;
+  $('#boardBtn').classList.toggle('hidden', !boardAvailable());
+  $('#boardBtn').textContent = S.pendingContract ? '의뢰 게시판 (수락 1)' : '의뢰 게시판';
   if (S.warp) $('#sPay').innerHTML += ` <span class="l-bad">[워프 열차 — 내부 ${warpInner().toLocaleString()} / ${WARP_INNER.toLocaleString()}일, 바깥 ${S.day - S.warp.start}/${WARP_DAYS}일]</span>`;
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
   $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
@@ -3278,6 +3281,63 @@ EVENTS.push(
     ] },
 );
 
+/* ---------- 해결사 의뢰 게시판 메뉴: 고른 의뢰는 다음 턴(뒷골목의 밤 제외)에 진행 ---------- */
+EVENTS.find(e => e.id === 'fixer_contracts').cond = () => false;   // 무작위 이벤트 대신 메뉴로
+const boardAvailable = () => S && isFixer() && !S.warp && !S.exiled && S.phase !== 'over';
+const turnKey = () => S.day * 4 + S.turn;
+function refreshBoard() {
+  const band = contractBand();
+  if (S.board && S.board.day === S.day && S.board.band === band) return;
+  S.board = { day: S.day, band, offers: shuffle(CONTRACT_BANDS[band].list.map((_, i) => i)).slice(0, 5) };
+}
+function boardOpen() {
+  if (!boardAvailable()) return;
+  S.boardPaused = !S.paused; if (!S.paused) setSpeed(0);
+  boardRender();
+}
+function boardClose() { closeModal(); if (S.boardPaused) setSpeed(0); S.boardPaused = false; }
+function boardRender() {
+  refreshBoard();
+  const band = CONTRACT_BANDS[S.board.band], pend = S.pendingContract;
+  let h = `<h3>해결사 의뢰 게시판 — ${band.label} <span class="dim" style="font-size:13px">${rankText()} · 매일 갱신</span></h3>`;
+  h += '<p class="dim" style="font-size:13px">의뢰를 수락하면 다음 턴에 진행한다. 다음 턴이 뒷골목의 밤이면 다음 날 아침으로 미뤄진다. 한 번에 하나만 맡을 수 있다.</p>';
+  if (pend) h += `<p class="l-good">수락한 의뢰: <b>${pend.c.t}</b> — ${S.turn === 3 || turnKey() + 1 > pend.at ? '다음 진행 가능 턴' : '다음 턴'}에 진행</p>`;
+  h += S.board.offers.length ? S.board.offers.map(i => {
+    const c = band.list[i];
+    const tag = c.kind === '전투' ? `[전투${c.lethal ? '·위험' : ''}${c.count > 1 ? ' ×' + c.count : ''}]` : '[일상]';
+    return `<div class="fac-row"><div><b>${tag} ${c.t}</b><div class="dim">보수 ${won(pay(c.money))} · 실적 +${c.merit}${c.kind === '전투' ? ` · 상대: ${ENEMIES[c.enemy].name}${c.lethal ? ' (패배 시 사망)' : ''}` : c.risk ? ' · 분쟁으로 번질 수 있음' : ''}</div></div>
+      <button data-take="${i}" ${pend ? 'disabled' : ''}>수락</button></div>`;
+  }).join('') : '<p class="dim">오늘의 의뢰는 모두 나갔다. 내일 다시 확인하자.</p>';
+  if (pend) h += '<br><button id="boardCancel">수락한 의뢰 취소 (위약금 · 실적 -1)</button>';
+  h += ' <button id="boardCloseBtn">닫기</button>';
+  openModal(h);
+  $('#boardCloseBtn').onclick = boardClose;
+  if ($('#boardCancel')) $('#boardCancel').onclick = () => { contractForfeit(); boardRender(); renderTop(); };
+  document.querySelectorAll('#modalBox button[data-take]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.take, c = band.list[i];
+    S.pendingContract = { c, at: turnKey() + 1 };
+    S.board.offers = S.board.offers.filter(x => x !== i);
+    print(`📋 의뢰 수락 — 「${c.t}」. 다음 턴에 진행한다.`, 'l-choice');
+    boardRender(); renderTop();
+  });
+}
+function contractForfeit() {
+  const c = S.pendingContract.c; S.pendingContract = null;
+  const fee = Math.round(pay(c.money) * 0.1);
+  S.money = Math.max(0, S.money - fee); print(`의뢰 「${c.t}」를 포기했다. 위약금 -${won(fee)}`, 'l-bad');
+  S.merit = Math.max(0, S.merit - 1);
+}
+EVENTS.push({ id: 'contract_run', when: [0, 1, 2], w: 0, cond: () => false, title: '의뢰 수행',
+  build() {
+    const c = S.pendingContract.c;
+    this.title = `의뢰 수행 — ${c.t}`;
+    this.text = `수락했던 의뢰의 날이다. ${c.kind === '전투' ? `상대는 ${ENEMIES[c.enemy].name}${c.count > 1 ? ` ${c.count}명` : ''}.${c.lethal ? ' 패배하면 죽는다.' : ''}` : '오늘 하루는 이 일에 쓴다.'}`;
+    return [
+      { t: `의뢰를 수행한다 — 보수 ${won(pay(c.money))}, 실적 +${c.merit}`, def: true, fn() { S.pendingContract = null; contractChoice(c).fn(); } },
+      { t: '의뢰를 포기한다 — 위약금, 실적 -1', fn() { contractForfeit(); } },
+    ];
+  }, text: '' });
+
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
     text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
@@ -3415,6 +3475,10 @@ EVENTS.push(
 
 function chooseEvent() {
   if (S.flags.crisis && !S.seenToday.includes('crisis')) return EVENTS.find(e => e.id === 'crisis');
+  if (S.pendingContract && !S.warp && !S.exiled && S.turn !== 3 && turnKey() >= S.pendingContract.at && !S.seenToday.includes('contract_run')) {
+    if (!isFixer()) { print(`해결사가 아니게 되어 의뢰 「${S.pendingContract.c.t}」가 취소되었다.`, 'l-sys'); S.pendingContract = null; }
+    else return EVENTS.find(e => e.id === 'contract_run');
+  }
   if (S.warp) {   // 워프 열차 안: 열차 이벤트만
     const wp = EVENTS.filter(e => e.warp && e.when.includes(S.turn) && !S.seenToday.includes(e.id) && (!e.cond || e.cond()));
     const pool = wp.length ? wp : EVENTS.filter(e => e.id === (S.turn === 3 ? 'wp_night' : 'wp_carriage'));
@@ -4232,6 +4296,7 @@ function gameOver(reason) {
 document.querySelectorAll('.speed button').forEach(b => b.onclick = () => setSpeed(+b.dataset.sp));
 $('#deckBtn').onclick = showDeck;
 $('#cityBtn').onclick = cityOpen;
+$('#boardBtn').onclick = boardOpen;
 $('#helpBtn').onclick = showHelp;
 $('#nextBtn').onclick = () => { if (T && T.resolved) { T.timeLeft = 0; $('#nextBtn').classList.add('hidden'); } };
 document.addEventListener('keydown', e => {
