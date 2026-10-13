@@ -81,6 +81,17 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
 /* origin roll */
 .roll-btn{font-size:17px;padding:14px 22px;border-color:var(--gold);color:var(--gold)}
 #rollResult{margin-top:16px}
+.birth-controls{display:flex;align-items:center;gap:8px}
+.birth-controls .roll-btn{min-width:0}
+#rollCountBtn{flex-shrink:0;padding:8px;font-size:13px}
+#rollSettings{margin-top:10px;color:var(--dim)}
+#rollCount{background:var(--panel2);color:var(--text);padding:6px;border:1px solid var(--line);border-radius:6px}
+.candidates{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
+.candidates .origin{max-width:none}
+#historyArea{margin-top:26px;border-top:1px solid var(--line);padding-top:12px}
+#historyArea h2{font-size:18px;color:var(--gold)}
+.history-row{padding:10px 0;border-bottom:1px solid var(--line);line-height:1.7;overflow-wrap:anywhere}
+.history-row .dim{font-size:13px}
 .origin{background:var(--panel);border:2px solid var(--line);border-radius:10px;padding:16px;max-width:640px}
 .origin h2{margin:4px 0 2px;font-size:22px}
 .origin .pas{margin:10px 0;color:var(--cyan);line-height:1.6}
@@ -186,8 +197,9 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       그리고 기억할 것 — <b style="color:var(--red)">오전 3시 13분부터 4시 34분까지, 뒷골목의 밤</b>에는 어떤 규칙도 당신을 지켜주지 않는다.
     </div>
     <div id="rollArea">
-      <button id="rollBtn" class="roll-btn">도시에 태어나기 — 무작위 출신 결정</button>
-      <div id="rollResult"></div>
+      <div class="birth-controls"><button id="rollBtn" class="roll-btn">도시에 태어나기 — 무작위 출신 결정</button><button id="rollCountBtn" class="hidden" aria-label="한 번에 뽑을 출신 개수 설정" aria-expanded="false" aria-controls="rollSettings">×1</button></div>
+      <div id="rollSettings" class="hidden"><label for="rollCount">한 번에 뽑기 </label><select id="rollCount"><option value="1">1명</option><option value="3">3명</option><option value="5">5명</option><option value="10">10명</option></select><span> · 나온 출신 중 하나를 선택합니다.</span></div>
+      <div id="rollResult" aria-live="polite"></div><section id="historyArea" aria-label="최근 플레이 기록"></section>
       <details class="odds"><summary>출신별 확률 보기</summary><div id="oddsTable"></div>
         <p>태어나는 곳도 무작위: 1~25구(A~Y사)의 둥지·뒷골목, 또는 외곽(15%). 머리·날개 소속은 반드시 도시 내부 둥지에서 태어난다.</p></details>
     </div>
@@ -839,7 +851,39 @@ let S = null;   // 플레이어/진행 상태
 let T = null;   // 현재 턴 상태
 let C = null;   // 전투 상태
 
+const HISTORY_KEY = 'pmcity.history.v1';
+const escapeHistory = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let historyRows = [];
+try {
+  const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+  if (Array.isArray(saved)) historyRows = saved.filter(r => r && typeof r.id === 'string' && typeof r.origin === 'string' && Number.isFinite(r.day) && typeof r.updated === 'string').slice(0, 7);
+} catch (_) { /* 저장소를 사용할 수 없어도 플레이는 가능하다. */ }
+let activeHistoryId = null;
+
+function saveHistory(reason) {
+  if (!S || !activeHistoryId) return;
+  const previous = historyRows.find(r => r.id === activeHistoryId);
+  const row = {id:activeHistoryId, origin:S.ch.name, day:S.day, turn:TURNS[S.turn].name,
+    affiliation:affName(), rank:rankText(), merit:S.merit, kills:S.kills, money:S.money,
+    ended:S.phase === 'over', reason:reason ?? previous?.reason ?? '', updated:new Date().toISOString()};
+  historyRows = [row, ...historyRows.filter(r => r.id !== row.id)].slice(0, 7);
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(historyRows)); }
+  catch (_) { /* 저장소 차단 시 이번 실행 동안만 기록을 유지한다. */ }
+}
+function renderHistory() {
+  const e = escapeHistory;
+  $('#historyArea').innerHTML = '<h2>최근 플레이 기록 · 최대 7회</h2><div class="dim">이 브라우저에 저장됩니다. 중단한 삶은 마지막 상태만 기록되며 이어하기는 지원하지 않습니다.</div>' +
+    (historyRows.length ? historyRows.map(r => '<article class="history-row"><b>' + e(r.origin) + '</b> · ' + e(r.day) + '일차 ' + e(r.turn) + ' · ' + (r.ended ? '사망' : '마지막 기록') +
+      '<div class="dim">' + e(r.affiliation) + ' · ' + e(r.rank) + ' · 실적 ' + e(r.merit) + ' · 처치 ' + e(r.kills) + ' · 자금 ' + e(r.money) +
+      '</div>' + (r.reason ? '<div class="dim">' + e(r.reason) + '</div>' : '') + '<div class="dim">' + e(r.updated.replace('T',' ').slice(0,16)) + ' UTC</div></article>').join('') : '<p class="dim">아직 기록이 없습니다. 첫 삶을 시작하면 여러 출신 뽑기가 열립니다.</p>');
+  $('#rollCountBtn').classList.toggle('hidden', !historyRows.length);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveHistory(); });
+window.addEventListener('pagehide', () => saveHistory());
+
 function newGame(ch) {
+  if (ch.colorCard) CARDS.col_sig = JSON.parse(JSON.stringify(ch.colorCard));
+  activeHistoryId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
   S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff, vampRank: ch.vampRank, blood: 0, thralls: 0, gangFinger: ch.gangFinger || pick(GANG_FINGERS),
     deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0,
     loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [], debt: 0, debtDue: 0, press: 0, ego: null, payDay: 0 };
@@ -955,6 +999,7 @@ function merit(n) {
 function addCard(id) { S.deck.push(id); say(`덱에 「${CARDS[id].name}」 추가`, 'l-good'); }
 
 function renderTop() {
+  saveHistory();
   if (!S) return;
   const t = TURNS[S.turn];
   $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${t.name} ${t.time}</span>`;
@@ -3420,6 +3465,7 @@ function showHelp() {
 
 function gameOver(reason) {
   S.phase = 'over';
+  saveHistory(reason);
   $('#day').classList.add('hidden'); $('#combat').classList.add('hidden');
   $('#topbar').classList.add('hidden'); closeModal();
   $('#over').classList.remove('hidden');
@@ -3451,7 +3497,30 @@ const originLabel = o => o.label ? o.label + (o.variant === 'finger' ? ' (엄지
 $('#oddsTable').innerHTML = '<table>' + ORIGINS.map(o =>
   `<tr><td><span class="tier tier-${o.tier}">${TIER_NAME[o.tier]}</span></td><td>${originLabel(o)}</td><td>${(o.w / totalW * 100).toFixed(o.w / totalW < 0.01 ? 2 : 1)}%</td></tr>`).join('') + '</table>';
 
+renderHistory();
+let rollCount = 1;
+$('#rollCountBtn').onclick = () => {
+  const open = $('#rollCountBtn').getAttribute('aria-expanded') !== 'true';
+  $('#rollCountBtn').setAttribute('aria-expanded', String(open));
+  $('#rollSettings').classList.toggle('hidden', !open);
+};
+$('#rollCount').onchange = () => {
+  const n = Number($('#rollCount').value);
+  rollCount = historyRows.length && [1,3,5,10].includes(n) ? n : 1;
+  $('#rollCountBtn').textContent = '×' + rollCount;
+};
+function rollCandidate() {
+  const ch = rollOrigin();
+  ch.loc = rollBirthplace(ch);
+  if (ch.deck.includes('col_sig')) ch.colorCard = JSON.parse(JSON.stringify(CARDS.col_sig));
+  return ch;
+}
 $('#rollBtn').onclick = async () => {
+  if ($('#rollBtn').disabled) return;
+  $('#rollCountBtn').disabled = true;
+  $('#rollCount').disabled = true;
+  $('#rollSettings').classList.add('hidden');
+  $('#rollCountBtn').setAttribute('aria-expanded', 'false');
   $('#rollBtn').disabled = true;
   const box = $('#rollResult');
   // 슬롯머신 연출
@@ -3459,10 +3528,11 @@ $('#rollBtn').onclick = async () => {
     box.innerHTML = `<div class="spin">${originLabel(pick(ORIGINS))}</div>`;
     await sleep(60 + i * 8);
   }
-  const ch = rollOrigin(), a = AFFS[ch.aff];
-  ch.loc = rollBirthplace(ch);
+  const candidates = Array.from({length:historyRows.length ? rollCount : 1}, rollCandidate);
+  box.innerHTML = (candidates.length > 1 ? '<p class="dim">' + candidates.length + '개의 삶 중 하나를 선택하세요. 선택하지 않은 출신은 기록되지 않습니다.</p>' : '') + '<div class="candidates">' + candidates.map((ch, index) => {
+  const a = AFFS[ch.aff];
   const p = (ch.w / totalW * 100);
-  box.innerHTML = `<div class="origin t${ch.tier}">
+  return `<div class="origin t${ch.tier}">
     <span class="tier tier-${ch.tier}">${TIER_NAME[ch.tier]}</span> <span class="dim" style="font-size:12px">확률 ${p.toFixed(p < 1 ? 2 : 1)}%</span>
     <h2>${ch.name}</h2>
     <div class="dim">소속: <b style="color:var(--text)">${ch.affTitle || (ch.vampRank ? `혈귀 — 제${ch.vampRank}권속` : affName(ch.aff, ch.grade, ch.gangFinger))}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
@@ -3471,9 +3541,18 @@ $('#rollBtn').onclick = async () => {
     <div style="margin-top:10px;line-height:1.7">${ch.intro}</div>
     <div class="pas">[출신] ${ch.trait}<br>[소속] ${a.passive}</div>
     <div class="dim" style="font-size:13px">체력 ${ch.hp} · 흐트러짐 ${ch.stg} · 빛 ${Math.max(ch.light || 3, a.light || 0)} · 자금 ${won(ch.money)}${a.home ? ' · 거처 있음' : ''}</div>
-    <div class="mini">${[...new Set(ch.deck)].map(id => `<span>${CARDS[id].name}</span>`).join('')}</div>
-    <button id="startBtn" style="margin-top:10px;border-color:var(--gold)">이 삶으로 시작한다</button></div>`;
-  $('#startBtn').onclick = () => newGame(ch);
+    <div class="mini">${[...new Set(ch.deck)].map(id => `<span>${(id === 'col_sig' && ch.colorCard ? ch.colorCard : CARDS[id]).name}</span>`).join('')}</div>
+    <button data-candidate="${index}" style="margin-top:10px;border-color:var(--gold)">이 삶으로 시작한다</button></div>`;
+  }).join('') + '</div>';
+  let chosen = false;
+  box.querySelectorAll('[data-candidate]').forEach(button => {
+    button.onclick = () => {
+      if (chosen) return;
+      chosen = true;
+      box.querySelectorAll('[data-candidate]').forEach(b => b.disabled = true);
+      newGame(candidates[Number(button.dataset.candidate)]);
+    };
+  });
 };
 </script>
 </body>
