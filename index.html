@@ -3726,10 +3726,10 @@ EVENTS.push(
   { id: 'wp_arrival', warp: true, when: [0, 1, 2, 3], w: 100, cond: () => S.warp && S.warp.arrived, title: '정리 작업',
     build() {
       const st = W_STATUS[S.warp.status], g = pick(st.grades);
-      const who = st.key === '탈선' ? 'R사 토끼팀' : g === 4 ? 'W사 4등급 정리 요원 - CCA' : `W사 ${g}등급 정리 요원`;
+      const who = st.key === '탈선' ? 'R사 토끼팀' : g >= 4 ? `W사 ${g}등급 정리 요원 - CCA` : `W사 ${g}등급 정리 요원`;
       this.text = `열차 상황 분류: 「${st.key}」 — ${st.desc}. ${josa(who, '이', '가')} 들어와 승객들의 살점을 검사기로 찍어 하나하나 제자리에 맞춘다. 정리가 끝나면 '현상 복구'가 시작된다. 모든 것이 출발 직전으로 돌아가고, 아무것도 기억하지 못하게 된다.`;
-      const enemy = st.key === '탈선' ? 'r_rabbit' : g === 4 ? 'w_cca' : 'w_agent';
-      const scale = st.key === '탈선' ? {} : g === 4 ? {} : { name: who, hpMul: 0.6 + g * 0.3, power: Math.max(0, g - 2), count: g <= 2 ? 2 : 1,
+      const enemy = st.key === '탈선' ? 'r_rabbit' : g === 4 ? 'w_cca' : g === 5 ? 'w_cca5' : 'w_agent';
+      const scale = st.key === '탈선' ? {} : g >= 4 ? {} : { name: who, hpMul: 0.6 + g * 0.3, power: Math.max(0, g - 2), count: g <= 2 ? 2 : 1,
         desc: g >= 5 ? '1급 해결사 혹은 그 이상의 위협을 맡는 5등급 정리 요원.' : ENEMIES.w_agent.desc };
       return [
         { t: '정리 작업을 받아들인다 — 현상 복구 (열차 안의 모든 것을 잊는다)', def: true, fn() { finishWarp(true); } },
@@ -4013,6 +4013,12 @@ ENEMIES.w_cca = { elite: true, name: 'W사 4등급 정리 요원 - CCA',
     { name: 'CCA 과충전', dice: [['방어', 3, 13]] },
   ] };
 CAPTIVES.w_cca = { label: 'CCA 정리 요원', pow: 4, yield: 3, feed: 4 };
+// 5등급 — 1급 해결사 혹은 그 이상의 위협('결항'·'탈선')을 맡는 정리 요원이 CCA를 장착한 경우
+ENEMIES.w_cca5 = { ...ENEMIES.w_cca, name: 'W사 5등급 정리 요원 - CCA', hp: 380, stg: 150, light: 6, lightRegen: 3,
+  desc: '컨제스천 클리닝 아머를 장착한 5등급 정리 요원. 평소엔 1급 해결사 이상의 위협을 맡는 「결항」·「탈선」 열차에 투입된다.',
+  passive: '컨제스천 클리닝 아머 · 방어지향 충전 — 매 막 충전이 쌓여 보호(최대 8)를 얻고, 2막마다 과충전으로 힘 +2',
+  onRound: e => { e.chg = (e.chg || 0) + 1; e.st.prot += Math.min(8, e.chg + 1); if (e.chg % 2 === 0) e.st.str += 2; } };
+CAPTIVES.w_cca5 = { label: '5등급 CCA 정리 요원', pow: 5, yield: 4, feed: 5 };
 const stowTrain = () => !!(S.warp && S.warp.stow && !S.warp.arrived);   // 정체를 숨기고 탄 혈귀·특색
 const vampTrain = () => stowTrain() && S.warp.stow === 'vamp';
 // 추격 확률: 열차 안 시간이 길어질수록 오른다 (첫날 거의 없음 → 3만 일 무렵 대부분)
@@ -4102,11 +4108,13 @@ EVENTS.push(
       }
       if (S.warp.stow === 'color') {   // 특색의 부정 승차 — 고등급 CCA 정리 요원
         const cnt = p < 0.2 ? 1 : p < 0.6 ? 2 : 3;
-        const who = `W사 4등급 정리 요원 - CCA${cnt > 1 ? ' ' + cnt + '명' : ''}`;
-        this.text = `열차 안 ${dayStr(d)}째. 안내 방송: "4등급 정리 요원의, 컨제스천 클리닝 아머 장착이 허가되었습니다." 객차 문이 열리고 아머의 구동음이 들린다. ${josa(who, '이', '가')} 들어온다. "다른 칸까지 물러나 있어. 이 새끼… 부정 승차자다."`;
+        const n5 = p < 0.35 ? 0 : p < 0.7 ? 1 : cnt;   // 오래 머물수록 5등급 CCA 요원이 섞인다
+        const team = [...Array(n5).fill('w_cca5'), ...Array(cnt - n5).fill('w_cca')];
+        const who = n5 === cnt ? `W사 5등급 정리 요원 - CCA${cnt > 1 ? ' ' + cnt + '명' : ''}` : n5 ? `W사 5등급·4등급 정리 요원 - CCA ${cnt}명` : `W사 4등급 정리 요원 - CCA${cnt > 1 ? ' ' + cnt + '명' : ''}`;
+        this.text = `열차 안 ${dayStr(d)}째. 안내 방송: "${n5 ? '5' : '4'}등급 정리 요원의, 컨제스천 클리닝 아머 장착이 허가되었습니다." 객차 문이 열리고 아머의 구동음이 들린다. ${josa(who, '이', '가')} 들어온다. "다른 칸까지 물러나 있어. 이 새끼… 부정 승차자다."`;
         return [
           { t: `맞선다 — ${who} (패배하면 제압 — 기억 소거)`, fn() {
-            refuse(); fight('w_cca', { count: cnt, captive: 'w_cca',
+            refuse(); fight(team[0], { enemies: team, captive: team[0],
               noCow: true, noRob: true, lethal: false, hpMul: 1 + p * 0.6, power: Math.floor(p * 3),
               win() { merit(3); say('CCA의 동력이 바닥나는 소리. 정리 요원들이 무릎을 꿇었다.'); }, lose() { stowSubdued(); } });
           } },
@@ -4115,8 +4123,8 @@ EVENTS.push(
         ];
       }
       const hana = p < 0.3 ? 'hana_low' : p < 0.7 ? 'hana_mid' : 'hana_high';
-      const team = [hana, p < 0.7 ? 'w_agent' : 'w_cca', hana].slice(0, n);
-      const who = n === 1 ? '하나 협회 해결사 한 명' : n === 2 ? '하나 협회 해결사와 W사 정리 요원' : '하나 협회 토벌대와 CCA를 장착한 W사 4등급 정리 요원';
+      const team = [hana, p < 0.7 ? 'w_agent' : p < 0.9 ? 'w_cca' : 'w_cca5', hana].slice(0, n);
+      const who = n === 1 ? '하나 협회 해결사 한 명' : n === 2 ? '하나 협회 해결사와 W사 정리 요원' : `하나 협회 토벌대와 CCA를 장착한 W사 ${p < 0.9 ? 4 : 5}등급 정리 요원`;
       this.text = `열차 안 ${dayStr(d)}째. 객차 문이 바깥에서 열린다 — 이 열차에 "바깥"이 있다면. ${josa(who, '이', '가')} 들어온다. "혈귀 탑승 신고. 열차 안 체류 ${dayStr(d)}. 정리합니다."`;
       return [
         { t: `맞선다 — ${who} (패배하면 제압 — 기억 소거)`, fn() {
