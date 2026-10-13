@@ -1851,8 +1851,10 @@ EVENTS.push(
       ];
     }, text: '' },
 );
+// 혈귀도 손님으로서 도서관·균열에 들어갈 수 있다
+EVENTS.find(e => e.id === 'rift').vampOK = true;
 // 도서관: 접대 상대를 고른다
-Object.assign(EVENTS.find(e => e.id === 'library'), {
+Object.assign(EVENTS.find(e => e.id === 'library'), { vampOK: true,
   build() {
     this.text = '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 초대장 뒷면에 접대를 맡을 사서들의 이름이 적혀 있다. 패배한 손님은 책이 된다.';
     const go = (enemy, card, line) => () => {
@@ -2024,7 +2026,7 @@ EVENTS.push(
   { id: 'os_library', exile: true, when: [1, 2], w: 1.5, cond: () => faction() !== 'library', title: '황무지의 도서관',
     text: '황무지 한가운데 거대한 건물이 서 있다. 도시에서 축출된 도서관이다. 문 앞에서 갈색 머리의 사서가 당신을 내려다본다. "불순물이 또 하나 왔군. 손님인가, 동료인가?"',
     choices: [
-      { t: '도서관에 합류한다 — 사서가 된다 (소속 변경 불가)', req: () => !AFF().locked, reqText: '소속을 바꿀 수 없다', fn() {
+      { t: '도서관에 합류한다 — 사서가 된다 (소속 변경 불가)', req: () => !AFF().locked, get reqText() { return faction() === 'vampire' ? '혈귀는 손님으로만 받는다' : '소속을 바꿀 수 없다'; }, fn() {
         say('관장이 당신을 받아들였다. 이제 당신은 도서관의 사서다. 도시가 버린 것들의 이야기를 지킨다.');
         S.flags.libraryJoined = true; changeAff('library');
       } },
@@ -2341,7 +2343,7 @@ function chooseEvent() {
   const f = faction();
   let pool = EVENTS.filter(e => !e.chainOnly && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
     && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.origin || e.origin.includes(S.ch.id))
-    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted'))) && (f !== 'vampire' || (e.fac && e.fac.includes('vampire'))) && !e.exile
+    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted'))) && (f !== 'vampire' || (e.fac && e.fac.includes('vampire')) || e.vampOK) && !e.exile
     && (!e.cond || e.cond()));
   if (!pool.length) pool = EVENTS.filter(e => e.id === (f === 'twisted' ? 'tw_memory' : f === 'vampire' ? (S.turn === 3 ? 'vp_night' : 'vp_lurk') : 'rest'));
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total;
