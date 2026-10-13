@@ -4485,6 +4485,65 @@ chooseEvent = function () {
 // 일반 이벤트 풀에서 업무 이벤트는 빼 둔다
 EVENTS.filter(e => e.wjob).forEach(e => { const oc = e.cond; e.cond = () => onShift() && (!oc || oc()); });
 
+/* ---------- 혈귀의 동행 — 권속(최대 5)과 피주머니(전투당 최대 3)가 함께 싸운다.
+   권속: 매 막 끝에 적을 공격한다. 피주머니: 주인의 체력이 60% 아래면 피를 내어준다(막당 1회).
+   적은 막마다 동행을 노릴 수 있고, 쓰러진 권속·피주머니는 돌아오지 않는다 ---------- */
+const _fightAllies = fight;
+fight = function (key, opts = {}) {
+  _fightAllies(key, opts);
+  if (!C || S.phase !== 'combat' || faction() !== 'vampire' || C.allies) return;
+  const th = Math.min(5, S.thralls || 0), po = Math.min(3, S.pouches || 0);
+  const avgPow = th ? (S.thrallPow || 0) / (S.thralls || 1) : 0, avgYield = (S.pouches ? (S.pouchYield || S.pouches) / S.pouches : 1);
+  C.allies = [
+    ...Array.from({ length: th }, (_, i) => ({ kind: 'thrall', name: `권속 #${i + 1}`, maxHp: Math.round(40 + avgPow * 15), pow: avgPow })),
+    ...Array.from({ length: po }, (_, i) => ({ kind: 'pouch', name: `피주머니 #${i + 1}`, maxHp: 30, yield: avgYield })),
+  ].map(a => ({ ...a, hp: a.maxHp }));
+  if (C.allies.length) { clog(`🩸 동행 — 권속 ${th} · 피주머니 ${po}${(S.pouches || 0) > 3 ? ` (전투당 최대 3, 나머지 ${S.pouches - 3}은 은신처에)` : ''}`, 'l-sys'); renderCombat(); }
+};
+function alliesPhase() {
+  const al = (C.allies || []).filter(a => a.hp > 0); if (!al.length) return;
+  const P = C.P, foes = () => combatEnemies().filter(e => e.hp > 0);
+  // 권속의 공격
+  for (const a of al.filter(a => a.kind === 'thrall')) {
+    const t = pick(foes()); if (!t) break;
+    const v = rnd(4, 9) + Math.round(a.pow * 2) + Math.floor(rankPower() / 2);
+    clog(`🩸 ${a.name}이(가) ${t.name}에게 달려든다`, 'l-choice'); dmg(t, v, pick(['참격', '관통', '타격']));
+  }
+  // 피주머니 — 주인에게 피를 내어준다 (막당 1회)
+  const bag = al.find(a => a.kind === 'pouch' && a.hp > 0);
+  if (bag && P.hp > 0 && P.hp < P.maxHp * 0.6) {
+    const v = Math.min(P.maxHp - P.hp, 10 + Math.round(bag.yield * 4)); P.hp += v; bag.hp -= 12;
+    clog(`🩸 ${bag.name}의 목을 물었다 — 체력 +${v}`, 'l-good');
+  }
+  // 적이 동행을 노린다
+  for (const e of foes()) {
+    if (e.staggered || Math.random() > 0.3) continue;
+    const t = pick((C.allies || []).filter(a => a.hp > 0)); if (!t) break;
+    const v = rnd(5, 10) + (e.power || 0) * 2; t.hp -= v;
+    clog(`→ ${e.name}이(가) ${t.name}을(를) 공격 — ${v} 피해`, 'l-bad');
+  }
+  for (const a of C.allies) if (a.hp <= 0 && !a.dead) {
+    a.dead = true;
+    if (a.kind === 'thrall') { S.thralls = Math.max(0, (S.thralls || 0) - 1); S.thrallPow = Math.max(0, (S.thrallPow || 0) - Math.round(a.pow)); clog(`✝ ${a.name}이(가) 쓰러졌다. 다시 일어나지 않는다. (권속 ${S.thralls})`, 'l-bad'); }
+    else { S.pouches = Math.max(0, (S.pouches || 0) - 1); S.pouchYield = Math.max(0, (S.pouchYield || 0) - Math.round(a.yield)); clog(`✝ ${a.name}이(가) 말라붙었다. (피주머니 ${S.pouches})`, 'l-bad'); }
+  }
+}
+const _startRoundAllies = startRound;
+startRound = function () {
+  if (C && C.round > 0 && C.allies) {
+    alliesPhase();
+    if (C.P.hp > 0 && combatEnemies().every(e => e.hp <= 0)) return endCombat(true);
+  }
+  _startRoundAllies();
+};
+const _renderCombatAllies = renderCombat;
+renderCombat = function () {
+  _renderCombatAllies();
+  if (!C || !C.allies || !C.allies.length) return;
+  $('#pBox').innerHTML += `<div class="allies" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${C.allies.map(a =>
+    `<span class="dim" style="font-size:12px;border:1px solid var(--line);border-radius:4px;padding:2px 6px;${a.hp <= 0 ? 'opacity:.4;text-decoration:line-through' : ''}">${a.kind === 'thrall' ? '🧛' : '🩸'} ${a.name} ${Math.max(0, a.hp)}/${a.maxHp}</span>`).join('')}</div>`;
+};
+
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
     text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
