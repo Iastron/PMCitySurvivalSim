@@ -623,7 +623,7 @@ function buildOrigin(o, fingerKey) {
       : r >= 4 ? ['vp_claw', 'vp_claw', 'vp_lance', 'vp_lance', 'vp_mist', 'vp_mist', 'hi_vamp', 'combo', 'deflect']
       : ['vp_feast', 'vp_feast', 'vp_claw', 'vp_claw', 'vp_lance', 'vp_lance', 'vp_mist', 'vp_mist', 'flow'];
     return { id: 'vampire', tier: o.tier, w: o.w, name: `혈귀 — 제${r}권속`, vampRank: r, aff: 'bloodkin', grade: r,
-      hp: 60 + up * 18, stg: 32 + up * 8, light: r <= 2 ? 5 : r <= 4 ? 4 : 3, money: [0, 3000000000, 1000000000, 300000000, 80000000, 30000000, 10000000, 3000000, 1000000, 300000][r],
+      hp: 50 + up * 12, stg: 28 + up * 6, light: r <= 2 ? 4 : 3, money: [0, 3000000000, 1000000000, 300000000, 80000000, 30000000, 10000000, 3000000, 1000000, 300000][r],
       trait: `혈귀 제${r}권속 — 서열은 바뀌지 않는다. 피를 모으고 권속을 거느려 강해진다.`, deck,
       intro: r === 1 ? '장로 바로 아래, 혈귀들의 정점에 가까운 자리. 도시의 음지가 당신의 영지다.'
         : r <= 4 ? '수많은 권속을 거느린 고위 혈귀. 둥지의 호텔에서 피와 돈을 함께 받는다.'
@@ -854,7 +854,7 @@ function hurt(n, lethal = false) {
   if (S.hp <= 0) { if (lethal) { gameOver('뒷골목에서 숨이 끊어졌다.'); return; } S.hp = 1; say('간신히 의식을 붙잡았다.', 'l-bad'); }
 }
 // 위상 보정: 높은 위상일수록 모든 주사위 위력 상승 (9급 +0 → 1급 +4)
-const rankPower = () => Math.floor((9 - S.grade) / 2);
+const rankPower = () => Math.floor((9 - S.grade) / (S && faction() === 'vampire' ? 4 : 2));
 // 위상이 높을수록 같은 일도 더 큰 실적으로 인정된다 (9급 ×1.0 → 1급 ×3.0). 감점에는 배율 없음
 const meritMul = () => 1 + (9 - S.grade) * 0.25;
 function merit(n) {
@@ -2152,15 +2152,15 @@ Object.assign(ENEMIES.rift_chefs, { name: '균열의 잔영 — 8인의 셰프 �
    흡혈로 '피'를 모으고, 피를 나눠 권속을 만들어 강해진다.
 ========================================================= */
 Object.assign(CARDS, {
-  vp_claw:  { name: '혈귀의 손톱', cost: 1, dice: [['참격', 5, 9], ['참격', 5, 9]], onHit: { healSelf: 2 }, desc: '적중 시 체력 2 흡수' },
-  vp_lance: { name: '피의 창', cost: 1, dice: [['관통', 8, 13]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2' },
-  vp_mist:  { name: '혈무', cost: 0, dice: [['회피', 6, 10]] },
-  vp_feast: { name: '피의 연회', cost: 3, dice: [['참격', 7, 12], ['참격', 7, 12], ['참격', 7, 12]], onHit: { healSelf: 4 }, desc: '적중 시 체력 4 흡수' },
+  vp_claw:  { name: '혈귀의 손톱', cost: 1, dice: [['참격', 4, 7], ['참격', 3, 6]], onHit: { healSelf: 1 }, desc: '적중 시 체력 1 흡수' },
+  vp_lance: { name: '피의 창', cost: 1, dice: [['관통', 6, 10]], onHit: { bleed: 1 }, desc: '적중 시 출혈 1' },
+  vp_mist:  { name: '혈무', cost: 0, dice: [['회피', 4, 8]] },
+  vp_feast: { name: '피의 연회', cost: 3, dice: [['참격', 6, 10], ['참격', 5, 9], ['참격', 5, 9]], onHit: { healSelf: 2 }, desc: '적중 시 체력 2 흡수' },
 });
 Object.assign(AFFS, {
   bloodkin: { name: '혈귀', faction: 'vampire', locked: true,
     passive: '혈귀 — 적중 시 흡혈 2. 모은 피 3마다, 거느린 권속 1마다 공격 위력 +1 (권속 최대 5). 권속 서열은 바뀌지 않는다.',
-    hooks: { vamp: 2, rollBonus(P, d) { return OFF(d[0]) ? Math.min(5, S.thralls || 0) + Math.floor((S.blood || 0) / 3) : 0; } } },
+    hooks: { vamp: 1, rollBonus(P, d) { return OFF(d[0]) ? Math.min(4, S.thrallPow || 0) + Math.min(2, Math.floor((S.blood || 0) / 5)) : 0; } } },
 });
 EVENTS.push(
   { id: 'vp_feed', fac: ['vampire'], when: [0, 1, 2, 3], w: 3, title: '갈증',
@@ -2219,12 +2219,16 @@ Object.assign(ENEMIES, {
 EVENTS.push(
   { id: 'vp_hunters', fac: ['vampire'], when: [0, 1, 2, 3], w: 0, cond: () => false, title: '토벌대',
     build() {
-      const l = vLevel(), enemy = l >= 5 ? 'color_rival' : l === 4 ? 'hana_high' : l === 3 ? 'hana_mid' : 'hana_low';
+      const l = vLevel(), enemy = l >= 5 ? ((S.flags.starWins || 0) >= 2 ? 'color_rival' : 'hana_high') : l === 4 ? 'hana_high' : l === 3 ? 'hana_mid' : 'hana_low';
       this.text = `하나 협회의 의뢰서에 당신의 얼굴이 실렸다. 재해 등급 「${VDIS[l]}」. ${josa(ENEMIES[enemy].name, '이', '가')} 당신의 은신처를 찾아냈다.`;
       return [
         { t: '맞선다', def: true, fn() {
           S.flags.vHunt = false;
-          fight(enemy, { lethal: true, win() { say('해결사들의 피를 마셨다. 도시는 더 강한 자를 보낼 것이다.'); S.blood = (S.blood || 0) + 2; infamy(2, '토벌대 전멸'); } });
+          fight(enemy, { lethal: true, win() {
+            say('해결사들의 피를 마셨다. 도시는 더 강한 자를 보낼 것이다.'); S.blood = (S.blood || 0) + 2; infamy(2, '토벌대 전멸');
+            if (vLevel() >= 5 && enemy === 'hana_high') { S.flags.starWins = (S.flags.starWins || 0) + 1;
+              if (S.flags.starWins >= 2) say('하나 협회가 결단을 내렸다. 다음에는 색을 받은 자가 온다.', 'l-bad'); }
+          } });
         } },
         { t: '피 2를 써서 안개처럼 흩어진다', req: () => (S.blood || 0) >= 2, reqText: '피 부족', fn() {
           S.flags.vHunt = false; S.blood -= 2; say('몸이 붉은 안개가 되어 하수구로 스며들었다. 해결사들은 빈 방만 발견했다.');
@@ -2301,8 +2305,8 @@ Object.assign(EVENTS.find(e => e.id === 'vp_pouch'), {
     ];
   } });
 // 권속의 힘은 권속 수가 아니라 권속이 된 자의 강함으로 (최대 8)
-AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 2. 모은 피 3마다 +1, 거느린 권속의 힘만큼 공격 위력 상승(최대 +8). 권속 서열은 바뀌지 않는다.';
-AFFS.bloodkin.hooks.rollBonus = (P, d) => OFF(d[0]) ? Math.min(8, S.thrallPow || 0) + Math.floor((S.blood || 0) / 3) : 0;
+AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 1. 모은 피 5마다 +1(최대 +2), 거느린 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.';
+AFFS.bloodkin.hooks.rollBonus = (P, d) => OFF(d[0]) ? Math.min(4, S.thrallPow || 0) + Math.min(2, Math.floor((S.blood || 0) / 5)) : 0;
 
 /* =========================================================
    턴 진행 (자동 진행 + 제한시간)
