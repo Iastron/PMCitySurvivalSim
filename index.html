@@ -1586,11 +1586,25 @@ EVENTS.push(
    출생지 — 1~25구(A~Y사)의 둥지/뒷골목, 또는 외곽
    머리·날개 소속은 반드시 도시 내부(둥지)에서 태어난다
 ========================================================= */
-const WING_NOTE = {
-  A: '머리의 둥지', B: '머리의 둥지', C: '머리의 둥지', D: '빈민가가 펼쳐진 4구', H: '동부풍의 홍원', I: '피아니스트가 휩쓸고 간 음악의 골목',
-  J: '카지노의 둥지', K: 'HP 앰플의 둥지', L: '몰락한 로보토미의 둥지', N: '망치와 못의 둥지', R: '사육제의 둥지',
-  T: '색을 잃은 공장의 둥지', U: '대호수의 항구', V: '우는 아이가 지나간 22구', W: '워프 열차의 둥지', Y: '가장 북쪽, 추운 25구',
+// 정식 사명 — 나무위키 「날개(Project Moon 세계관)/목록」 기준. 정식 사명이 밝혀지지 않은 날개는 'X사'로만 표기한다
+const WING_NAME = {
+  H: '홍원생명공학그룹', L: 'Lobotomy Corporation', M: 'MDM Entreprise', N: 'Nagel und Hammer',
+  S: '살피뼈 농축산', T: 'Time Track', W: 'Warp Corporation',
 };
+// 업종 · 특이점 (같은 문서 기준, 불명이면 불명)
+const WING_NOTE = {
+  A: '머리 · 조율자 — 조세·입법·행정·사법', B: '머리 · 눈 — 감시, 특이점 응시(추정)', C: '머리 · 발톱 — 군사·세무, 특이점 혈청(추정)',
+  D: '업종·특이점 불명', E: '업종·특이점 불명', F: '제조업 · 특이점: 요정', G: '제조업 · 특이점: 구(중력)',
+  H: '제약업·보험업 · 특이점: 환', I: '업종·특이점 불명', J: '제조업·유흥업 · 특이점: 자물쇠',
+  K: '제약업·축산업 · 특이점: 세포 자생 나노머신', L: '에너지 기업 · 엔케팔린 — 몰락 후 L사 자리는 공석',
+  M: '원자재 유통업·의료업(정신과) · 특이점: 월광석', N: '제조업(추정)·관광업 · 특이점: 기억 추출 및 주입',
+  O: '업종·특이점 불명', P: '가공식품·건설업 · 특이점: 공간 확장 왜곡', Q: '제조업(추정) · 특이점: 괴문자',
+  R: '민간군사기업 · 특이점: 복제인간 생산', S: '농업·축산업 · 특이점 불명', T: '제조업 · 특이점: 시간 조작',
+  U: '수산업·관광업·제조업 · 특이점: 현상 보존 포장, 공명 굽쇠', V: '업종·특이점 불명',
+  W: '운송업 · 특이점: 공간이동', X: '중공업·광업 · 특이점: 특수 합금(추정)', Y: '도시 최북단의 추운 둥지 · 업종·특이점 불명',
+};
+const wingName = L => `${L}사${WING_NAME[L] ? '(' + WING_NAME[L] + ')' : ''}`;
+const cityLabel = (n, area) => { const L = String.fromCharCode(64 + n); return `${n}구 ${wingName(L)} ${area}`; };
 function rollBirthplace(ch) {
   if (ch.forceOutskirts) return { area: 'outskirts', label: '외곽', note: '괴물과 버려진 것들이 득실거리는 도시 바깥' };
   const f = AFFS[ch.aff].faction;
@@ -1601,7 +1615,7 @@ function rollBirthplace(ch) {
   if (inside) area = '둥지';
   else if (['street', 'gang'].includes(f)) area = '뒷골목';
   else area = Math.random() < 0.5 ? '둥지' : '뒷골목';
-  return { area, n, letter: L, label: `${n}구 ${L}사 ${area}`, note: WING_NOTE[L] || '' };
+  return { area, n, letter: L, label: cityLabel(n, area), note: WING_NOTE[L] || '' };
 }
 
 /* =========================================================
@@ -2321,7 +2335,7 @@ EVENTS.push(
         { t: imp ? '도시로 돌아간다 — 조율자와 다시 마주한다' : '도시로 돌아간다', fn() {
           S.exiled = false;
           if (S.cityLoc && S.cityLoc.area !== 'outskirts') S.loc = S.cityLoc;
-          else { const n = rnd(1, 25), L = String.fromCharCode(64 + n); S.loc = { area: '뒷골목', n, letter: L, label: `${n}구 ${L}사 뒷골목`, note: WING_NOTE[L] || '' }; }
+          else { const n = rnd(1, 25), L = String.fromCharCode(64 + n); S.loc = { area: '뒷골목', n, letter: L, label: cityLabel(n, '뒷골목'), note: WING_NOTE[L] || '' }; }
           say(`열차에서 내렸다. ${S.loc.label}. 도시의 냄새다.`);
           if (imp) return 'arbiter_come';
         } },
@@ -3520,7 +3534,7 @@ function travelArea() {   // 날개·머리 소속과 둥지에 사는 사람은
 }
 function makeCityLoc(n) {
   const L = String.fromCharCode(64 + n), area = travelArea();
-  return { area, n, letter: L, label: `${n}구 ${L}사 ${area}`, note: WING_NOTE[L] || '' };
+  return { area, n, letter: L, label: cityLabel(n, area), note: WING_NOTE[L] || '' };
 }
 function arrive(loc) {
   S.loc = loc; S.cityLoc = loc;
@@ -3536,7 +3550,7 @@ EVENTS.push(
       this.text = `현재 위치: <b>${here.label}</b>${here.note ? ' — ' + here.note : ''}. 이곳에 머물지, 다른 구로 떠날지 정한다. (이 결정은 시간을 쓰지 않는다. 걸어서 이동할 때만 두 턴이 걸린다.)`;
       return [
         { t: `${here.label}에 머문다`, def: true, fn() { say('오늘은 이 구역에서 지내기로 했다.'); return nextEvent(); } },
-        ...nums.map(n => { const L = String.fromCharCode(64 + n); return { t: `${n}구 ${L}사로 떠난다${WING_NOTE[L] ? ' — ' + WING_NOTE[L] : ''}`, fn() { S.travelDest = n; return 'travel_method'; } }; }),
+        ...nums.map(n => { const L = String.fromCharCode(64 + n); return { t: `${n}구 ${wingName(L)}로 떠난다${WING_NOTE[L] ? ' — ' + WING_NOTE[L] : ''}`, fn() { S.travelDest = n; return 'travel_method'; } }; }),
         { t: `외곽으로 떠난다 — 외곽 열차 (${won(TRAVEL_OS_COST)}), 바로 도착`, cost: TRAVEL_OS_COST, fn() {
           spend(TRAVEL_OS_COST); leaveCity('외곽 열차가 도시의 경계를 넘었다. 창밖으로 빌딩 숲이 끝나고 황무지가 펼쳐진다.'); return nextEvent();
         } },
@@ -3738,7 +3752,7 @@ Object.assign(EVENTS.find(e => e.id === 'warp_ride'), {
 Object.assign(EVENTS.find(e => e.id === 'travel_method'), {
   build() {
     const dest = makeCityLoc(S.travelDest), isColor = faction() === 'color' || S.colorBadge, high = S.grade <= 2;
-    this.text = `목적지: <b>${dest.label}</b>. W사 워프 열차는 10초 만에 도착한다(겉으로는). 걸어가면 두 턴이 걸린다.`
+    this.text = `목적지: <b>${dest.label}</b>. W사(Warp Corporation)의 워프 열차는 10초 만에 도착한다(겉으로는). 걸어가면 두 턴이 걸린다.`
       + (isColor ? ' 특색은 별도로 마련된 열차를 타야 한다.' : high ? ' 매표소 직원이 정중히 1등석을 권한다. 고등급 해결사는 일반석 탑승이 곤란하다고.' : '');
     const goNormal = (price) => () => {
       spend(price);
