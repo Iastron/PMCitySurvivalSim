@@ -612,7 +612,7 @@ const ORIGINS = [
   { id: 'fixer_mid', w: 45, tier: 2, variant: 'fixer', grades: [6, 5], label: '해결사 (6~5급)' },
   { id: 'fixer_high', w: 22, tier: 2, variant: 'fixer', grades: [4, 3], label: '해결사 (4~3급)' },
   { id: 'finger_mid', w: 20, tier: 2, variant: 'finger', rank: 1, label: '손가락 하위 간부 / 검지 전령' },
-  { id: 'wing_mgr', w: 28, tier: 2, name: '날개의 중간 관리자', affTitle: '날개의 중간 관리자', aff: 'wing', grade: 5, hp: 55, stg: 32, money: 50000000,
+  { id: 'wing_mgr', w: 9, tier: 2, name: '날개의 중간 관리자', affTitle: '날개의 중간 관리자', aff: 'wing', grade: 5, hp: 55, stg: 32, money: 50000000,
     trait: '관리자 — 월급이 두 배. 사내 보안팀을 부를 수 있는 위치.',
     deck: ['fe_report', 'fe_report', 'fe_spray', 'fe_bag', 'md_shield', 'hi_bag', 'firstaid', 'st_smoke'],
     intro: '부하 직원 열둘, 결재 서류 수백 장. 날개의 톱니바퀴 중에서는 큰 편이다.',
@@ -639,7 +639,7 @@ const ORIGINS = [
     intro: '날개조차 당신을 함부로 대하지 않는다. 엄지는 당신을 카포와 동등하게 대접한다.',
     hooks: { extraDraw: 1 } },
   { id: 'finger', w: 6, tier: 3, variant: 'finger', rank: 2, label: '손가락 상위 간부 / 검지 대행자' },
-  { id: 'wing_exec', w: 5, tier: 3, name: '날개의 임원', affTitle: '날개의 임원', aff: 'wing', grade: 2, hp: 75, stg: 40, money: 2000000000, light: 4,
+  { id: 'wing_exec', w: 1.5, tier: 3, name: '날개의 임원', affTitle: '날개의 임원', aff: 'wing', grade: 2, hp: 75, stg: 40, money: 2000000000, light: 4,
     trait: '임원 — 막대한 월급. 사병이 따라다닌다: 첫 막 보호 5.',
     deck: ['hi_rifle', 'hi_rifle', 'hi_mirror', 'hi_mirror', 'hi_bag', 'md_amp', 'flow', 'atl_shield'],
     intro: '특이점의 진실을 아는 몇 안 되는 사람. 그 진실 위에 앉아 와인을 마신다.',
@@ -753,6 +753,48 @@ function makeColorTitle() {
   return c + n;
 }
 
+/* ---------- W사 정리 요원 출신 — 등급은 1(가장 낮음)~5(가장 높음). 5등급은 매우 드물다.
+   4등급 이상 중 실적이 높은 직원에게만 컨제스천 클리닝 아머(CCA)가 허가된다 ---------- */
+Object.assign(CARDS, {
+  wa_tidy:  { name: '정리', cost: 1, dice: [['참격', 4, 8], ['타격', 4, 8]], desc: 'W사 정리 요원의 기본 업무' },
+  wa_cut:   { name: '공간 절단', cost: 1, dice: [['참격', 6, 10]], onHit: { bleed: 1 }, desc: '무기에 공간을 가르는 역장을 두른다. 적중 시 출혈 1' },
+  wa_dim:   { name: '차원 절단', cost: 2, dice: [['관통', 8, 13]], desc: '공간째로 꿰뚫는다' },
+  wa_field: { name: '역장', cost: 1, dice: [['방어', 6, 10]] },
+  wa_cca1:  { name: '혼잡승객 정리', cost: 1, dice: [['타격', 3, 7], ['타격', 3, 11], ['타격', 3, 15]], onHit: { rupture: 2 }, desc: 'CCA — 적중 시 파열 2' },
+  wa_cca2:  { name: '부스트 엘보 커터', cost: 2, dice: [['타격', 5, 11], ['타격', 5, 17]], onHit: { rupture: 3 }, desc: 'CCA — 적중 시 파열 3' },
+  wa_cca3:  { name: '공간 절단 - CCA 오버드라이브', cost: 3, dice: [['타격', 3, 5], ['타격', 3, 7], ['타격', 3, 9], ['참격', 3, 21]], onHit: { rupture: 2 }, desc: 'CCA — 충전을 모두 쏟아붓는다. 적중 시 파열 2' },
+  wa_cca_g: { name: 'CCA 과충전', cost: 1, dice: [['방어', 3, 13]], onUse: { nextStr: 2 }, desc: '강화 방어. 사용 시 다음 막 힘 2' },
+});
+// W사 등급 → 게임 위상(grade: 낮을수록 높음)
+const W_GRADE_POS = { 1: 8, 2: 7, 3: 6, 4: 4, 5: 2 };
+ORIGINS.push(
+  { id: 'w_clean_low', w: 34, tier: 1, variant: 'w_agent', grades: [1, 1, 2], label: 'W사 정리 요원 (1~2등급)' },
+  { id: 'w_clean_mid', w: 14, tier: 2, variant: 'w_agent', grades: [3], label: 'W사 정리 요원 (3등급)' },
+  { id: 'w_clean_high', w: 6, tier: 2, variant: 'w_agent', grades: [4], label: 'W사 정리 요원 (4등급)' },
+  { id: 'w_clean_top', w: 1.5, tier: 3, variant: 'w_agent', grades: [5], label: 'W사 정리 요원 (5등급)' },
+);
+const _buildOriginW = buildOrigin;
+buildOrigin = function (o, fingerKey) {
+  if (o.variant !== 'w_agent') return _buildOriginW(o, fingerKey);
+  const wg = pick(o.grades), g = W_GRADE_POS[wg], cca = wg === 5 || (wg === 4 && Math.random() < 0.5);
+  const deck = wg <= 2 ? ['wa_tidy', 'wa_tidy', 'wa_cut', 'wa_cut', 'wa_field', 'wa_field', 'fe_spray', 'firstaid']
+    : wg === 3 ? ['wa_tidy', 'wa_cut', 'wa_cut', 'wa_dim', 'wa_dim', 'wa_field', 'wa_field', 'combo']
+    : cca ? ['wa_cca1', 'wa_cca1', 'wa_cca2', 'wa_cca2', 'wa_cca3', 'wa_cca_g', 'wa_cca_g', 'wa_cut', 'wa_dim']
+    : ['wa_cut', 'wa_cut', 'wa_dim', 'wa_dim', 'wa_tidy', 'wa_field', 'wa_field', 'combo', 'flow'];
+  const title = `W사 ${wg}등급 정리 요원${cca ? ' - CCA' : ''}`;
+  return { id: 'w_agent', tier: o.tier, w: o.w, name: title, affTitle: title, aff: 'wing', grade: g, wGrade: wg, wingN: 23,
+    hp: 46 + (9 - g) * 11 + (cca ? 25 : 0), stg: 28 + (9 - g) * 6 + (cca ? 15 : 0), light: wg >= 4 ? 4 : 3,
+    money: [0, 2000000, 5000000, 15000000, 60000000, 300000000][wg],
+    trait: wg <= 2 ? '정리 요원 — 사고 열차의 뒷정리와 파편 수습을 맡는다. 위험 수당이 붙는다.'
+      : wg === 3 ? "정리 요원 3등급 — '지연' 열차에 투입된다. 승객 제압이 업무에 포함된다."
+      : cca ? '컨제스천 클리닝 아머 — 실적 높은 4등급 이상에게만 허가되는 엑소 슈트. CCA 기술을 쓴다.'
+      : "정리 요원 4등급 — '혼잡' 열차에 투입되는 베테랑. 아직 CCA는 허가받지 못했다.",
+    deck,
+    intro: wg <= 2 ? '10초짜리 여행이 끝나면, 당신의 일이 시작된다. 검사기로 살점을 찍어 제자리에 맞추는 일.'
+      : wg === 3 ? '승객 중엔 수천 년을 단련한 자도 있다. 3등급부터는 그들을 상대한다.'
+      : wg === 4 ? '4등급. 혼잡 경보가 울리면 퇴근은 없다. 23구가 좀 시퍼렇긴 해도, 뒷골목보다는 낫다.'
+      : "5등급. '결항'과 '탈선'. 1급 해결사 혹은 그 이상의 위협이 있는 열차에만 들어간다." };
+};
 function rollOrigin() {
   const total = ORIGINS.reduce((a, o) => a + o.w, 0);
   let r = Math.random() * total, o = ORIGINS[ORIGINS.length - 1];
@@ -1109,7 +1151,7 @@ function renderTop() {
   $('#boardBtn').textContent = S.pendingContract ? '의뢰 게시판 (수락 1)' : '의뢰 게시판';
   if (S.warp) $('#sPay').innerHTML += ` <span class="l-bad">[워프 열차]</span>`;
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
-  $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
+  $('#sRole').textContent = `${S.ch.name === affName() ? '' : S.ch.name + ' / '}${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
   ps.innerHTML = mindImmune() ? '' : `정신 압박 <b style="color:${S.press >= 70 ? 'var(--red)' : S.press >= 40 ? 'var(--orange)' : 'var(--green)'}">${S.press || 0}%</b>`;
   $('#sGrade').textContent = rankText();
@@ -1610,7 +1652,7 @@ function rollBirthplace(ch) {
   const f = AFFS[ch.aff].faction;
   const inside = f === 'head' || f === 'wing';
   if (!inside && Math.random() < 0.15) return { area: 'outskirts', label: '외곽', note: '괴물과 버려진 것들이 득실거리는 도시 바깥' };
-  const n = rnd(1, 25), L = String.fromCharCode(64 + n);
+  const n = ch.wingN || rnd(1, 25), L = String.fromCharCode(64 + n);
   let area;
   if (inside) area = '둥지';
   else if (['street', 'gang'].includes(f)) area = '뒷골목';
