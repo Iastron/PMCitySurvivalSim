@@ -758,7 +758,10 @@ function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   // 중지는 조직원 구간 안에서도 작은 아우(위상 1~3)와 큰 아우(위상 4)를 구분한다.
   if (id === 'f_middle' && grade === 6) return '중지 큰 아우';
   if (a.ranks) return a.ranks[fingerTier(grade)];
-  if (a.faction === 'assoc') return `${a.name} 해결사`;
+  if (a.faction === 'assoc') {
+    const post = id === 'hana' ? '' : grade <= 2 ? ' 1과' : grade === 3 ? ' 2과' : grade === 4 ? ' 3과' : ' 6과';
+    return `${a.name}${post} 해결사` + (S && S.colorBadge && S.aff === id ? ' · 특색' : '');
+  }
   return a.name;
 }
 // 출신 특성 + 소속 패시브를 합친 훅 (함수는 합산, 배율은 곱, 수치는 합, 불리언은 OR)
@@ -785,6 +788,7 @@ function passiveText() {
 function changeAff(id, after) {
   if (AFF().locked) { say('머리에 속한 자는 소속을 바꿀 수 없다.', 'l-bad'); return; }
   const old = S.aff, oldF = faction();
+  if (oldF === 'color' && AFFS[id].faction !== 'color') { S.colorBadge = true; say('색은 협회 배지와 함께 그대로 남는다. 당신은 여전히 특색이다.', 'l-day'); }
   S.aff = id; S._h = null;
   if (S.office && !['fixer', 'street'].includes(id)) { say(`「${S.office.name} 사무소」를 떠났다.`, 'l-sys'); S.office = null; }
   if (AFFS[id].hooks && AFFS[id].hooks.monthlyPay) S.payDay = S.day + 30;
@@ -1431,10 +1435,12 @@ EVENTS.push(
       } },
       { t: '아직은 아니다', def: true, fn() { say('줄을 지나쳤다.'); } },
     ] },
-  { id: 'assoc_offer', when: [0, 1, 2], w: 1.4, cond: () => isFixer() && ['fixer', 'assoc'].includes(faction()) && S.grade <= 8, title: '협회의 스카우트',
+  { id: 'assoc_offer', when: [0, 1, 2], w: 1.4, cond: () => isFixer() && ['fixer', 'assoc', 'color'].includes(faction()) && S.grade <= 8, title: '협회의 스카우트',
     build() {
-      const k = pick(ASSOC_KEYS.filter(x => x !== S.aff)), a = AFFS[k];
-      this.text = `${a.name}의 부장이 명함을 내민다. "자네 실적을 봤네. 우리 과에 자리가 하나 비었어." (${a.passive})`;
+      const k = pick(ASSOC_KEYS.filter(x => x !== S.aff)), a = AFFS[k], isColor = faction() === 'color' || S.colorBadge;
+      this.text = isColor ? `${a.name}의 협회장이 직접 찾아왔다. "특색을 모실 수 있다면 영광이지요. 1과를 맡아주십시오. 색은 그대로 지니셔도 됩니다." (${a.passive})`
+        : S.grade <= 2 ? `${a.name}의 협회장 비서가 정중히 고개를 숙인다. "1급 해결사님께 1과의 자리를 제안드리고 싶습니다." (${a.passive})`
+        : `${a.name}의 부장이 명함을 내민다. "자네 실적을 봤네. 우리 과에 자리가 하나 비었어." (${a.passive})`;
       return [
         { t: `${a.name}에 들어간다`, fn() { say('계약서에 서명했다. 이제 협회의 명령은 거부할 수 없다.'); changeAff(k); } },
         { t: '거절한다', def: true, fn() { say('"아쉽군. 마음이 바뀌면 연락하게."'); } },
@@ -1471,7 +1477,7 @@ EVENTS.push(
       } },
       { t: '포기한다', def: true, fn() { say('공고문을 지나쳤다.'); } },
     ] },
-  { id: 'color_grant', when: [0, 1, 2], w: 3, cond: () => isFixer() && S.grade === 1 && faction() !== 'color' && S.merit >= 62, title: '하나 협회 — 색의 부여',
+  { id: 'color_grant', when: [0, 1, 2], w: 3, cond: () => isFixer() && S.grade === 1 && faction() !== 'color' && !S.colorBadge && S.merit >= 62, title: '하나 협회 — 색의 부여',
     text: '하나 협회 본부의 호출. "당신에게 색을 부여하기로 결정했습니다." 특색. 해결사가 오를 수 있는 마지막 자리.',
     choices: [
       { t: '색을 받는다', def: true, fn() { const c = makeColorTitle(); say(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day'); S.ch.colorName = c; changeAff('color'); addCard('col_sig'); } },
@@ -2498,7 +2504,7 @@ Object.assign(AFFS, {
     hooks: { moneyMul: 1.25, noInterest: true }, cards: ['oufi_halberd', 'oufi_contract'] },
 });
 ASSOC_KEYS.push('tres', 'cinq', 'seven', 'eight', 'devjat', 'dieci', 'oufi');
-EVENTS.push({ id: 'hana_offer', when: [0, 1], w: 1.2, cond: () => isFixer() && ['fixer', 'assoc'].includes(faction()) && S.aff !== 'hana' && S.grade <= 3,
+EVENTS.push({ id: 'hana_offer', when: [0, 1], w: 1.2, cond: () => isFixer() && ['fixer', 'assoc', 'color'].includes(faction()) && S.aff !== 'hana' && S.grade <= 3,
   title: '하나 협회의 호출',
   text: '하나 협회 본부에서 서신이 왔다. 해결사 업무를 총괄하는 제1협회. 3급 이상의 실적을 쌓은 해결사에게만 문이 열린다.',
   choices: [
@@ -2522,7 +2528,11 @@ const _H = H;
 H = function () {
   if (!S) return {};
   if (S._h) return S._h;
-  const base = _H();
+  let base = _H();
+  if (S.colorBadge && faction() !== 'color') {   // 협회에 들어간 특색: 특색 패시브 유지
+    const c = AFFS.color.hooks; base = { ...base, emoMul: (base.emoMul || 1) * c.emoMul, lastStand: true };
+    S._h = base;
+  }
   if (!inOffice()) return base;
   const out = { ...base };
   out.payBonus = (out.payBonus || 0) + OFFICE_HOOKS.payBonus;
@@ -2535,7 +2545,7 @@ affName = function (...args) {
   return _affName(...args);
 };
 const _passiveText = passiveText;
-passiveText = function () { return _passiveText() + (inOffice() ? `<br>[사무소 「${S.office.name}」 ${OFFICE_TIERS[S.office.tier].label}] 동료의 엄호 — 첫 막 보호 2, 의뢰 보수 +10%, 7일마다 급여` : ''); };
+passiveText = function () { return _passiveText() + (S.colorBadge && faction() !== 'color' ? `<br>[특색 유지] ${AFFS.color.passive}` : '') + (inOffice() ? `<br>[사무소 「${S.office.name}」 ${OFFICE_TIERS[S.office.tier].label}] 동료의 엄호 — 첫 막 보호 2, 의뢰 보수 +10%, 7일마다 급여` : ''); };
 EVENTS.push(
   { id: 'office_recruit', when: [0, 1, 2], w: 1.6, cond: () => !S.office && !AFF().locked && ['fixer', 'street'].includes(S.aff),
     title: '해결사 사무소의 구인',
@@ -3463,7 +3473,7 @@ function fight(key, opts = {}) {
   // 적의 빛: 예고 칸 수 + 1에서 시작, 매 막 회복 (일반 +1, 강적 +2)
   E.maxLight = opts.light || d.light || d.slots + 1; E.light = E.maxLight; E.lightRegen = opts.lightRegen || d.lightRegen || (d.elite ? 2 : 1);
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
-    st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
+    st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0, S.colorBadge ? 5 : 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0, S.colorBadge ? 5 : 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
   if (S.twistForm === 'index_puppet' && faction() === 'twisted') { P.maxLight = Math.max(7, P.maxLight); P.light = 4; }
   const keys = (opts.enemies || Array(Math.max(1, Math.min(3, Math.floor(opts.count || 1)))).fill(key)).slice(0, 3);
   if (!keys.length) keys.push(key);
