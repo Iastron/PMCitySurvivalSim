@@ -1748,7 +1748,7 @@ EVENTS.push(
 ========================================================= */
 Object.assign(CARDS, {
   // 도서관 보상
-  lib_durandal: { name: '듀란달', cost: 1, dice: [['참격', 7, 12], ['참격', 5, 8]], desc: '흑색침묵이 가장 아끼던 검' },
+  lib_durandal: { name: '듀란달', cost: 1, dice: [['참격', 7, 12], ['참격', 5, 8]], desc: '검은침묵이 가장 아끼던 검' },
   lib_mimicry:  { name: '미믹리', cost: 2, dice: [['참격', 10, 16]], onHit: { healSelf: 8 }, desc: '적중 시 체력 8 흡수 — 붉은안개의 E.G.O' },
   lib_pillar:   { name: '열화된 기둥', cost: 2, dice: [['타격', 12, 18]], onHit: { para: 2 }, desc: '적중 시 마비 2 — 조율자의 힘, 그 일부' },
   // 균열 보상
@@ -1762,7 +1762,7 @@ Object.assign(CARDS, {
 const FURIOSO = { name: '퓨리오소', cost: 3, dice: [['참격', 5, 9], ['관통', 5, 9], ['타격', 5, 9], ['참격', 5, 9], ['관통', 5, 9], ['타격', 6, 10]] };
 Object.assign(ENEMIES, {
   /* ---------- 도서관 ---------- */
-  roland_lib: { elite: true, name: '롤랑 — 흑색침묵', desc: '도서관의 접대 담당. 검은 장갑에서 무기가 끝없이 나온다.', hp: 220, stg: 90, slots: 3,
+  roland_lib: { elite: true, name: '롤랑 — 검은침묵', desc: '도서관의 접대 담당. 검은 장갑에서 무기가 끝없이 나온다.', hp: 220, stg: 90, slots: 3,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [80000000, 120000000],
     passive: '퓨리오소 — 체력 절반 이하가 되면 모든 무기를 쏟아내는 퓨리오소가 열린다',
     onRound: e => { if (e.hp < e.maxHp / 2 && !e.extra) { e.extra = [FURIOSO, FURIOSO]; clog('검은 장갑이 떨린다 — 퓨리오소', 'l-bad'); } },
@@ -1844,10 +1844,9 @@ Object.assign(EVENTS.find(e => e.id === 'library'), {
       fight(enemy, { lethal: true, rare: true, win() { say(line, 'l-day'); gain(30000000); merit(8); addCard(card); } });
     };
     return [
-      { t: '롤랑에게 접대받는다 — 흑색침묵의 무기들, 퓨리오소', fn: go('roland_lib', 'lib_durandal', '"…좋아, 인정하지." 롤랑이 장갑을 벗으며 한 권의 책을 건넸다. 책장 사이에 검 한 자루가 끼워져 있었다.') },
+      { t: '롤랑에게 접대받는다 — 검은침묵의 무기들, 퓨리오소', fn: go('roland_lib', 'lib_durandal', '"…좋아, 인정하지." 롤랑이 장갑을 벗으며 한 권의 책을 건넸다. 책장 사이에 검 한 자루가 끼워져 있었다.') },
       { t: '게부라에게 접대받는다 — 붉은안개 (열화판)', fn: go('gebura_lib', 'lib_mimicry', '게부라가 검을 내렸다. "열화판이라도 붉은안개를 넘었다. 가져가." 붉은 대검의 기억이 손에 남았다.') },
       { t: '비나에게 접대받는다 — 조율자 (열화판)', fn: go('binah_lib', 'lib_pillar', '비나가 희미하게 웃었다. "흥미롭군요." 그녀가 건넨 책에서 열화된 기둥의 힘이 흘러나왔다.') },
-      { t: '이름 없는 사서에게 접대받는다', fn: go('librarian', 'ego', '접대를 이겨냈다. 손에는 빛나는 책 한 권이 쥐어져 있었다.') },
       { t: '초대장을 버린다', def: true, fn() { say('초대장은 쓰레기통 속에서도 은은하게 빛났다.'); } },
     ];
   },
