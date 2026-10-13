@@ -238,6 +238,12 @@ const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', 
    onUse: 합 시작 시 효과 / onHit: 이 카드의 공격 주사위 적중 시 / instant: 즉시 사용 카드(fx)
 ========================================================= */
 const CARDS = {
+  oracle_axe: { name: '신탁 단말기 — 도끼', cost: 2, dice: [['참격', 9, 14], ['타격', 7, 11]], onHit: { bleed: 2 }, desc: '공격 주사위 적중마다 출혈 2' },
+  oracle_rapier: { name: '신탁 단말기 — 세검', cost: 1, dice: [['관통', 6, 10], ['관통', 5, 9]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  oracle_hammer: { name: '신탁 단말기 — 망치', cost: 2, dice: [['타격', 13, 20]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
+  oracle_whip: { name: '신탁 단말기 — 채찍', cost: 2, dice: [['참격', 6, 10], ['참격', 6, 10], ['참격', 5, 9]], onHit: { bleed: 1 }, desc: '공격 주사위 적중마다 출혈 1' },
+  oracle_scythe: { name: '신탁 단말기 — 낫', cost: 3, dice: [['참격', 13, 19], ['참격', 8, 13]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1' },
+  oracle_signal: { name: '신탁 수신', cost: 0, dice: [['회피', 6, 10]], onUse: { light: 1 }, desc: '사용 시 빛 1 회복' },
   free_cut: { name: '실전 베기', cost: 1, dice: [['참격', 4, 7], ['참격', 2, 4]], price: 180000 },
   free_probe: { name: '간격 재기', cost: 0, dice: [['관통', 2, 4]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기', price: 220000 },
   free_parry: { name: '흘리고 찌르기', cost: 1, dice: [['방어', 4, 7], ['관통', 3, 5]], price: 250000 },
@@ -545,6 +551,11 @@ const ORIGINS = [
     intro: '특이점의 진실을 아는 몇 안 되는 사람. 그 진실 위에 앉아 와인을 마신다.',
     hooks: { monthlyPay: 30000000, roundStart(P) { if (C.round === 1) P.st.prot += 5; } } },
   /* ---------- 전설 / 신화 ---------- */
+  { id: 'index_oracle', w: 2, tier: 4, name: '검지의 신탁대행자', affTitle: '검지 — 신탁대행자', aff: 'f_index', grade: 1, hp: 190, stg: 95, money: 800000000, light: 5,
+    trait: '신탁의 집행자 — 최대 빛 5, 매 막 카드 1장 추가. 검지 소속일 때 모든 주사위 위력 +1.',
+    deck: ['oracle_axe', 'oracle_rapier', 'oracle_hammer', 'oracle_whip', 'oracle_scythe', 'oracle_signal', 'ix_will', 'officer_index', 'flow'],
+    intro: '신탁 단말기의 신호가 울린다. 손안의 무장은 지령을 수행할 형태를 갖춘다. 문장의 뜻을 묻는 대신, 당신은 다음 행선지를 확인한다.',
+    hooks: { extraDraw: 1, rollBonus() { return S.aff === 'f_index' ? 1 : 0; } } },
   { id: 'color', w: 5, tier: 4, variant: 'color', label: '특색 해결사' },
   { id: 'watcher', w: 3, tier: 4, name: '머리의 응시자', aff: 'watcher', grade: 1, hp: 120, stg: 80, money: 800000000, light: 5,
     trait: '비전투원 — 직접 싸우기보다 관측하고 기록한다. 머리의 행정 업무 대부분이 이 손을 거친다.',
@@ -716,6 +727,7 @@ const fingerTier = grade => grade <= 2 ? 2 : grade <= 5 ? 1 : 0;
 // gf: 뒷골목 조직이 속한 손가락 (지정하지 않으면 현재 게임의 값)
 function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   const a = AFFS[id];
+  if (arguments.length === 0 && id === 'f_index' && S && S.ch.id === 'index_oracle' && S.aff === id) return '검지 — 신탁대행자';
   if (id === 'bloodkin') return `혈귀 — 제${(S && S.vampRank) || '?'}권속`;
   if (id === 'gang') return `뒷골목 조직원 [${gf || '?'} 산하]`;
   if (id === 'wing') {   // 날개: 출신 직함이 있으면 그것, 아니면 위상에 따른 직위
@@ -1914,14 +1926,14 @@ EVENTS.find(e => e.id === 'rift').vampOK = true;
 Object.assign(EVENTS.find(e => e.id === 'library'), { vampOK: true,
   build() {
     this.text = '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 초대장 뒷면에 접대를 맡을 사서들의 이름이 적혀 있다. 패배한 손님은 책이 된다.';
-    const go = (enemy, card, line) => () => {
+    const go = (enemy, line) => () => {
       S.flags.library = true; S.flags.libDay = S.day; stress(10);   // 다음 초대장은 5일 뒤부터
-      fight(enemy, { lethal: true, rare: true, win() { say(line, 'l-day'); gain(30000000); merit(8); addCard(card); } });
+      fight(enemy, { lethal: true, rare: true, win() { say(line, 'l-day'); gain(30000000); merit(8); } });
     };
     return [
-      { t: '롤랑에게 접대받는다 — 검은침묵의 무기들, 퓨리오소', fn: go('roland_lib', 'lib_durandal', '"…좋아, 인정하지." 롤랑이 장갑을 벗으며 한 권의 책을 건넸다. 책장 사이에 검 한 자루가 끼워져 있었다.') },
-      { t: '게부라에게 접대받는다 — 붉은안개 (열화판)', fn: go('gebura_lib', 'lib_mimicry', '게부라가 검을 내렸다. "열화판이라도 붉은안개를 넘었다. 가져가." 붉은 대검의 기억이 손에 남았다.') },
-      { t: '비나에게 접대받는다 — 조율자 (열화판)', fn: go('binah_lib', 'lib_pillar', '비나가 희미하게 웃었다. "흥미롭군요." 그녀가 건넨 책에서 열화된 기둥의 힘이 흘러나왔다.') },
+      { t: '롤랑에게 접대받는다 — 검은침묵의 무기들, 퓨리오소', fn: go('roland_lib', '"…좋아, 인정하지." 롤랑이 장갑을 벗으며 한 권의 책을 건넸다. 그가 사용한 무기의 기억 중 하나를 고를 수 있다.') },
+      { t: '게부라에게 접대받는다 — 붉은안개 (열화판)', fn: go('gebura_lib', '게부라가 검을 내렸다. "열화판이라도 붉은안개를 넘었다. 가져가." 그녀가 사용한 기술의 기억 중 하나를 고를 수 있다.') },
+      { t: '비나에게 접대받는다 — 조율자 (열화판)', fn: go('binah_lib', '비나가 희미하게 웃었다. "흥미롭군요." 그녀가 건넨 책에서 사용한 기술의 기억 중 하나를 고를 수 있다.') },
       { t: '초대장을 버린다', def: true, fn() { say('초대장은 쓰레기통 속에서도 은은하게 빛났다.'); } },
     ];
   },
@@ -3070,7 +3082,8 @@ function endCombat(win) {
     if (faction() === 'vampire' && S.phase === 'day' && CAPTIVES[capKey]) {   // 쓰러뜨린 사람을 어떻게 할지 고른다
       S.vpCaptive = CAPTIVES[capKey]; T.pendingChain = 'vp_fate'; T.timeLeft = Math.max(T.timeLeft, 20);
     }
-    rewardModal(opts.rare);
+    const libraryCards = libraryRewardCards(C.key);
+    rewardModal(opts.rare, libraryCards, libraryCards ? '사서의 책장 — 1장을 선택하세요 (퓨리오소 제외)' : undefined);
   } else {
     if (opts.lethal === false) {
       print(opts.noRob ? '⚔ 패배 — 정신을 잃었다.' : '⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
@@ -3085,11 +3098,30 @@ function endCombat(win) {
   renderTop();
 }
 
-function rewardModal(rare) {
-  const opts = shuffle(DROP_POOL()).slice(0, 3);
-  if (rare && Math.random() < 0.5) opts[0] = 'ego';
+// 사서의 실제 카드 데이터를 복제한다. 적 데이터와 공유하지 않으며 퓨리오소만 제외한다.
+function libraryRewardCards(key) {
+  if (!['librarian', 'roland_lib', 'gebura_lib', 'binah_lib'].includes(key)) return null;
+  const pool = [...ENEMIES[key].pool, ...(key === 'gebura_lib' ? [GREATER_SPLIT_H] : [])];
+  return pool.filter(c => c !== FURIOSO && !/furioso|퓨리오소/i.test(c.name)).map((c, i) => {
+    const id = 'library_reward_' + key + '_' + i;
+    const copy = JSON.parse(JSON.stringify(c));
+    copy.cost = ecost(c);
+    const effects = [];
+    const use = copy.onUse || {}, hit = copy.onHit || {};
+    const labels = { nextStr: '다음 막 힘', nextEnd: '다음 막 인내', nextProt: '다음 막 보호', prot: '이번 막 보호', heal: '체력 회복', light: '빛 회복', draw: '카드 뽑기' };
+    for (const k in labels) if (use[k]) effects.push('사용 시 ' + labels[k] + ' ' + use[k]);
+    for (const k of ['bleed', 'burn', 'para']) if (hit[k]) effects.push('적중 시 ' + STATUS_NAME[k] + ' ' + hit[k]);
+    if (hit.healSelf) effects.push('적중 시 체력 ' + hit.healSelf + ' 흡수');
+    copy.desc = [copy.desc, ...effects, ENEMIES[key].name + '의 책장'].filter(Boolean).join(' · ');
+    CARDS[id] = copy;
+    return id;
+  });
+}
+function rewardModal(rare, cardPool = null, title = '전리품 — 카드 1장을 선택하세요') {
+  const opts = cardPool ? [...cardPool] : shuffle(DROP_POOL()).slice(0, 3);
+  if (!cardPool && rare && Math.random() < 0.5) opts[0] = 'ego';
   S.pausedByModal = !S.paused; if (!S.paused) setSpeed(0);
-  openModal(`<h3>전리품 — 카드 1장을 선택하세요</h3>
+  openModal(`<h3>${title}</h3>
     <div class="hand">${opts.map((id, i) => cardHtml(id, `data-r="${i}"`)).join('')}</div>
     <button id="skipReward">받지 않는다</button>`);
   const close = () => { closeModal(); if (S.pausedByModal) setSpeed(0); };
