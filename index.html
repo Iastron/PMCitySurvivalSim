@@ -555,42 +555,42 @@ function changeAff(id, after) {
    데이터: 적
 ========================================================= */
 const ENEMIES = {
-  rat: { name: '뒷골목 쥐', desc: '장기를 노리는 도시의 최하층. 강도로 하루를 연명한다.', hp: 30, stg: 16, slots: 1,
+  rat: { tier: 9, name: '뒷골목 쥐', desc: '장기를 노리는 도시의 최하층. 강도로 하루를 연명한다.', hp: 30, stg: 16, slots: 1,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [15000, 40000],
     pool: [{ name: '녹슨 칼질', dice: [['참격', 2, 5]] }, { name: '쇠파이프', dice: [['타격', 2, 5]] },
       { name: '장기 적출 시도', dice: [['관통', 1, 6]], onHit: { bleed: 1 } }, { name: '움츠리기', dice: [['방어', 1, 4]] }] },
-  kong: { name: '콩콩이파 조직원', desc: '하와이안 셔츠와 단검. 전당포 거리의 수금원.', hp: 44, stg: 22, slots: 2,
+  kong: { tier: 8, name: '콩콩이파 조직원', desc: '하와이안 셔츠와 단검. 전당포 거리의 수금원.', hp: 44, stg: 22, slots: 2,
     res: { 참격: 1.2, 관통: 0.8, 타격: 1 }, reward: [80000, 150000],
     pool: [{ name: '단검 찌르기', dice: [['관통', 3, 6]] }, { name: '하와이안 난도질', dice: [['참격', 2, 4], ['참격', 2, 4]] },
       { name: '막아!', dice: [['방어', 2, 5]] }, { name: '빚 독촉', dice: [['타격', 3, 7]], onHit: { para: 1 } }] },
-  thumb: { name: '엄지 솔다토', desc: '예법을 어긴 자에게 탄환으로 답한다.', hp: 60, stg: 28, slots: 2,
+  thumb: { tier: 6, name: '엄지 솔다토', desc: '예법을 어긴 자에게 탄환으로 답한다.', hp: 60, stg: 28, slots: 2,
     res: { 참격: 0.8, 관통: 1, 타격: 1.2 }, reward: [400000, 800000],
     pool: [{ name: '탄환 장전 사격', dice: [['관통', 4, 8]], onHit: { burn: 2 } }, { name: '총검 돌격', dice: [['관통', 3, 6], ['참격', 2, 4]] },
       { name: '카포에 대한 예', dice: [['방어', 3, 6]], onUse: { nextStr: 1 } }, { name: '개머리판', dice: [['타격', 3, 7]] }] },
-  hunter: { name: '금기 사냥꾼', desc: '둥지의 금기를 어긴 자를 처리하는 날개 직속 해결사.', hp: 70, stg: 30, slots: 2,
+  hunter: { tier: 5, name: '금기 사냥꾼', desc: '둥지의 금기를 어긴 자를 처리하는 날개 직속 해결사.', hp: 70, stg: 30, slots: 2,
     res: { 참격: 0.9, 관통: 0.9, 타격: 1.1 }, reward: [600000, 1200000],
     passive: '집행 — 매 막 인내 1', onRound: e => { e.st.end += 1; },
     pool: [{ name: '금기 집행', dice: [['참격', 4, 8]] }, { name: '구속 사슬', dice: [['타격', 2, 5]], onHit: { para: 2 } },
       { name: '판결', dice: [['관통', 5, 9]] }, { name: '날개의 방패', dice: [['방어', 4, 8]] }] },
-  sweeper: { name: '청소부', desc: '뒷골목의 밤을 쓸어내는 것들. 남는 것은 아무것도 없다.', hp: 62, stg: 30, slots: 2,
+  sweeper: { tier: 6, name: '청소부', desc: '뒷골목의 밤을 쓸어내는 것들. 남는 것은 아무것도 없다.', hp: 62, stg: 30, slots: 2,
     res: { 참격: 1, 관통: 0.6, 타격: 1.5 }, reward: [500000, 1000000],
     pool: [{ name: '쓸어담기', dice: [['참격', 3, 7], ['참격', 2, 5]] }, { name: '분쇄', dice: [['타격', 4, 8]] },
       { name: '흡입', dice: [['관통', 3, 6]], onHit: { healSelf: 4 }, desc: '적중 시 체력 4 흡수' }, { name: '외피 경화', dice: [['방어', 3, 7]] }] },
-  twisted_small: { name: '뒤틀림 「쪼그라든 회사원」', desc: '야근 끝에 무언가가 부러졌다. 사람이었던 것.', hp: 58, stg: 26, slots: 2,
+  twisted_small: { tier: 7, name: '뒤틀림 「쪼그라든 회사원」', desc: '야근 끝에 무언가가 부러졌다. 사람이었던 것.', hp: 58, stg: 26, slots: 2,
     res: { 참격: 1.2, 관통: 1, 타격: 0.8 }, reward: [300000, 600000],
     pool: [{ name: '서류 뭉치 휘두르기', dice: [['타격', 3, 6]] }, { name: '야근의 손톱', dice: [['참격', 2, 5], ['참격', 2, 5]], onHit: { bleed: 1 } },
       { name: '결재 거부', dice: [['방어', 3, 7]] }] },
-  twisted: { name: '뒤틀림 「울음을 삼킨 아이」', desc: '도시 괴담급 재해. 울음소리가 들리면 이미 늦었다.', hp: 95, stg: 40, slots: 3,
+  twisted: { tier: 5, name: '뒤틀림 「울음을 삼킨 아이」', desc: '도시 괴담급 재해. 울음소리가 들리면 이미 늦었다.', hp: 95, stg: 40, slots: 3,
     res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [2000000, 4000000],
     passive: '커지는 울음 — 체력 절반 이하일 때 매 막 힘 1',
     onRound: (e) => { if (e.hp < e.maxHp / 2) { e.st.str += 1; clog('울음소리가 커진다… (힘 +1)', 'l-bad'); } },
     pool: [{ name: '울음', dice: [['타격', 3, 6]], onHit: { para: 1 } }, { name: '찢어진 요람', dice: [['참격', 4, 8], ['참격', 3, 5]] },
       { name: '눈물의 창', dice: [['관통', 5, 10]], onHit: { bleed: 2 } }, { name: '웅크림', dice: [['회피', 4, 8]] }] },
-  smile: { name: '웃는 얼굴들 조직원', desc: '강철 하회탈, 거대한 곰방대. 말이 많고, 식성이 나쁘다.', hp: 75, stg: 32, slots: 2,
+  smile: { tier: 4, name: '웃는 얼굴들 조직원', desc: '강철 하회탈, 거대한 곰방대. 말이 많고, 식성이 나쁘다.', hp: 75, stg: 32, slots: 2,
     res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [3000000, 6000000],
     pool: [{ name: '곰방대 휘두르기', dice: [['타격', 4, 7]] }, { name: '강화 연기 흡입', dice: [['방어', 3, 6]], onUse: { nextStr: 2 } },
       { name: '얇게 저미기', dice: [['참격', 3, 6], ['참격', 3, 6]], onHit: { bleed: 2 } }, { name: '숨겨진 검', dice: [['관통', 5, 9]] }] },
-  librarian: { name: '도서관의 사서', desc: '금빛 초대장의 끝. 패배한 손님은 책이 된다.', hp: 120, stg: 50, slots: 3,
+  librarian: { tier: 1, name: '도서관의 사서', desc: '금빛 초대장의 끝. 패배한 손님은 책이 된다.', hp: 120, stg: 50, slots: 3,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [30000000, 60000000],
     passive: '접대 — 막이 지날수록 강해진다', onRound: (e) => { e.st.str += Math.floor(C.round / 3); },
     pool: [{ name: '책장 넘기기', dice: [['참격', 4, 8], ['관통', 4, 8]] }, { name: '접대', dice: [['방어', 5, 9]] },
@@ -696,6 +696,8 @@ function hurt(n, lethal = false) {
   S.hp -= n; say(`체력 -${n}`, 'l-bad'); stress(Math.ceil(n / 2));
   if (S.hp <= 0) { if (lethal) { gameOver('뒷골목에서 숨이 끊어졌다.'); return; } S.hp = 1; say('간신히 의식을 붙잡았다.', 'l-bad'); }
 }
+// 위상 보정: 높은 위상일수록 모든 주사위 위력 상승 (9급 +0 → 1급 +4)
+const rankPower = () => Math.floor((9 - S.grade) / 2);
 // 위상이 높을수록 같은 일도 더 큰 실적으로 인정된다 (9급 ×1.0 → 1급 ×3.0). 감점에는 배율 없음
 const meritMul = () => 1 + (9 - S.grade) * 0.25;
 function merit(n) {
@@ -703,7 +705,9 @@ function merit(n) {
   S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
   while (S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
     const tierBefore = fingerTier(S.grade);
-    S.grade--; S.maxHp += 5; S.hp += 5; S.maxStg += 2;
+    S.grade--; S.maxHp += 12; S.maxStg += 5; S.hp = S.maxHp;
+    S.promoCards = (S.promoCards || 0) + 1;
+    if (S.grade === 6 || S.grade === 3) { S.lightBonus = (S.lightBonus || 0) + 1; say('✦ 전투 감각이 한 단계 깊어졌다 — 최대 빛 +1', 'l-day'); }
     if (faction() === 'finger' && fingerTier(S.grade) > tierBefore) {
       const a = AFF(), t = fingerTier(S.grade);
       say(`★ 승진 — ${a.ranks[t - 1]} → <b>${a.ranks[t]}</b> (${FINGER_TIER_NAME[t]}). ${t === 2 ? '이제 손가락의 간부석에 앉는다. 아랫사람들이 당신의 눈을 피한다.' : '아랫사람이 생겼다. 상납금은 이제 당신에게도 올라온다.'}`, 'l-day');
@@ -711,10 +715,10 @@ function merit(n) {
       say(`승진 축하금 +${won(pay(t === 2 ? 50000000 : 5000000))}`, 'l-good');
     }
     if (isFixer()) {
-      say(`★ 하나 협회 승급 심사 통과 — ${S.grade}급 해결사가 되었다. (최대 체력 +5, 의뢰 보수 증가)`, 'l-day');
+      say(`★ 하나 협회 승급 심사 통과 — ${S.grade}급 해결사가 되었다. (최대 체력 +12, 흐트러짐 +5, 완치, 주사위 위력 +${rankPower()}, 의뢰 보수 증가)`, 'l-day');
       if (S.grade === 1) say('도시가 당신의 이름을 기억하기 시작했다. 이제 특색까지 남은 것은 단 하나의 색뿐.', 'l-day');
     } else if (faction() === 'twisted') say(`★ 재해 등급 상승 — ${twistRank()}`, 'l-bad');
-    else say(`★ 뒷골목에 당신의 이름이 퍼진다 — 위상 ${rankText()} (최대 체력 +5, 보수 증가)`, 'l-day');
+    else say(`★ 뒷골목에 당신의 이름이 퍼진다 — 위상 ${rankText()} (최대 체력 +12, 흐트러짐 +5, 완치, 주사위 위력 +${rankPower()}, 보수 증가)`, 'l-day');
   }
 }
 function addCard(id) { S.deck.push(id); say(`덱에 「${CARDS[id].name}」 추가`, 'l-good'); }
@@ -1612,7 +1616,22 @@ function endTurn() {
   startTurn();
 }
 
+function promoModal() {
+  S.promoCards--;
+  const pool = S.grade <= 5 ? SHOP_POOL() : DROP_POOL();
+  const opts = shuffle(pool).slice(0, 3);
+  S.pausedByModal = !S.paused; if (!S.paused) setSpeed(0);
+  openModal(`<h3>승급 보상 — 카드 1장을 선택하세요</h3>
+    <p class="dim" style="font-size:13px">${rankText()}에 어울리는 장비가 손에 들어왔다.${S.grade <= 5 ? ' (명품 공방 장비 포함)' : ''}</p>
+    <div class="hand">${opts.map((id, i) => cardHtml(id, `data-r="${i}"`)).join('')}</div>
+    <button id="skipReward">받지 않는다</button>`);
+  const close = () => { closeModal(); if (S.pausedByModal) setSpeed(0); };
+  document.querySelectorAll('#modalBox .card').forEach(el => el.onclick = () => { S.deck.push(opts[+el.dataset.r]); print(`덱에 「${CARDS[opts[+el.dataset.r]].name}」 추가`, 'l-good'); close(); });
+  $('#skipReward').onclick = close;
+}
+
 function tick() {
+  if (S && S.phase === 'day' && S.promoCards > 0 && T && !T.queue.length && $('#modal').classList.contains('hidden')) promoModal();
   if (!S || S.phase !== 'day' || S.paused || !T) return;
   const dt = 0.1 * S.speed;
   T.timeLeft -= dt;
@@ -1654,13 +1673,22 @@ const mkSt = () => ({ bleed: 0, burn: 0, para: 0, str: 0, end: 0, prot: 0 });
 
 function fight(key, opts = {}) {
   const d = ENEMIES[key];
-  // 일반 적은 일수와 플레이어 위상에 따라 강해진다 (상위 출신이 너무 쉽게 쓸어버리지 않도록)
-  const m = (1 + 0.07 * (S.day - 1)) * (d.elite ? 1 : 1 + Math.max(0, 6 - S.grade) * 0.12);
+  // 압도: 위상이 적의 격보다 4단계 이상 높으면 적이 싸우기 전에 물러난다
+  if (!d.elite && d.tier && S.grade <= d.tier - 4 && faction() !== 'twisted') {
+    say(`${opts.name || d.name}이(가) 당신을 알아보고 얼어붙었다. 무기를 내려놓고 물러난다. — 압도`, 'l-good');
+    const [a, b] = d.reward;
+    gain(Math.round(rnd(a, b) * payMul() * (H().moneyMul || 1)));
+    S.kills++;
+    opts.win && opts.win();
+    return;
+  }
+  // 일반 적은 일수에 따라 조금씩 강해진다 (위상 보정은 없음 — 강해진 만큼 체감되도록)
+  const m = (1 + 0.07 * (S.day - 1));
   const E = { d, name: opts.name || d.name, desc: opts.desc || d.desc, maxHp: Math.round(d.hp * m), maxStg: Math.round(d.stg * m), res: d.res,
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, isEnemy: true };
   E.hp = E.maxHp; E.stg = E.maxStg;
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
-    st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0), lastStandUsed: false };
+    st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
   C = { E, P, key, opts, round: 0, drawPile: shuffle([...S.deck]), hand: [], discard: [], played: [], intents: [], busy: false };
   S.phase = 'combat';
   $('#day').classList.add('hidden');
@@ -1778,6 +1806,7 @@ function roll(u, die, foe) {
     }
   } else v += u.st.end;
   if (u === C.P && H().rollBonus) v += H().rollBonus(u, die, foe);
+  if (u === C.P) v += rankPower();
   return Math.max(0, v);
 }
 
@@ -1998,7 +2027,7 @@ function renderCombat() {
       <div class="vs">${pair ? `합: <b>${CARDS[pair.id].name}</b>` : '<span class="l-bad">막는 카드 없음 → 일방 공격</span>'}</div></div>`;
   }).join('') : '<div class="dim">적이 행동하지 않는다.</div>';
   $('#pBox').innerHTML = `<div class="nm">${P.name} <span class="dim" style="font-size:12px">${rankText()}</span></div>
-    <div class="desc">${passiveText()}</div>${barsHtml(P)}
+    <div class="desc">${passiveText()}${rankPower() ? `<br><span style="color:var(--gold)">[위상 보정] 모든 주사위 위력 +${rankPower()}</span>` : ''}</div>${barsHtml(P)}
     <div style="margin-top:6px;font-size:13px">빛 <span class="light">${Array.from({ length: P.maxLight }, (_, i) => `<i class="${i < P.light ? 'f' : ''}"></i>`).join('')}</span>
     &nbsp; 감정 단계 ${P.emoLv} <span class="dim">(${P.emo})</span></div><div class="status">${statusHtml(P)}</div>`;
   $('#played').innerHTML = C.played.length ? '배치: ' + C.played.map((p, i) =>
@@ -2037,6 +2066,8 @@ function showHelp() {
   · <b>흐트러짐</b> 게이지가 0이 되면 다음 막 행동 불가 + 받는 피해 2배. 타격은 흐트러짐 피해 1.5배<br>
   · <b>빛</b>은 첫 막에 가득 차 있고, 이후 매 막 <b>1씩만</b> 회복됩니다<br>
   · 합에서 이기면 <b>감정</b>이 쌓이고, 감정 단계가 오르면 최대 빛 +1 + 빛 전부 회복<br><br>
+  <b>위상의 힘</b> — 승급할 때마다 최대 체력 +12, 흐트러짐 +5, 완치, 카드 1장 선택. 6급·3급에 최대 빛 +1. 위상이 높을수록 모든 주사위 위력 상승(1급 +4).
+  위상이 적의 격보다 크게 높으면 일반 적은 싸우기 전에 물러납니다(압도). 강적은 예외.<br>
   <b>성장</b> — 의뢰와 전투로 실적을 쌓으면 하나 협회 승급 심사로 등급이 오릅니다. 등급이 오를수록 보수가 늘어납니다.<br>
   <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
   <b>안(眼)</b> — 원화와 비슷한 가치입니다. 둥지 중상위층의 월급이 400만 안 정도입니다.<br>
