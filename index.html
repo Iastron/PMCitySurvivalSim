@@ -328,6 +328,32 @@ const CARDS = {
   ar_fairy:   { name: '요정', cost: 1, dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2' },
   ar_wave:    { name: '충격파', cost: 3, dice: [['타격', 15, 25], ['타격', 12, 20]] },
   ar_chain:   { name: '사슬', cost: 1, dice: [['방어', 10, 16]], onUse: { enemy: { para: 1 } }, desc: '사용 시 적에게 마비 1' },
+  // 뒷골목 잡화 (~50만 안)
+  st_knife:   { name: '뒷골목 칼', cost: 0, dice: [['참격', 2, 5]], price: 50000 },
+  st_knuckle: { name: '강철 너클', cost: 0, dice: [['타격', 2, 5]], price: 80000 },
+  st_sandwich:{ name: '햄햄팡팡 포장 샌드위치', cost: 0, instant: true, fx: { heal: 6 }, desc: '즉시: 체력 6 회복', price: 30000 },
+  st_smoke:   { name: '연막탄', cost: 1, dice: [['회피', 5, 9]], onUse: { enemy: { para: 1 } }, desc: '사용 시 적에게 마비 1', price: 200000 },
+  st_feint:   { name: '견제', cost: 0, dice: [['관통', 2, 4]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기', price: 250000 },
+  st_drug:    { name: '강화 약물', cost: 0, instant: true, fx: { nextStr: 2, selfDmg: 3 }, desc: '즉시: 다음 막 힘 2, 자신에게 3 피해', price: 400000 },
+  // 중급 공방·협회 장비 (50만~500만 안)
+  md_chainwhip:{ name: '가시 사슬', cost: 1, dice: [['참격', 3, 7]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2', price: 600000 },
+  md_focus:   { name: '정신 집중', cost: 0, instant: true, fx: { cleanse: true, nextEnd: 1 }, desc: '즉시: 출혈·화상 제거, 다음 막 인내 1', price: 600000 },
+  md_pipe:    { name: '쇠파이프 연타', cost: 1, dice: [['타격', 3, 6], ['타격', 3, 6]], price: 700000 },
+  md_shield:  { name: '츠바이식 방패술', cost: 1, dice: [['방어', 5, 10]], onUse: { nextProt: 1 }, desc: '사용 시 다음 막 보호 1', price: 800000 },
+  md_needle:  { name: '시 협회식 독침', cost: 0, dice: [['관통', 2, 5]], onHit: { bleed: 1, para: 1 }, desc: '적중 시 출혈 1, 마비 1', price: 900000 },
+  md_doubletap:{ name: '2연사', cost: 1, dice: [['관통', 3, 6], ['관통', 3, 6]], price: 1000000 },
+  md_counter: { name: '받아치기', cost: 1, dice: [['방어', 4, 8], ['참격', 4, 8]], price: 1200000 },
+  md_amp:     { name: '간이 HP 앰플', cost: 1, instant: true, fx: { heal: 12 }, desc: '즉시: 체력 12 회복', price: 1500000 },
+  md_flame:   { name: '리우식 화염 장갑', cost: 1, dice: [['타격', 4, 7]], onHit: { burn: 2 }, desc: '적중 시 화상 2', price: 2000000 },
+  // 고급 장비 (300만~1천만 안)
+  hi_bag:     { name: '차원 가방', cost: 1, instant: true, fx: { draw: 2 }, desc: '즉시: 카드 2장 뽑기 — 가방에서 필요한 걸 꺼낸다', price: 3000000 },
+  hi_tattoo:  { name: '강화 문신 일격', cost: 2, dice: [['참격', 7, 12]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1', price: 4000000 },
+  hi_mirror:  { name: '반사 원단 방어', cost: 1, dice: [['방어', 7, 12]], onUse: { nextProt: 2 }, desc: '사용 시 다음 막 보호 2', price: 6000000 },
+  hi_rifle:   { name: '날개 하청 소총', cost: 2, dice: [['관통', 6, 10], ['관통', 6, 10]], price: 8000000 },
+  hi_vamp:    { name: '혈귀식 흡혈 칼날', cost: 1, dice: [['참격', 5, 9]], onHit: { healSelf: 5 }, desc: '적중 시 체력 5 흡수', price: 9000000 },
+  // 명품 공방 추가
+  atl_whip:   { name: '명품 공방 채찍검', cost: 2, dice: [['참격', 6, 10], ['참격', 6, 10], ['참격', 6, 10]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2', price: 120000000, premium: true },
+  atl_crusher:{ name: '명품 공방 파쇄 망치', cost: 3, dice: [['타격', 16, 26]], onHit: { para: 2 }, desc: '적중 시 마비 2', price: 200000000, premium: true },
   // 명품 공방 / 특이점 응용 무기 (도시 시설 전용, 전리품으로는 나오지 않음)
   atl_boots:  { name: '명품 공방 가속 장화', cost: 0, dice: [['회피', 7, 12]], price: 40000000, premium: true },
   atl_shield: { name: '명품 공방 반격 방패', cost: 1, dice: [['방어', 9, 15], ['타격', 5, 9]], price: 60000000, premium: true },
@@ -852,7 +878,7 @@ const EVENTS = [
       { t: '끼어든다', fn() { fight('kong', { lethal: false, win() { say('전당포 주인이 떨리는 손으로 사례금을 건넸다.'); gain(pay(150000)); merit(2); } }); } },
       { t: '못 본 척한다', def: true, fn() { say('뒷골목에서는 남의 일에 끼지 않는 것이 미덕이다.'); } },
     ] },
-  { id: 'hana', when: [1, 2], w: 1.5, cond: () => S.day >= 2, title: '하나 협회 공개 의뢰',
+  { id: 'hana', when: [1, 2], w: 1.5, cond: () => S.day >= 2 && isFixer(), title: '하나 협회 공개 의뢰',
     text: '하나 협회 게시판. [도시 괴담] "밤마다 아이 울음소리가 들리는 폐건물 조사 및 원인 제거". 보수가 높다. 생존자 기록은 없다.',
     choices: [
       { t: '의뢰를 받는다 (위험)', fn() { fight('twisted', { lethal: true, rare: true, win() { say('울음이 멎었다. 하나 협회에 보고서를 제출했다.'); gain(pay(3000000)); merit(4); } }); } },
@@ -877,20 +903,29 @@ const EVENTS = [
         else { say('어딘가에서 경보가 울린다. 금기를 어겼다.', 'l-bad'); fight('hunter', { lethal: true, win() { say('금기 사냥꾼을 물리쳤다… 당분간 이 둥지 근처엔 오지 말아야겠다.'); merit(2); } }); }
       } },
     ] },
-  { id: 'index', when: [0, 1, 2], w: 1, title: '검지의 지령',
-    text: '발밑에 봉인된 편지 한 통. "오늘 세 번째로 마주치는 사람의 왼쪽 신발끈을 풀어라." 검지의 지령이다. 받은 자는 따라야 한다… 고들 한다.',
+  { id: 'index', aff: ['f_index'], when: [0, 1, 2], w: 2.5, title: '검지의 지령',
+    text: '봉인된 지령서가 도착했다. "오늘 세 번째로 마주치는 사람의 왼쪽 신발끈을 풀어라." 의미는 묻지 않는다. 지령을 따르는 것이 곧 의미다.',
     choices: [
-      { t: '지령을 따른다', fn() {
-        if (Math.random() < 0.6) { say('세 번째 사람은 검지의 대리인이었다. 그는 만족스럽게 고개를 끄덕이고 봉투를 건넸다.'); gain(pay(300000)); favor('검지'); }
-        else { say('세 번째 사람은 성질 급한 해결사였다. 주먹이 먼저 날아왔다.', 'l-bad'); hurt(10); }
+      { t: '지령을 수행한다', def: true, fn() {
+        if (Math.random() < 0.75) { say('지령을 완수했다. 헤르메스의 전파가 만족스럽게 지지직거린다.'); merit(2); }
+        else { say('세 번째 사람은 성질 급한 해결사였다. 그래도 지령은 완수했다.', 'l-bad'); hurt(10); merit(2); }
       } },
-      { t: '무시한다', def: true, fn() { say('편지를 태웠다. 어딘가에서 누군가 지켜보는 느낌이 든다.'); } },
+      { t: '지령을 미룬다 (신앙에 금이 간다)', fn() { say('지령을 따르지 않았다. 동료 대행자들의 시선이 차갑다.', 'l-bad'); stress(15); } },
+    ] },
+  { id: 'index_errand', notAff: ['f_index'], notFac: ['head', 'finger'], when: [0, 1, 2], w: 1, title: '검지 대행자의 심부름',
+    text: '흰 정장의 검지 대행자가 다가온다. "지령 수행에 외부의 손이 필요합니다. 지령의 내용은 알 필요 없습니다. 이 상자를 정해진 곳에 두기만 하십시오."',
+    choices: [
+      { t: '심부름을 받는다', fn() {
+        if (Math.random() < 0.7) { say('상자를 두고 돌아서자, 대행자가 봉투를 건넸다. "지령은 완수되었습니다."'); gain(pay(300000)); favor('검지'); }
+        else { say('상자를 둔 곳에서 누군가 비명을 질렀다. 무슨 지령이었는지는 묻지 않기로 했다.', 'l-bad'); gain(pay(300000)); stress(10); favor('검지'); }
+      } },
+      { t: '거절한다', def: true, fn() { say('"그렇다면 다른 손을 찾지요." 대행자는 미동도 없이 돌아섰다.'); } },
     ] },
   { id: 'distortion', when: [2], w: 2, title: '뒤틀림',
     text: '퇴근길 인파 속, 서류 가방을 든 남자가 비명을 지르며 무릎을 꿇는다. 등에서 무언가가 찢고 나온다 — 뒤틀림이다.',
     choices: [
-      { t: '맞서 싸운다', fn() { fight('twisted_small', { lethal: true, win() { say('사람이었던 것이 쓰러졌다. 협회에 보고하자 포상금이 나왔다.'); gain(pay(1000000)); merit(3); } }); } },
-      { t: '협회에 신고한다', fn() { say('신고는 했지만 협회가 도착했을 땐 이미 늦었다. 그래도 기록은 남았다.'); merit(1); } },
+      { t: '맞서 싸운다', fn() { fight('twisted_small', { lethal: true, win() { say('사람이었던 것이 쓰러졌다. ' + rewardSource()); gain(pay(1000000)); merit(3); } }); } },
+      { t: '협회에 신고한다', fn() { say('하나 협회에 신고했다. 협회가 도착했을 땐 이미 늦었지만, 목격자 진술로 사례금이 나왔다.'); gain(pay(50000)); } },
       { t: '도망친다', def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다. …들려왔지만.'); stress(15); } },
     ] },
   { id: 'library', when: [1, 2], w: 0.6, cond: () => S.day >= 3 && !S.flags.library, title: '금빛 초대장',
@@ -900,12 +935,21 @@ const EVENTS = [
       { t: '초대장을 버린다', def: true, fn() { say('초대장은 쓰레기통 속에서도 은은하게 빛났다.'); } },
     ] },
   { id: 'rest', when: [0, 1, 2], w: 2, title: '한산한 시간',
-    text: '오늘은 의뢰가 없다. 사무소 의자에 기대 창밖을 본다. 워프 열차가 머리 위를 스쳐 지나간다.',
-    choices: [
-      { t: '단련한다 — 흐트러짐 저항 +3', fn() { S.maxStg += 3; say('기초 체력 단련. 전투 감각은 노력으로 다듬어진다.', 'l-good'); } },
-      { t: '서류를 정리해 협회에 제출한다', fn() { if (Math.random() < 0.6) { say('밀린 보고서를 하나 협회에 제출했다.'); merit(1); } else say('서류가 반려되었다. 양식이 바뀌었다나.'); } },
-      { t: '쉰다 — 체력 10 회복', def: true, fn() { say('잠깐 눈을 붙였다.'); heal(10); } },
-    ] },
+    build() {
+      const f = faction();
+      const [place, work, ok, ng] =
+        isFixer() ? ['사무소 의자에 기대', '처리한 의뢰 보고서를 하나 협회에 제출한다', '밀린 보고서를 하나 협회에 제출했다.', '서류가 반려되었다. 양식이 바뀌었다나.']
+        : f === 'finger' || f === 'gang' ? ['조직의 사무실에 앉아', '조직의 장부를 정리한다', '상납 장부의 숫자가 깔끔하게 맞았다. 윗선이 만족할 것이다.', '장부에 빈 구멍이 있다. 누가 빼돌린 걸까.']
+        : f === 'wing' ? ['회사 휴게실에서', '밀린 업무 보고서를 올린다', '상사가 보고서를 받아들고 고개를 끄덕였다.', '"다시 써 오게." 보고서가 되돌아왔다.']
+        : f === 'head' ? ['머리의 집무실에서', '처리 기록을 정리한다', '기록이 정리되었다. 도시는 오늘도 규칙대로 돌아간다.', '기록 하나가 맞지 않는다. 다시 확인해야 한다.']
+        : ['골목 구석에 앉아', '골목의 소문을 모아 정보상에게 판다', '쓸 만한 소문 하나를 팔았다.', '정보상이 코웃음을 쳤다. "그건 다 아는 얘기야."'];
+      this.text = `오늘은 할 일이 없다. ${place} 창밖을 본다. 워프 열차가 머리 위를 스쳐 지나간다.`;
+      return [
+        { t: '단련한다 — 흐트러짐 저항 +3', fn() { S.maxStg += 3; say('기초 체력 단련. 전투 감각은 노력으로 다듬어진다.', 'l-good'); } },
+        { t: work, fn() { if (Math.random() < 0.6) { say(ok); merit(1); if (!isFixer() && f === 'street') gain(pay(20000)); } else say(ng); } },
+        { t: '쉰다 — 체력 10 회복', def: true, fn() { say('잠깐 눈을 붙였다.'); heal(10); } },
+      ];
+    }, text: '' },
 
   /* ---------- 뒷골목의 밤 ---------- */
   // 머리 소속: 청소부들의 윗선이므로 뒷골목의 밤에도 안전하다
@@ -1045,7 +1089,7 @@ restrict('kong', { notFac: ['head'] });
 restrict('hana', { notFac: ['head'] });
 restrict('thumb', { notFac: ['finger', 'head'] });
 restrict('taboo', { notFac: ['head'] });
-restrict('index', { notFac: ['head'] });
+restrict('index_errand', { notFac: ['head', 'finger', 'twisted'] });
 
 EVENTS.push(
   /* ---------- 출신 전용 ---------- */
@@ -1251,7 +1295,7 @@ const ampPrice = () => (S.loc && S.loc.letter === 'K') ? 1000000 : 2000000;
 
 function restockShop() {
   const prem = shuffle(SHOP_POOL().filter(k => CARDS[k].premium)).slice(0, 2);
-  S.stock = [...shuffle(DROP_POOL()).slice(0, 4), ...prem];
+  S.stock = [...shuffle(DROP_POOL()).slice(0, 6), ...prem];
 }
 function buy(cost, text) {
   if (S.money < cost) return false;
@@ -1294,6 +1338,7 @@ function cityRender() {
     }
     h += '<h4>기타</h4>';
     h += row('3급 해결사 경호 고용 (오늘 밤)', '뒷골목의 밤을 안전하게 보내려면 최소 3급은 고용해야 한다', 3000000, 'guard', !S.flags.guardTonight);
+    h += row('정식 병원 진료', '체력 50% 회복', 300000, 'hospital', S.hp < S.maxHp);
     h += row(`HP 앰플${S.loc && S.loc.letter === 'K' ? ' (K사 둥지 할인)' : ''}`, 'K사 특이점. 체력을 전부 회복한다', ampPrice(), 'amp', S.hp < S.maxHp);
     h += '<h4>기억 파쇄 — 덱에서 카드 제거</h4><div class="dim" style="font-size:12px;margin-bottom:6px">싸구려 기술이라 뒷골목 거주민이 자주 쓴다. 장당 10만 안, 덱은 최소 6장 유지.</div>';
     const uniq = [...new Set(S.deck)];
@@ -1314,6 +1359,7 @@ function cityAct(act) {
   else if (k === 'armor') { if (buy(ARMOR_PRICE[S.armor], `재단사 특수 원단 ${S.armor + 1}단계`)) S.armor++; }
   else if (k === 'home') { if (buy(v === 'nest' ? 300000000 : 30000000, v === 'nest' ? '둥지 이주권 취득' : '뒷골목 주택 구입')) S.ownHome = v; }
   else if (k === 'guard') { if (buy(3000000, '오늘 밤 3급 해결사 경호 고용')) S.flags.guardTonight = true; }
+  else if (k === 'hospital') { if (buy(300000, '정식 병원 진료')) S.hp = Math.min(S.maxHp, S.hp + Math.round(S.maxHp * 0.5)); }
   else if (k === 'amp') { if (buy(ampPrice(), 'HP 앰플 투여')) S.hp = S.maxHp; }
   else if (k === 'repay') repayDebt(S.debt, true);
   else if (k === 'forget') { if (S.deck.length > 6 && buy(100000, `기억 파쇄 — 「${CARDS[v].name}」을(를) 잊었다`)) S.deck.splice(S.deck.indexOf(v), 1); }
@@ -1356,6 +1402,15 @@ EVENTS.push(
     }, text: '' },
 );
 // 손가락의 신임 — 손가락의 일을 잘 해낼수록 쌓이고, 2 이상이면 입단 시험이 열린다
+// 전투 보상의 출처를 소속에 맞게
+function rewardSource() {
+  const f = faction();
+  if (isFixer()) return '하나 협회에 보고하자 포상금이 나왔다.';
+  if (f === 'finger' || f === 'gang') return '조직의 구역을 지켰다. 윗선이 사례금을 보내왔다.';
+  if (f === 'wing') return '날개의 보안팀이 사후 처리를 하며 협조금을 건넸다.';
+  if (f === 'head') return '머리의 기록에 처리 내역이 남았다.';
+  return '구해준 사람들이 가진 돈을 모아 건넸다.';
+}
 function favor(f, n = 1) {
   if (!f || !S || AFF().locked || faction() === 'finger') return;
   S.favor = S.favor || {};
@@ -1381,6 +1436,47 @@ EVENTS.push(
         { t: '정중히 사양한다', def: true, fn() { say(`"언제든 마음이 바뀌면." 간부는 미소 지으며 떠났다.`); S.favor[f] = 1; } },
       ];
     }, text: '' },
+);
+/* ---------- 회복 선택지 ---------- */
+EVENTS.push(
+  { id: 'back_clinic', when: [0, 1, 2], w: 2, notFac: ['head'], cond: () => S.hp < S.maxHp, title: '뒷골목 진료소',
+    text: '간판도 없는 진료소. 무면허 의사가 담배를 비벼 끄며 묻는다. "꿰맬 거야, 말 거야?" 길 건너에는 둥지 쪽 정식 병원의 불빛도 보인다.',
+    choices: [
+      { t: '무면허 봉합 (3만 안) — 체력 25 회복, 낮은 확률로 감염', cost: 30000, fn() {
+        spend(30000); heal(25);
+        if (Math.random() < 0.2) { say('…실이 녹슬어 있었다. 상처가 곪는다.', 'l-bad'); hurt(6); }
+      } },
+      { t: '정식 병원 (30만 안) — 체력 50% 회복', cost: 300000, fn() { spend(300000); say('깨끗한 시트, 소독약 냄새. 둥지의 의료는 확실하다.'); heal(Math.round(S.maxHp * 0.5)); } },
+      { t: '참는다', def: true, fn() { say('상처를 붕대로 동여맸다.'); } },
+    ] },
+  { id: 'gukbap', when: [0, 1, 2], w: 2, title: '24시 국밥집',
+    text: '김이 서린 유리문 너머로 뚝배기 끓는 소리. 뒷골목에서 몇 안 되는, 밤낮없이 문을 여는 가게다.',
+    choices: [
+      { t: '국밥 한 그릇 (9천 안) — 체력 20 회복', cost: 9000, fn() { spend(9000); say('뜨거운 국물이 속을 데운다. 살 것 같다.'); heal(20); } },
+      { t: '수육까지 시킨다 (2.5만 안) — 체력 35 회복', cost: 25000, fn() { spend(25000); say('오랜만에 배가 부르다. 사장님이 깍두기를 더 얹어주었다.'); heal(35); } },
+      { t: '냄새만 맡고 지나간다', def: true, fn() { say('배가 꼬르륵거렸다.'); } },
+    ] },
+  { id: 'bathhouse', when: [1, 2], w: 1.5, notFac: ['head'], title: '목욕탕',
+    text: '낡은 대중목욕탕. 탕 안에는 문신한 조직원과 퇴근한 깃털이 나란히 앉아 있다. 여기서만큼은 아무도 싸우지 않는다.',
+    choices: [
+      { t: '몸을 담근다 (1.2만 안) — 체력 15 회복, 정신 압박 감소', cost: 12000, fn() { spend(12000); say('뜨거운 물에 몸을 담그자 어깨의 힘이 빠진다.'); heal(15); stress(-12); } },
+      { t: '지나친다', def: true, fn() { say('수증기 냄새만 맡고 지나쳤다.'); } },
+    ] },
+  { id: 'nap', when: [1], w: 1.5, notFac: ['head'], title: '공원 벤치',
+    text: '뒷골목 사이 작은 공원. 햇볕이 드는 벤치가 비어 있다. 잠깐 눈을 붙이면 좋겠지만, 여긴 뒷골목이다.',
+    choices: [
+      { t: '잠깐 눈을 붙인다 — 체력 15 회복, 소매치기 주의', fn() {
+        say('잠깐 졸았다.'); heal(15);
+        if (Math.random() < 0.25 && S.money > 0) { const lost = Math.min(S.money, Math.max(10000, Math.round(S.money * 0.1))); say('…일어나 보니 지갑이 가볍다.', 'l-bad'); spend(lost, true); }
+      } },
+      { t: '앉아서 쉬기만 한다 — 체력 6 회복', def: true, fn() { say('바람이 시원했다.'); heal(6); } },
+    ] },
+  { id: 'k_regen', when: [0, 1], w: 0.8, notFac: ['head'], cond: () => S.hp < S.maxHp * 0.7, title: 'K사 출장 재생 클리닉',
+    text: 'K사 로고가 찍힌 이동식 클리닉 차량. "HP 앰플 정품 시술. 잘린 팔도 붙여드립니다." 가격표의 0이 많다.',
+    choices: [
+      { t: '완전 재생 시술 (250만 안) — 체력 전부 회복', cost: 2500000, fn() { spend(2500000); say('세포가 다시 짜이는 감각. 상처가 흔적도 없이 사라졌다.'); heal(S.maxHp); } },
+      { t: '가격표만 보고 지나간다', def: true, fn() { say('둥지 사람들은 이걸 매주 맞는다던데.'); } },
+    ] },
 );
 const restrictAff = (id, aff) => Object.assign(EVENTS.find(e => e.id === id), { aff });
 restrictAff('head_order', ['claw', 'arbiter']);
@@ -1574,7 +1670,7 @@ function chooseEvent() {
   const f = faction();
   let pool = EVENTS.filter(e => !e.chainOnly && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
     && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.origin || e.origin.includes(S.ch.id))
-    && (!e.aff || e.aff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted')))
+    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted')))
     && (!e.cond || e.cond()));
   if (!pool.length) pool = EVENTS.filter(e => e.id === (f === 'twisted' ? 'tw_memory' : 'rest'));
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total;
