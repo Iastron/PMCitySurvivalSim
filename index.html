@@ -2313,6 +2313,60 @@ Object.assign(EVENTS.find(e => e.id === 'vp_pouch'), {
 AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 1. 모은 피 5마다 +1(최대 +2), 거느린 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.';
 AFFS.bloodkin.hooks.rollBonus = (P, d) => OFF(d[0]) ? Math.min(4, S.thrallPow || 0) + Math.min(2, Math.floor((S.blood || 0) / 5)) : 0;
 
+/* ---------- 혈귀: 쓰러뜨린 사람을 어떻게 할 것인가 (권속 / 피주머니 / 섭취) ---------- */
+const CAPTIVES = {
+  citizen: { label: '뒷골목 주민', pow: 1, yield: 1, feed: 1 },
+  feather: { label: '둥지의 깃털', pow: 1, yield: 2, feed: 2 },
+  rat: { label: '뒷골목 쥐', pow: 1, yield: 1, feed: 1 },
+  kong: { label: '콩콩이파 조직원', pow: 1, yield: 1, feed: 1 },
+  thumb: { label: '손가락 조직원', pow: 2, yield: 2, feed: 2 },
+  hunter: { label: '금기 사냥꾼', pow: 2, yield: 2, feed: 3 },
+  smile: { label: '웃는 얼굴들 조직원', pow: 2, yield: 2, feed: 3 },
+  hana_low: { label: '해결사', pow: 2, yield: 2, feed: 2 },
+  hana_mid: { label: '하나 협회 3과 해결사', pow: 3, yield: 3, feed: 3 },
+  hana_high: { label: '하나 협회 1과 해결사', pow: 4, yield: 3, feed: 4 },
+  finger_exec: { label: '손가락 간부', pow: 4, yield: 3, feed: 4 },
+  wing_force: { label: '날개 전투 요원', pow: 3, yield: 3, feed: 3 },
+  color_rival: { label: '특색', pow: 5, yield: 4, feed: 6 },
+};
+EVENTS.push(
+  { id: 'vp_fate', chainOnly: true, when: [0, 1, 2, 3], w: 0, title: '쓰러진 자',
+    build() {
+      const c = S.vpCaptive || CAPTIVES.citizen;
+      this.text = `${josa(c.label, '이', '가')} 쓰러져 있다. 아직 숨이 붙어 있다. 어떻게 할 것인가. (피 ${S.blood || 0}, 권속 ${S.thralls || 0}/5, 피주머니 ${S.pouches || 0}/5)`;
+      return [
+        { t: `권속으로 만든다 (피 3) — 권속의 힘 +${c.pow}, 악명 +3`, req: () => (S.blood || 0) >= 3 && (S.thralls || 0) < 5 && S.vampRank < 9,
+          get reqText() { return S.vampRank >= 9 ? '제9권속은 권속을 만들 수 없다' : (S.thralls || 0) >= 5 ? '권속이 가득 찼다' : '피 부족'; },
+          fn() { S.blood -= 3; S.thralls = (S.thralls || 0) + 1; S.thrallPow = (S.thrallPow || 0) + c.pow;
+            say(`${josa(c.label, '이', '가')} 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. 당신을 주인이라 부른다. (권속 ${S.thralls}/5, 권속의 힘 +${S.thrallPow})`, 'l-day'); infamy(3, '새 혈귀 출현'); } },
+        { t: `피주머니로 만든다 — 매일 피 +${c.yield}, 악명 +2`, req: () => (S.pouches || 0) < 5, reqText: '피주머니가 가득 찼다',
+          fn() { S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + c.yield;
+            say(`은신처 지하에 피주머니가 하나 늘었다 — ${c.label}. (피주머니 ${S.pouches}/5, 매일 피 +${S.pouchYield})`); infamy(2, '실종 사건'); } },
+        { t: `섭취한다 — 피 +${c.feed}, 체력 회복`, def: true, fn() {
+          S.blood = (S.blood || 0) + c.feed; say(`${josa(c.label, '을', '를')} 마셨다. (피 ${S.blood})`); heal(10 + c.feed * 5); infamy(1, '시신 발견'); } },
+      ];
+    }, text: '' },
+  { id: 'vp_hunt', fac: ['vampire'], when: [1, 2, 3], w: 2.5, title: '사냥',
+    build() {
+      this.text = '오늘 밤의 먹잇감을 고른다. 쓰러뜨린 뒤 권속으로 만들지, 피주머니로 쓸지, 그 자리에서 마실지는 그때 정한다.';
+      const take = (key, fightKey, name) => () => {
+        S.vpCaptive = CAPTIVES[key];
+        if (!fightKey) { say(`${CAPTIVES[key].label}의 뒤를 밟아 골목으로 끌고 갔다.`); if (key === 'feather') infamy(1, '둥지 주민 실종'); return 'vp_fate'; }
+        fight(fightKey, { lethal: true, noCow: true, name, captive: key });
+      };
+      return [
+        { t: '뒷골목 주민을 노린다', fn: take('citizen') },
+        { t: '둥지의 깃털을 노린다 — 피가 진하지만 소문이 빠르다', fn: take('feather') },
+        { t: '해결사를 노린다 — 전투', fn: take('hana_low', 'hana_low', '혼자 귀가하던 해결사') },
+        { t: '손가락 조직원을 노린다 — 전투', fn: take('thumb', 'thumb', '골목을 지나던 손가락 조직원') },
+        { t: '오늘은 사냥하지 않는다', def: true, fn() { say('갈증을 삼켰다.'); } },
+      ];
+    }, text: '' },
+);
+// 대상 선택은 이제 '사냥' 이벤트와 전투 후 선택으로 통합
+EVENTS.find(e => e.id === 'vp_thrall').cond = () => false;
+EVENTS.find(e => e.id === 'vp_pouch').cond = () => false;
+
 /* =========================================================
    턴 진행 (자동 진행 + 제한시간)
 ========================================================= */
@@ -2798,6 +2852,10 @@ function endCombat(win) {
     if (S.hp < S.maxHp * 0.25) { say('간신히 이겼다. 손이 떨린다.', 'l-bad'); stress(10); }
     opts.win && opts.win();
     T.resolved = true;
+    const capKey = opts.captive || C.key;
+    if (faction() === 'vampire' && S.phase === 'day' && CAPTIVES[capKey]) {   // 쓰러뜨린 사람을 어떻게 할지 고른다
+      S.vpCaptive = CAPTIVES[capKey]; T.pendingChain = 'vp_fate'; T.timeLeft = Math.max(T.timeLeft, 20);
+    }
     rewardModal(opts.rare);
   } else {
     if (opts.lethal === false) {
