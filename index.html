@@ -2202,33 +2202,36 @@ function infamy(n, why) {
 }
 
 Object.assign(ENEMIES, {
-  hana_low: { name: '하청 해결사 사무소', desc: '하나 협회의 공개 의뢰를 받고 온 해결사들. 혈귀 토벌은 처음인 듯하다.', hp: 90, stg: 40, slots: 2,
-    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [1000000, 2000000],
-    pool: [{ name: '연계 공격', dice: [['참격', 4, 8], ['관통', 4, 8]] }, { name: '방패 들기', dice: [['방어', 5, 9]] },
-      { name: '말뚝 박기', dice: [['관통', 6, 11]] }, { name: '협공', dice: [['타격', 5, 9], ['참격', 3, 6]] }] },
-  hana_mid: { elite: true, name: '하나 협회 3과', desc: '재해 토벌을 위해 파견된 협회 정예. 혈귀를 상대하는 법을 안다.', hp: 160, stg: 70, slots: 3,
-    res: { 참격: 1, 관통: 0.9, 타격: 1 }, reward: [5000000, 10000000],
-    passive: '토벌 교본 — 매 막 인내 1', onRound: e => { e.st.end += 1; },
-    pool: [{ name: '협회식 검격', dice: [['참격', 7, 12], ['참격', 5, 9]] }, { name: '은 말뚝', dice: [['관통', 9, 14]], onHit: { para: 1 } },
-      { name: '방진', dice: [['방어', 8, 13]] }, { name: '제압', dice: [['타격', 8, 13]] }] },
-  hana_high: { elite: true, name: '하나 협회 1과', desc: '도시 악몽급 재해를 처리하는 협회의 최정예. 1급 해결사들이다.', hp: 230, stg: 95, slots: 3,
-    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [30000000, 50000000], light: 6, lightRegen: 3,
-    passive: '1과 — 매 막 힘 1, 인내 1', onRound: e => { e.st.str += 1; e.st.end += 1; },
-    pool: [{ name: '정점의 검격', dice: [['참격', 9, 15], ['참격', 7, 11]] }, { name: '심판의 말뚝', dice: [['관통', 12, 18]], onHit: { para: 2 } },
-      { name: '완벽한 방어', dice: [['방어', 10, 15]] }, { name: '연계 처형', dice: [['관통', 7, 11], ['참격', 7, 11], ['타격', 7, 11]] }] },
+  hana_low: { name: '하청 해결사 사무소', desc: '하나 협회의 공개 의뢰를 받고 온 해결사들. 혈귀 토벌 장비를 챙겨 왔다.', hp: 130, stg: 55, slots: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [1000000, 2000000], light: 4, lightRegen: 2,
+    pool: [{ name: '연계 공격', dice: [['참격', 6, 10], ['관통', 5, 9]] }, { name: '방패 들기', dice: [['방어', 7, 11]] },
+      { name: '은 말뚝', dice: [['관통', 8, 13]], onHit: { para: 1 } }, { name: '협공', dice: [['타격', 7, 11], ['참격', 5, 8]] }] },
+  hana_mid: { elite: true, name: '하나 협회 3과', desc: '재해 토벌을 위해 파견된 협회 정예. 혈귀를 상대하는 법을 안다.', hp: 230, stg: 95, slots: 3,
+    res: { 참격: 1, 관통: 0.9, 타격: 1 }, reward: [5000000, 10000000], light: 6, lightRegen: 3,
+    passive: '토벌 교본 — 매 막 힘 1, 인내 1', onRound: e => { e.st.str += 1; e.st.end += 1; },
+    pool: [{ name: '협회식 검격', dice: [['참격', 9, 14], ['참격', 7, 11]] }, { name: '은 말뚝', dice: [['관통', 11, 17]], onHit: { para: 1, bleed: 1 } },
+      { name: '방진', dice: [['방어', 10, 15]] }, { name: '제압', dice: [['타격', 10, 15]], onHit: { para: 1 } }] },
+  hana_high: { elite: true, name: '하나 협회 1과', desc: '도시 악몽급 재해를 처리하는 협회의 최정예. 1급 해결사들이다.', hp: 330, stg: 135, slots: 4,
+    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [30000000, 50000000], light: 8, lightRegen: 4,
+    passive: '1과 — 매 막 힘 2, 인내 1', onRound: e => { e.st.str += 2; e.st.end += 1; },
+    pool: [{ name: '정점의 검격', dice: [['참격', 12, 18], ['참격', 9, 14]] }, { name: '심판의 말뚝', dice: [['관통', 14, 22]], onHit: { para: 2 } },
+      { name: '완벽한 방어', dice: [['방어', 12, 18]] }, { name: '연계 처형', dice: [['관통', 9, 14], ['참격', 9, 14], ['타격', 9, 14]] }] },
 });
 
 EVENTS.push(
   { id: 'vp_hunters', fac: ['vampire'], when: [0, 1, 2, 3], w: 0, cond: () => false, title: '토벌대',
     build() {
       const l = vLevel(), enemy = l >= 5 ? ((S.flags.starWins || 0) >= 2 ? 'color_rival' : 'hana_high') : l === 4 ? 'hana_high' : l === 3 ? 'hana_mid' : 'hana_low';
+      const atStar = l >= 5;   // 이미 도시의 별인 상태에서의 승리만 센다
       this.text = `하나 협회의 의뢰서에 당신의 얼굴이 실렸다. 재해 등급 「${VDIS[l]}」. ${josa(ENEMIES[enemy].name, '이', '가')} 당신의 은신처를 찾아냈다.`;
       return [
         { t: '맞선다', def: true, fn() {
           S.flags.vHunt = false;
-          fight(enemy, { lethal: true, win() {
+          const isColor = enemy === 'color_rival';   // 특색은 1과보다 확실히 강해야 한다
+          fight(enemy, { lethal: true, hpMul: 1 + l * 0.1 + (isColor ? 1.3 : 0), power: Math.floor(l / 2) + (isColor ? 4 : 0),
+            light: isColor ? 8 : undefined, lightRegen: isColor ? 4 : undefined, win() {
             say('해결사들의 피를 마셨다. 도시는 더 강한 자를 보낼 것이다.'); S.blood = (S.blood || 0) + 2; infamy(2, '토벌대 전멸');
-            if (vLevel() >= 5 && enemy === 'hana_high') { S.flags.starWins = (S.flags.starWins || 0) + 1;
+            if (atStar && enemy === 'hana_high') { S.flags.starWins = (S.flags.starWins || 0) + 1;
               if (S.flags.starWins >= 2) say('하나 협회가 결단을 내렸다. 다음에는 색을 받은 자가 온다.', 'l-bad'); }
           } });
         } },
@@ -2488,12 +2491,12 @@ function fight(key, opts = {}) {
     return;
   }
   // 일반 적은 일수에 따라 조금씩 강해진다 (위상 보정은 없음 — 강해진 만큼 체감되도록)
-  const m = (1 + 0.07 * (S.day - 1));
+  const m = (1 + 0.07 * (S.day - 1)) * (opts.hpMul || 1);
   const E = { d, name: opts.name || d.name, desc: opts.desc || d.desc, maxHp: Math.round(d.hp * m), maxStg: Math.round(d.stg * m), res: d.res,
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, isEnemy: true };
-  E.hp = E.maxHp; E.stg = E.maxStg;
+  E.hp = E.maxHp; E.stg = E.maxStg; E.power = opts.power || 0;
   // 적의 빛: 예고 칸 수 + 1에서 시작, 매 막 회복 (일반 +1, 강적 +2)
-  E.maxLight = d.light || d.slots + 1; E.light = E.maxLight; E.lightRegen = d.lightRegen || (d.elite ? 2 : 1);
+  E.maxLight = opts.light || d.light || d.slots + 1; E.light = E.maxLight; E.lightRegen = opts.lightRegen || d.lightRegen || (d.elite ? 2 : 1);
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
   C = { E, P, key, opts, round: 0, drawPile: shuffle([...S.deck]), hand: [], discard: [], played: [], intents: [], busy: false };
@@ -2534,6 +2537,7 @@ function startRound() {
   const { P, E } = C;
   for (const u of [P, E]) { u.st.str = u.next.str; u.st.end = u.next.end; u.st.prot = u.next.prot; u.next = mkSt(); }
   if (E.d.onRound) E.d.onRound(E, P);
+  if (E.power) E.st.str += E.power;   // 상황에 따른 추가 위력 (토벌대 등)
   if (H().roundStart) H().roundStart(P, E);
   if (S.armor) P.st.prot += S.armor;   // 재단사 원단
   if (C.round > 1) P.light = Math.min(P.maxLight, P.light + 1);   // 빛은 매 막 1씩만 회복
