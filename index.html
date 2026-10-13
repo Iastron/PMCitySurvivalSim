@@ -167,6 +167,75 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
   .intent{width:100%}
   .speed{margin-left:0}
 }
+/* ---------- 모바일 (600px 이하) ---------- */
+.menu-btns{display:contents}
+@media (max-width:600px){
+  html,body{font-size:14px}
+  .wrap{padding:8px 10px calc(24px + env(safe-area-inset-bottom))}
+  /* 상단 바: 한 화면의 1/4을 차지하지 않도록 압축 */
+  #topbar{padding:6px 0 4px}
+  #topbar .wrap{padding-top:0;padding-bottom:0}
+  .bar-row{gap:2px 10px;font-size:12px;line-height:1.5}
+  #clock{font-size:13px}
+  #sLoc{max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .role-stat{flex-basis:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .menu-btns{display:flex;gap:4px;flex:1 1 auto;min-width:0}
+  .menu-btns button{padding:6px 8px !important;font-size:12px !important;flex:1 1 auto;white-space:nowrap}
+  .speed{gap:3px;margin-left:0}
+  .speed button{padding:6px 7px;font-size:12px;min-width:34px}
+  .timer{margin-top:5px;height:5px}
+  .turns{margin-top:4px}
+  .turns span{font-size:10px;padding:1px}
+  /* 로그 + 선택지: 선택지는 화면 아래에 고정되어 스크롤 없이 고를 수 있다 */
+  #log{height:auto;min-height:180px;max-height:42vh;padding:10px;font-size:13.5px;line-height:1.7;margin-top:8px}
+  #event{position:sticky;bottom:0;z-index:15;max-height:58vh;overflow-y:auto;padding:12px;margin-top:8px;
+    box-shadow:0 -8px 24px #000c;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+  #event h3{font-size:15px}
+  #event p{font-size:13.5px;line-height:1.65;margin-bottom:10px}
+  .choices button{min-height:44px;font-size:14px;line-height:1.45;padding:9px 12px}
+  #nextBtn{width:100%;min-height:44px}
+  .warp-log{font-size:12.5px}
+  /* 전투: 세로 길이를 줄이고, 예고·손패는 가로로 넘긴다 */
+  #combat .unit{padding:8px 10px}
+  .unit .nm{font-size:15px}
+  .unit .desc{max-height:2.9em;overflow:hidden;position:relative;cursor:pointer}
+  .unit .desc::after{content:'… 눌러서 펼치기';position:absolute;right:0;bottom:0;background:var(--panel);color:var(--gold);font-size:11px;padding-left:6px}
+  .unit.open .desc{max-height:none}
+  .unit.open .desc::after{content:''}
+  .bars{grid-template-columns:44px 1fr 62px;font-size:11px}
+  .intents{flex-wrap:nowrap;overflow-x:auto;gap:8px;margin:8px 0;padding-bottom:4px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .intent{flex:0 0 150px;width:150px;padding:7px;font-size:12px;scroll-snap-align:start}
+  #clog{height:110px;font-size:12px;margin:8px 0}
+  .hand{flex-wrap:nowrap;overflow-x:auto;gap:10px;min-height:0;padding:10px 4px 6px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+  .hand .card{flex:0 0 122px;width:122px;min-height:112px;scroll-snap-align:start}
+  .card:hover{transform:none}
+  .played{font-size:12px}
+  .ctrl{position:sticky;bottom:0;z-index:15;background:var(--bg);padding:8px 0 calc(8px + env(safe-area-inset-bottom));margin-top:0;box-shadow:0 -8px 18px #000c}
+  #resolveBtn{flex:1 1 100%;min-height:46px;font-size:15px}
+  #pileInfo{width:100%;text-align:center;font-size:11px}
+  #combat .ctrl{padding:6px 0 calc(6px + env(safe-area-inset-bottom));gap:4px}
+  /* 모달: 거의 전체 화면 */
+  #modal{padding:0;align-items:flex-end}
+  #modal .box{max-height:92vh;border-radius:12px 12px 0 0;padding:14px 12px calc(16px + env(safe-area-inset-bottom))}
+  .fac-row{flex-wrap:wrap}
+  .fac-row > div{flex:1 1 100%}
+  .fac-row button{width:100%;min-height:40px}
+  #modalBox .hand{flex-wrap:wrap;overflow-x:visible}
+  #modalBox .hand .card{flex:0 0 calc(50% - 6px);width:calc(50% - 6px)}
+  /* 출신 뽑기 */
+  .roll-btn{width:100%;font-size:15px}
+  h1{font-size:23px;margin-top:16px}
+  .sub{font-size:13.5px}
+  select,input{font-size:16px}
+  /* 전투 중: 상단 바를 최소화하고, 손패가 화면 안에 들어오도록 순서 조정 */
+  body.in-combat .role-stat,body.in-combat .menu-btns,body.in-combat #sPay,body.in-combat #sDebt,body.in-combat .turns,body.in-combat #sMerit,body.in-combat #sMerit+*{display:none}
+  body.in-combat .bar-row > .stat:has(#sMerit){display:none}
+  #combat{display:flex;flex-direction:column}
+  #eBox{order:1}#intents{order:2}#pBox{order:3}#played{order:4}#hand{order:5}#combat .ctrl{order:6}#clog{order:7}
+  .unit .desc{max-height:1.5em}
+  #clog{height:96px}
+  #combat .status:empty{display:none}
+}
 </style>
 </head>
 <body>
@@ -180,12 +249,12 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       <span class="stat dim" id="sPay"></span>
       <span class="stat l-bad" id="sDebt"></span>
       <span class="stat" id="sPress"></span>
-      <span class="stat"><span id="sRole" class="dim"></span> <b id="sGrade"></b></span>
+      <span class="stat role-stat"><span id="sRole" class="dim"></span> <b id="sGrade"></b></span>
       <span class="stat">실적 <b id="sMerit"></b></span>
-      <button id="cityBtn" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">도시 시설</button>
+      <span class="menu-btns"><button id="cityBtn" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">도시 시설</button>
       <button id="boardBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--cyan)">의뢰 게시판</button>
       <button id="deckBtn" style="padding:3px 9px;font-size:13px">덱 보기</button>
-      <button id="helpBtn" style="padding:3px 9px;font-size:13px">도움말</button>
+      <button id="helpBtn" style="padding:3px 9px;font-size:13px">도움말</button></span>
       <div class="speed">
         <button data-sp="0" title="Space">⏸ 정지</button>
         <button data-sp="1" class="on">1x</button>
@@ -1025,6 +1094,7 @@ function renderTop() {
   saveHistory();
   if (!S) return;
   const t = TURNS[S.turn];
+  document.body.classList.toggle('in-combat', S.phase === 'combat');
   $('#sLoc').textContent = S.warp ? '📍 W사 워프 열차 안' : S.loc ? '📍 ' + S.loc.label : '';
   if (S.warp) { $('#clock').innerHTML = `<span style="color:var(--red)">열차 안 ${Math.max(1, warpInner()).toLocaleString()}일째</span>`; }   // 열차 안에서는 바깥 시간을 보여주지 않는다
   else $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${t.name} ${t.time}</span>`;
@@ -4665,6 +4735,7 @@ function renderCombat() {
   renderTop();
 }
 $('#resolveBtn').onclick = () => C && resolveRound();
+for (const id of ['#eBox', '#pBox']) $(id).addEventListener('click', e => { if (e.target.closest('.desc')) $(id).classList.toggle('open'); });
 
 /* =========================================================
    기타 화면
