@@ -56,6 +56,14 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
 #event p{margin:0 0 12px;line-height:1.7}
 .choices{display:flex;flex-direction:column;gap:6px}
 .choices button{text-align:left}
+.choices button.head-shattered{position:relative;color:transparent!important;background:transparent;border-color:transparent;opacity:1;pointer-events:none;overflow:visible}
+.head-shattered::before,.head-shattered::after{content:attr(data-break-label);position:absolute;inset:0;padding:7px 12px;text-align:left;background:var(--panel2);border:1px solid var(--gold);border-radius:6px;color:var(--dim);pointer-events:none}
+.head-shattered::before{clip-path:polygon(0 0,58% 0,46% 44%,54% 60%,40% 100%,0 100%);animation:head-break-left .65s ease-out forwards}
+.head-shattered::after{clip-path:polygon(58% 0,100% 0,100% 100%,40% 100%,54% 60%,46% 44%);animation:head-break-right .65s ease-out forwards}
+@keyframes head-break-left{0%{transform:translate(0,0)}20%{transform:translate(-3px,1px)}100%{transform:translate(-7px,5px) rotate(-2deg);opacity:.3}}
+@keyframes head-break-right{0%{transform:translate(0,0)}20%{transform:translate(3px,-1px)}100%{transform:translate(7px,7px) rotate(2deg);opacity:.3}}
+.head-no-retreat{color:var(--gold);font-weight:700;margin:14px 0 4px}
+@media(prefers-reduced-motion:reduce){.head-shattered::before,.head-shattered::after{animation:none;opacity:.3}}
 .choices .def{font-size:11px;color:var(--dim);margin-left:6px}
 .choices .req{font-size:11px;color:var(--red);margin-left:6px}
 .ev-timer{font-size:13px;color:var(--dim);margin-bottom:8px}
@@ -1052,7 +1060,7 @@ const EVENTS = [
     choices: [
       { t: '싸운다', fn() { fight('rat', { lethal: false, win() { say('쥐들이 흩어졌다. 주머니에서 쓸 만한 것을 챙겼다.'); merit(1); } }); } },
       { t: '1만 안을 던져주고 지나간다', cost: 10000, fn() { spend(10000); say('쥐들은 돈을 줍느라 길을 비켰다.'); } },
-      { t: '도망친다', def: true, fn() {
+      { t: '도망친다', flee: true, def: true, fn() {
         const ok = Math.random() < (H().flee || (S.grade <= 3 ? 0.95 : 0.55));
         if (ok) say('익숙한 지름길로 빠져나왔다.'); else { say('등 뒤로 쇠파이프가 날아왔다.'); hurt(8); }
       } },
@@ -1148,7 +1156,7 @@ const EVENTS = [
     choices: [
       { t: '맞서 싸운다', fn() { fight('twisted_small', { lethal: true, win() { say('사람이었던 것이 쓰러졌다. ' + rewardSource()); gain(pay(1000000)); merit(3); } }); } },
       { t: '협회에 신고한다', fn() { say('하나 협회에 신고했다. 협회가 도착했을 땐 이미 늦었지만, 목격자 진술로 사례금이 나왔다.'); gain(pay(50000)); } },
-      { t: '도망친다', def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다. …들려왔지만.'); stress(15); } },
+      { t: '도망친다', flee: true, def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다. …들려왔지만.'); stress(15); } },
     ] },
   { id: 'library', when: [0, 1, 2], get w() { return S && faction() === 'vampire' ? 0.6 : 1.8; }, cond: () => S.day >= 3 && (!S.flags.libDay || S.day >= S.flags.libDay + 5), title: '금빛 초대장',
     text: '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 들어간 사람 중 돌아온 이는 드물다.',
@@ -1885,7 +1893,7 @@ EVENTS.push(
         fight('lcb_team', { lethal: false, win() { say('수감자들이 물러났다. "다음에 다시 오죠." 시계 머리가 째깍거렸다.'); },
           lose() { untwist(); } });
       } },
-      { t: '도망친다', def: true, fn() { say('버스는 당신을 쫓지 않았다. 아직은.'); } },
+      { t: '도망친다', flee: true, def: true, fn() { say('버스는 당신을 쫓지 않았다. 아직은.'); } },
     ] },
   { id: 'tw_night', fac: ['twisted'], when: [3], w: 1, title: '뒷골목의 밤 — 괴물의 시간',
     text: '청소부의 기계음이 들린다. 그들은 뒤틀림도 가리지 않고 먹는다.',
@@ -2093,7 +2101,7 @@ EVENTS.push(
     text: '덤불 너머에서 작은 그림자들이 튀어나온다. 봉제인형 같은 얼굴, 녹슨 창. "인간이다!"',
     choices: [
       { t: '싸운다', def: true, fn() { fight('gnome', { lethal: true, win() { say('노움들이 흩어졌다. 그들이 끌고 다니던 자루에서 쓸 만한 물건이 나왔다.'); } }); } },
-      { t: '도망친다', fn() { if (Math.random() < 0.6) say('간신히 따돌렸다.'); else { say('창끝이 등을 긁었다.', 'l-bad'); hurt(10); } } },
+      { t: '도망친다', flee: true, fn() { if (Math.random() < 0.6) say('간신히 따돌렸다.'); else { say('창끝이 등을 긁었다.', 'l-bad'); hurt(10); } } },
     ] },
   { id: 'os_toothgear', exile: true, when: [1, 2], w: 2, title: '이빨태엽',
     text: '째깍, 째깍. 시계 소리가 가까워진다. 외곽 사람들이 가장 두려워하는 소리다.',
@@ -2308,12 +2316,34 @@ const RED_MIST_POOL = [
 ];
 const GREATER_SPLIT_H = { name: '대절단-가로', cost: 6, dice: [['참격', 28, 42]], onHit: { bleed: 5 } };
 const redMistRound = e => {
-  if (e.hp <= e.maxHp / 2 && !e.ego) { e.ego = true; e.stg = e.maxStg; e.extra = [GREATER_SPLIT_H]; clog('붉은 안개가 피어오른다 — E.G.O 발현 (흐트러짐 회복, 모든 위력 +2, 대절단-가로)', 'l-bad'); }
-  if (e.ego) e.st.str += 2;
+  e.priorityCard = null;
+  if (e.hp <= 0) return;
+  if (e.hp <= e.maxHp / 2 && !e.ego) {
+    e.ego = true; e.egoRound = C.round;
+    e.stg = e.maxStg; e.staggered = false; e.sr = 0;
+    e.light = e.maxLight; e.extra = [GREATER_SPLIT_H];
+    clog('붉은 안개가 피어오른다 — E.G.O 발현 (흐트러짐 해제·회복, 빛 회복, 모든 위력 +' + (e.d.egoPower || 2) + ', 대절단-가로)', 'l-bad');
+  }
+  if (e.ego) {
+    const power = e.d.egoPower || 2;
+    e.st.str += power; e.st.end += power;
+    if (e.d.egoCycle && (C.round - e.egoRound) % e.d.egoCycle === 0) {
+      e.light = Math.max(e.light, GREATER_SPLIT_H.cost);
+      e.priorityCard = GREATER_SPLIT_H;
+    }
+  }
 };
 for (const k of ['gebura_lib', 'rift_redmist'])
   Object.assign(ENEMIES[k], { light: 6, lightRegen: 3, pool: RED_MIST_POOL, onRound: redMistRound,
     passive: '붉은안개 — 체력 절반 이하에서 E.G.O 발현: 흐트러짐 회복, 모든 주사위 위력 +2, 대절단-가로 사용' });
+
+// 균열의 붉은안개는 열화판 사서보다 강한 독립 전투 데이터를 사용한다.
+Object.assign(ENEMIES.rift_redmist, {
+  hp: 400, stg: 160, slots: 4, light: 8, lightRegen: 4, egoPower: 3, egoCycle: 3,
+  res: {참격:0.8, 관통:0.9, 타격:1},
+  pool: RED_MIST_POOL.map(card => ({...card, dice:card.dice.map(([type,min,max]) => [type,min+2,max+2])})),
+  passive: '붉은안개 — 체력 절반 이하에서 E.G.O 발현: 흐트러짐 해제·회복, 빛 회복, 모든 위력 +3. 발현한 막부터 3막마다 대절단-가로를 우선 사용하며 필요한 빛을 확보한다.'
+});
 
 // 비나 (열화된 조율자)
 Object.assign(ENEMIES.binah_lib, { light: 6, lightRegen: 3, pool: [
@@ -2866,6 +2896,29 @@ function chooseEvent() {
   return pool[pool.length - 1];
 }
 
+const headCannotFlee = choice => faction() === 'head' && !!choice?.flee;
+function rejectHeadFlight(index) {
+  const button = $('#event button[data-i="' + index + '"]');
+  if (button && !button.disabled) {
+    button.dataset.breakLabel = button.textContent;
+    button.classList.add('head-shattered');
+    button.disabled = true;
+    button.setAttribute('aria-label', '도망 불가 — 머리의 사전에 도망은 없다.');
+  }
+  if (!T.awaiting.headFlightRejected) {
+    T.awaiting.headFlightRejected = true;
+    const message = document.createElement('p');
+    message.className = 'head-no-retreat';
+    message.setAttribute('role', 'status');
+    message.textContent = '머리의 사전에 도망은 없다.';
+    $('#event').appendChild(message);
+    print('머리의 사전에 도망은 없다.', 'l-sys');
+  }
+  T.timeLeft = Math.max(T.timeLeft, 10);
+  updateEvTimer();
+  const alternative = T.awaiting.choices.findIndex(c => !headCannotFlee(c) && avail(c));
+  if (alternative >= 0) $('#event button[data-i="' + alternative + '"]')?.focus();
+}
 function showEvent(ev) {
   ev = ev || chooseEvent();
   S.seenToday.push(ev.id);
@@ -2874,7 +2927,7 @@ function showEvent(ev) {
   T.eventShown = true;
   const box = $('#event');
   box.classList.remove('hidden');
-  const defIdx = Math.max(0, choices.findIndex(c => c.def));
+  const defIdx = defaultEventChoice(choices);
   box.innerHTML = `<h3>${ev.title}</h3><div class="ev-timer" id="evTimer"></div><p>${ev.text}</p><div class="choices">${
     choices.map((c, i) => {
       const ok = avail(c);
@@ -2891,18 +2944,24 @@ function updateEvTimer() {
   el.innerHTML = T.awaiting ? `결정까지 <b>${Math.ceil(T.timeLeft)}초</b>${S.paused ? ' · 일시정지 중' : ''} — 정지(Space)로 시간을 멈추고 신중히 고를 수 있다.` : '';
 }
 
+function defaultEventChoice(choices) {
+  const allowed = c => !headCannotFlee(c) && avail(c);
+  const noDebt = c => allowed(c) && !(c.cost && S.money < c.cost);
+  let index = choices.findIndex(c => c.def && noDebt(c));
+  if (index < 0) index = choices.findIndex(noDebt);
+  if (index < 0) index = choices.findIndex(allowed);
+  return index;
+}
 function choose(i, auto = false) {
   if (!T.awaiting || S.phase !== 'day') return;
   const { ev, choices } = T.awaiting;
   let c = choices[i];
   if (auto) {
-    c = choices.find(x => x.def) || choices[0];
-    // 시간 초과로는 빚을 지지 않는다
-    const noDebt = x => avail(x) && !(x.cost && S.money < x.cost);
-    if (!noDebt(c)) c = choices.find(noDebt) || choices.find(avail);
+    c = choices[defaultEventChoice(choices)];
     print('— 시간 초과. 망설이는 사이 상황이 흘러갔다.', 'l-bad');
   }
   if (!c || !avail(c)) return;
+  if (headCannotFlee(c)) { rejectHeadFlight(i); return; }
   T.awaiting = null;
   $('#event').classList.add('hidden');
   print(`▷ ${c.t.replace(/<[^>]+>/g, '')}`, 'l-choice');
@@ -3079,6 +3138,7 @@ function startRound() {
     if (C.round > 1) e.light = Math.min(e.maxLight, e.light + e.lightRegen);
     if (e.staggered) continue;
     const pool = shuffle([...e.d.pool, ...(e.extra || [])]);
+    if (e.priorityCard && pool.includes(e.priorityCard)) { pool.splice(pool.indexOf(e.priorityCard), 1); pool.unshift(e.priorityCard); }
     for (let i = 0; i < e.d.slots; i++) {
       const c = pool.find(x => ecost(x) <= e.light); if (!c) break;
       C.intents.push(c); C.intentOwners.push(e); e.light -= ecost(c);
