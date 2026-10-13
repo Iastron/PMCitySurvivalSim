@@ -315,6 +315,7 @@ const CARDS = {
   col_mark:   { name: '색의 각인', cost: 1, dice: [['타격', 6, 10]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
   col_guard:  { name: '불패의 수', cost: 1, dice: [['방어', 7, 12], ['회피', 6, 10]] },
   col_flash:  { name: '섬광', cost: 0, dice: [['관통', 5, 9]] },
+  col_sig:    { name: '특색의 상징', cost: 2, dice: [['참격', 9, 15]] },   // 특색 명칭이 정해질 때 덮어씀
   // 발톱 — 날개들의 특이점을 담은 혈청
   cl_w:       { name: '혈청 W', cost: 1, dice: [['관통', 8, 13], ['참격', 7, 11]], onUse: { draw: 1 }, desc: 'W사 — 공간을 접어 순간이동 강습. 사용 시 카드 1장 뽑기' },
   cl_r:       { name: '혈청 R', cost: 1, dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onUse: { nextStr: 1 }, desc: 'R사 — 짐승의 근력으로 연격. 사용 시 다음 막 힘 1' },
@@ -470,8 +471,38 @@ const FINGER_DECKS = {
   f_ring:   ['rg_brush', 'rg_brush', 'rg_brush', 'rg_master', 'rg_master', 'rg_canvas', 'rg_canvas', 'shi_ambush', 'flow'],
   f_pinky:  ['pk_duel', 'pk_duel', 'pk_draw', 'pk_draw', 'pk_draw', 'pk_stance', 'pk_stance', 'top_counter', 'flow'],
 };
-const COLORS = ['잿빛', '청록', '은회', '적갈', '호박빛', '연보라', '심홍', '백자', '먹빛', '금록'];
-const COLOR_NOUNS = ['칼날', '장막', '파도', '송곳', '망치', '그림자', '등불', '매'];
+/* 특색 명칭 = 두 글자 색 + 상징(무기·기술·나타났을 때의 영향). 원작 특색과 겹치는 이름은 쓰지 않는다
+   상징마다 고유 카드(col_sig)의 성능이 정해진다 */
+const COLORS = ['붉은', '검은', '푸른', '하얀', '노란', '잿빛', '은빛', '금빛', '핏빛', '쪽빛', '주홍', '진홍', '청록', '남빛', '연두', '자색'];
+const COLOR_SYMBOLS = {
+  '번개': { kind: '번개 같은 연속 찌르기', dice: [['관통', 5, 9], ['관통', 5, 9], ['관통', 5, 9]] },
+  '낙인': { kind: '지워지지 않는 불의 낙인', dice: [['타격', 9, 15]], onHit: { burn: 4 } },
+  '장막': { kind: '모든 것을 막아서는 장막', dice: [['방어', 12, 18], ['회피', 10, 15]] },
+  '서리': { kind: '닿는 것을 얼려 멈추는 서리', dice: [['참격', 8, 13]], onHit: { para: 3 } },
+  '파편': { kind: '흩어지며 살을 찢는 파편', dice: [['참격', 6, 10], ['참격', 6, 10]], onHit: { bleed: 3 } },
+  '망치': { kind: '건물째 내려치는 망치', dice: [['타격', 14, 22]] },
+  '송곳': { kind: '단 한 점을 꿰뚫는 송곳', dice: [['관통', 13, 20]] },
+  '폭풍': { kind: '휘몰아치는 칼바람', dice: [['참격', 5, 9], ['참격', 5, 9], ['참격', 5, 9], ['참격', 5, 9]] },
+  '사슬': { kind: '얽어매는 사슬', dice: [['타격', 7, 11]], onHit: { para: 2 }, onUse: { nextEnd: 2 } },
+  '균열': { kind: '공간째 갈라놓는 균열', dice: [['타격', 10, 16], ['관통', 8, 12]] },
+  '그림자': { kind: '그림자 속에서의 기습', dice: [['회피', 10, 15], ['관통', 9, 14]] },
+  '맹세': { kind: '물러서지 않겠다는 맹세', dice: [['참격', 9, 14]], onUse: { heal: 15, nextStr: 2 } },
+  '심판': { kind: '죄를 묻는 일격', dice: [['참격', 12, 18], ['타격', 9, 14]] },
+  '등불': { kind: '어둠을 태우는 등불', dice: [['타격', 8, 12]], onHit: { burn: 3 }, onUse: { draw: 1 } },
+  '비명': { kind: '귀를 찢는 비명', dice: [['타격', 7, 12], ['타격', 7, 12]], onHit: { para: 1 } },
+  '정적': { kind: '모든 소리가 사라지는 정적', dice: [['관통', 10, 15]], onHit: { para: 2 } },
+};
+const CANON_COLORS = ['붉은안개', '검은침묵', '푸른잔향', '쪽빛노인', '주홍십자', '보랏빛눈물'];
+// 새 특색 명칭을 정하고, 상징에 맞는 고유 카드를 만든다
+function makeColorTitle() {
+  let c, n;
+  do { c = pick(COLORS); n = pick(Object.keys(COLOR_SYMBOLS)); } while (CANON_COLORS.includes(c + n));
+  const sym = COLOR_SYMBOLS[n];
+  Object.assign(CARDS.col_sig, { name: `「${c}${n}」 — ${sym.kind}`, dice: sym.dice, onHit: sym.onHit, onUse: sym.onUse,
+    desc: [sym.onHit && Object.entries(sym.onHit).map(([k, v]) => `적중 시 ${STATUS_NAME[k]} ${v}`).join(', '),
+           sym.onUse && Object.entries(sym.onUse).map(([k, v]) => ({ heal: `사용 시 체력 ${v} 회복`, nextStr: `다음 막 힘 ${v}`, nextEnd: `다음 막 인내 ${v}`, draw: `카드 ${v}장 뽑기` }[k])).join(', ')].filter(Boolean).join(' / ') });
+  return c + n;
+}
 
 function rollOrigin() {
   const total = ORIGINS.reduce((a, o) => a + o.w, 0);
@@ -487,9 +518,10 @@ function buildOrigin(o, fingerKey) {
       intro: `${a.ranks[2]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.` };
   }
   if (o.variant === 'color') {
-    return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${pick(COLORS)}${pick(COLOR_NOUNS)}」`, aff: 'color', grade: 1, hp: 170, stg: 85, money: 1500000000, light: 5,
-      trait: '특색 — 하나 협회가 인정한 최고의 해결사.',
-      deck: ['col_strike', 'col_strike', 'col_mark', 'col_mark', 'col_guard', 'col_guard', 'col_flash', 'col_flash', 'flow'],
+    const title = makeColorTitle();
+    return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${title}」`, colorName: title, aff: 'color', grade: 1, hp: 170, stg: 85, money: 1500000000, light: 5,
+      trait: `특색 — 하나 협회가 인정한 최고의 해결사. 상징: ${CARDS.col_sig.name.split(' — ')[1]}.`,
+      deck: ['col_sig', 'col_sig', 'col_strike', 'col_mark', 'col_mark', 'col_guard', 'col_guard', 'col_flash', 'col_flash'],
       intro: '하나 협회가 당신에게 색을 부여했다. 도시의 별을 떨어뜨리는 것이 당신의 일이다.' };
   }
   if (o.aff === 'assoc') return { ...o, aff: pick(ASSOC_KEYS) };
@@ -980,7 +1012,7 @@ Object.assign(ENEMIES, {
     passive: '간부의 위엄 — 매 막 힘 1', onRound: e => { e.st.str += 1; },
     pool: [{ name: '숙청', dice: [['참격', 7, 12], ['참격', 5, 9]] }, { name: '조직의 탄환', dice: [['관통', 8, 13]], onHit: { burn: 2 } },
       { name: '간부의 방어', dice: [['방어', 7, 12]] }, { name: '처형 예고', dice: [['타격', 9, 14]], onHit: { para: 1 } }] },
-  color_rival: { elite: true, name: '특색 「녹슨종」', desc: '하나 협회가 색을 부여한 해결사. 당신을 "정리"하라는 의뢰를 받았다.', hp: 190, stg: 75, slots: 3,
+  color_rival: { elite: true, name: '특색 「잿빛종소리」', desc: '하나 협회가 색을 부여한 해결사. 당신을 "정리"하라는 의뢰를 받았다.', hp: 190, stg: 75, slots: 3,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [100000000, 200000000],
     passive: '울리는 종 — 막마다 인내 1, 체력 절반 이하면 힘 2', onRound: e => { e.st.end += 1; if (e.hp < e.maxHp / 2) e.st.str += 2; },
     pool: [{ name: '타종', dice: [['타격', 9, 15]], onHit: { para: 2 } }, { name: '녹의 칼날', dice: [['참격', 8, 13], ['관통', 6, 10]], onHit: { bleed: 2 } },
@@ -1166,7 +1198,7 @@ EVENTS.push(
   { id: 'color_grant', when: [0, 1, 2], w: 3, cond: () => isFixer() && S.grade === 1 && faction() !== 'color' && S.merit >= 62, title: '하나 협회 — 색의 부여',
     text: '하나 협회 본부의 호출. "당신에게 색을 부여하기로 결정했습니다." 특색. 해결사가 오를 수 있는 마지막 자리.',
     choices: [
-      { t: '색을 받는다', def: true, fn() { const c = pick(COLORS) + pick(COLOR_NOUNS); say(`이제 도시는 당신을 「${c}」이라 부른다.`, 'l-day'); S.ch.colorName = c; changeAff('color'); } },
+      { t: '색을 받는다', def: true, fn() { const c = makeColorTitle(); say(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day'); S.ch.colorName = c; changeAff('color'); addCard('col_sig'); } },
       { t: '사양한다', fn() { say('색은 무게다. 아직은 짊어지지 않기로 했다.'); } },
     ] },
   { id: 'leave', when: [0, 1, 2], w: 0.8, cond: () => !AFF().locked && ['wing', 'gang', 'assoc', 'finger', 'color'].includes(faction()), title: '갈림길',
