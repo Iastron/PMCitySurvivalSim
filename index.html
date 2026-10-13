@@ -408,7 +408,7 @@ const AFFS = {
     hooks: { roundStart(P) { P.st.str += 1; } }, cards: ['th_load', 'th_manner'] },
   f_index: { name: '검지', ranks: ['검지의 신도', '검지의 대행자', '검지의 상급 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
     hooks: { roundStart(P) { const k = pick(['str', 'end', 'prot']); P.st[k] += 2; clog(`지령 — ${STATUS_NAME[k]} +2`, 'l-sys'); } }, cards: ['ix_order', 'ix_will'] },
-  f_middle:{ name: '중지', ranks: ['중지의 동생', '중지의 형님', '중지의 큰형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
+  f_middle:{ name: '중지', ranks: ['중지의 동생', '중지의 작은 형님', '중지의 큰 형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
     hooks: { rollBonus(P, d) { return OFF(d[0]) && P.hp <= P.maxHp / 2 ? 3 : 0; } }, cards: ['md_hammer', 'md_ledger'] },
   f_ring:  { name: '약지', ranks: ['약지의 견습 화가', '약지의 도슨트', '약지의 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
     hooks: { enemyBleedMul: 2 }, cards: ['rg_brush', 'rg_master'] },
@@ -502,11 +502,10 @@ const ORIGINS = [
     deck: ['md_chainwhip', 'zw_justice', 'hi_mirror', 'md_shield', 'md_counter', 'tremor', 'hi_rifle', 'train'],
     intro: '둥지의 금기를 어긴 자를 처리한다. 금기 책자는 몇 권째 외우고 있다.',
     hooks: { roundStart(P) { P.st.end += 1; } } },
-  { id: 'vampire', w: 15, tier: 2, name: '혈귀', aff: 'street', grade: 6, hp: 80, stg: 40, money: 20000000,
-    trait: '혈귀 — 공격이 적중할 때마다 체력 2 흡수.',
-    deck: ['hi_vamp', 'hi_vamp', 'shi_flurry', 'shi_evade', 'shi_evade', 'md_needle', 'combo', 'st_feint'],
-    intro: '도시의 음지에서 피를 갈망하며 살아가는 인간의 아종. 낮에는 사람들 속에 섞여 있다.',
-    hooks: { vamp: 2 } },
+  { id: 'vamp_low', w: 16, tier: 1, variant: 'vampire', ranks: [9, 8, 7], label: '혈귀 (제9~7권속)' },
+  { id: 'vamp_mid', w: 9, tier: 2, variant: 'vampire', ranks: [6, 5, 4], label: '혈귀 (제6~4권속)' },
+  { id: 'vamp_high', w: 4, tier: 3, variant: 'vampire', ranks: [3, 2], label: '혈귀 (제3~2권속)' },
+  { id: 'vamp_first', w: 1.5, tier: 4, variant: 'vampire', ranks: [1], label: '혈귀 (제1권속)' },
   /* ---------- 희귀 ---------- */
   { id: 'fixer_top', w: 8, tier: 3, variant: 'fixer', grades: [2], label: '해결사 (2급)' },
   { id: 'grade1', w: 7, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 300000000, light: 4,
@@ -618,6 +617,18 @@ function buildOrigin(o, fingerKey) {
         `${a.ranks[1]}. 아랫사람이 생겼고, 윗선의 눈치를 본다. 손가락에서 가장 바쁜 자리다.`,
         `${a.ranks[2]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.`][rk] };
   }
+  if (o.variant === 'vampire') {   // 혈귀: 권속 서열은 고정. 서열이 높을수록 강하다
+    const r = pick(o.ranks), up = 9 - r;
+    const deck = r >= 7 ? ['vp_claw', 'vp_claw', 'vp_mist', 'vp_mist', 'shi_flurry', 'md_needle', 'st_feint', 'combo']
+      : r >= 4 ? ['vp_claw', 'vp_claw', 'vp_lance', 'vp_lance', 'vp_mist', 'vp_mist', 'hi_vamp', 'combo', 'deflect']
+      : ['vp_feast', 'vp_feast', 'vp_claw', 'vp_claw', 'vp_lance', 'vp_lance', 'vp_mist', 'vp_mist', 'flow'];
+    return { id: 'vampire', tier: o.tier, w: o.w, name: `혈귀 — 제${r}권속`, vampRank: r, aff: 'bloodkin', grade: r,
+      hp: 60 + up * 18, stg: 32 + up * 8, light: r <= 2 ? 5 : r <= 4 ? 4 : 3, money: [0, 3000000000, 1000000000, 300000000, 80000000, 30000000, 10000000, 3000000, 1000000, 300000][r],
+      trait: `혈귀 제${r}권속 — 서열은 바뀌지 않는다. 피를 모으고 권속을 거느려 강해진다.`, deck,
+      intro: r === 1 ? '장로 바로 아래, 혈귀들의 정점에 가까운 자리. 도시의 음지가 당신의 영지다.'
+        : r <= 4 ? '수많은 권속을 거느린 고위 혈귀. 둥지의 호텔에서 피와 돈을 함께 받는다.'
+        : '가장 아래 서열의 혈귀. 낮에는 사람들 속에 섞여 살고, 밤에는 갈증에 시달린다.' };
+  }
   if (o.variant === 'fixer') {   // 해결사: 등급과 소속(무소속/협회)을 따로 굴린다
     const g = pick(o.grades), band = FIXER_BANDS[g >= 7 ? 0 : g >= 5 ? 1 : g >= 3 ? 2 : 3];
     const aff = Math.random() < 0.5 ? 'fixer' : pick(ASSOC_KEYS);
@@ -652,6 +663,7 @@ const fingerTier = grade => grade <= 2 ? 2 : grade <= 5 ? 1 : 0;
 // gf: 뒷골목 조직이 속한 손가락 (지정하지 않으면 현재 게임의 값)
 function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   const a = AFFS[id];
+  if (id === 'bloodkin') return `혈귀 — 제${(S && S.vampRank) || '?'}권속`;
   if (id === 'gang') return `뒷골목 조직원 [${gf || '?'} 산하]`;
   if (id === 'wing') {   // 날개: 출신 직함이 있으면 그것, 아니면 위상에 따른 직위
     if (S && S.aff === 'wing' && S.ch.affTitle) return S.ch.affTitle;
@@ -760,7 +772,7 @@ let T = null;   // 현재 턴 상태
 let C = null;   // 전투 상태
 
 function newGame(ch) {
-  S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff, gangFinger: ch.gangFinger || pick(GANG_FINGERS),
+  S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff, vampRank: ch.vampRank, blood: 0, thralls: 0, gangFinger: ch.gangFinger || pick(GANG_FINGERS),
     deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0,
     loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [], debt: 0, debtDue: 0, press: 0, ego: null, payDay: 0 };
   if (H().monthlyPay) S.payDay = 1 + rnd(1, 30);   // 입사 시점은 제각각이라 첫 월급날도 무작위
@@ -790,7 +802,7 @@ function print(text, cls = '') {
 function say(text, cls = '') { T.queue.push([text, cls]); }
 
 // 해결사는 'N급', 그 외 출신은 위상 단계(1~9)로 표시
-function rankText() { if (faction() === 'twisted') return twistRank(); return isFixer() ? `${S.grade}급` : `${10 - S.grade}단계`; }
+function rankText() { if (faction() === 'twisted') return twistRank(); if (faction() === 'vampire') return `제${S.vampRank}권속`; return isFixer() ? `${S.grade}급` : `${10 - S.grade}단계`; }
 function payMul() { return (1 + (9 - S.grade) * 0.5) * (1 + (H().payBonus || 0)); }
 function pay(n) { return Math.round(n * payMul()); }
 // 안(眼): 원화와 비슷한 가치. 1만 이상은 '만', 1억 이상은 '억' 단위로 표시
@@ -848,7 +860,7 @@ const meritMul = () => 1 + (9 - S.grade) * 0.25;
 function merit(n) {
   if (n > 0) n = Math.round(n * meritMul());
   S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
-  while (S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
+  while (faction() !== 'vampire' && S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
     const tierBefore = fingerTier(S.grade);
     S.grade--; S.maxHp += 12; S.maxStg += 5; S.hp = S.maxHp;
     S.promoCards = (S.promoCards || 0) + 1;
@@ -877,8 +889,9 @@ function renderTop() {
   $('#sMoney').textContent = won(S.money);
   $('#sPay').innerHTML = H().monthlyPay && S.payDay ? `월급까지 <b>${Math.max(0, S.payDay - S.day)}일</b>` : '';
   $('#sPay').innerHTML += S.exiled ? ` <span class="l-bad">[${S.flags.impurity ? '외곽 축출' : '외곽'}]</span>` : S.flags.impurity ? ' <span class="l-bad">[불순물]</span>' : S.flags.taboo ? ` <span class="l-bad">금기 위반 ${S.flags.taboo}/${TABOO_LIMIT}</span>` : '';
+  if (faction() === 'vampire') $('#sPay').innerHTML += ` <span class="l-bad">피 ${S.blood || 0} · 권속 ${S.thralls || 0}/5</span>`;
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
-  $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : isFixer() ? '' : ' · 위상');
+  $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
   ps.innerHTML = mindImmune() ? '' : `정신 압박 <b style="color:${S.press >= 70 ? 'var(--red)' : S.press >= 40 ? 'var(--orange)' : 'var(--green)'}">${S.press || 0}%</b>`;
   $('#sGrade').textContent = rankText();
@@ -1660,6 +1673,7 @@ Object.assign(ENEMIES, {
 const mindImmune = () => !S || ['head', 'twisted'].includes(faction()) || !!S.ego;
 function stress(n) {
   if (mindImmune() || !n) return;
+  n = n > 0 ? Math.round(n * 1.5) : Math.round(n * 0.7);   // 압박은 쉽게 쌓이고, 쉽게 풀리지 않는다
   const before = S.press || 0;
   S.press = Math.max(0, Math.min(100, before + n));
   if (Math.abs(n) >= 5) say(`정신 압박 ${n > 0 ? '+' : ''}${n}% (${S.press}%)`, n > 0 ? 'l-bad' : 'l-sys');
@@ -1694,7 +1708,7 @@ EVENTS.push(
   { id: 'crisis', when: [0, 1, 2, 3], w: 0, cond: () => false, title: '자신과 마주한다',
     text: '버텨온 것들이 한꺼번에 무너져 내린다. 머릿속에서 누군가 속삭인다. "이대로 괜찮아? 정말로?" 눈을 돌리면 편해질 것이다. 마주하면… 무엇이 될지 모른다.',
     build() {
-      const p = Math.max(0.2, Math.min(0.85, 0.3 + (9 - S.grade) * 0.05 + Math.min(S.kills, 10) * 0.02 + (S.merit >= 20 ? 0.1 : 0)));
+      const p = Math.max(0.05, Math.min(0.45, 0.1 + (9 - S.grade) * 0.03 + Math.min(S.kills, 10) * 0.01 + (S.merit >= 40 ? 0.05 : 0)));
       return [
         { t: `마음을 직시한다 — E.G.O 개화 시도 (성공 확률 약 ${Math.round(p * 100)}%, 실패 시 뒤틀림)`, fn() {
           S.flags.crisis = false;
@@ -1703,8 +1717,8 @@ EVENTS.push(
         { t: '외면한다 — 압박이 조금 가라앉지만, 금이 남는다', def: true, fn() {
           S.flags.crisis = false; S.flags.cracks = (S.flags.cracks || 0) + 1;
           S.press = 60; S.maxHp = Math.max(20, S.maxHp - 5); S.hp = Math.min(S.hp, S.maxHp);
-          if (S.flags.cracks >= 3) { say('세 번째 외면. 더는 버틸 수 없었다.', 'l-bad'); twist(); }
-          else say(`눈을 감았다. 마음에 금이 하나 더 갔다. (${S.flags.cracks}/3, 최대 체력 -5)`, 'l-bad');
+          if (S.flags.cracks >= 2) { say('두 번째 외면. 더는 버틸 수 없었다.', 'l-bad'); twist(); }
+          else say(`눈을 감았다. 마음에 금이 갔다. 다음에 또 외면하면 무너진다. (${S.flags.cracks}/2, 최대 체력 -5)`, 'l-bad');
         } },
       ];
     } },
@@ -2040,6 +2054,134 @@ EVENTS.push(
 );
 
 /* =========================================================
+   원작(Library of Ruina) 기술명·주사위 값 반영
+   상태 대응: 요정 → 출혈, 진동·속박 → 마비 (이 게임에 없는 상태는 가까운 것으로)
+========================================================= */
+// 검은침묵 (롤랑)
+Object.assign(ENEMIES.roland_lib, { light: 6, lightRegen: 3, pool: [
+  { name: '느티나무 공방', cost: 0, dice: [['참격', 4, 8], ['타격', 3, 8]] },
+  { name: '랑아 공방', cost: 0, dice: [['관통', 3, 7], ['관통', 3, 7], ['참격', 3, 7]], onHit: { bleed: 2 } },
+  { name: '늙은소년 공방', cost: 1, dice: [['방어', 5, 9], ['타격', 4, 8]] },
+  { name: '알라스 공방', cost: 2, dice: [['관통', 5, 9], ['관통', 5, 8]] },
+  { name: '묵 공방', cost: 2, dice: [['참격', 8, 15]] },
+  { name: '로직 아틀리에', cost: 2, dice: [['관통', 4, 8], ['관통', 5, 8], ['타격', 7, 12]] },
+  { name: '뒤랑달', cost: 2, dice: [['참격', 5, 9], ['참격', 5, 9]], onUse: { nextStr: 1 } },
+  { name: '크리스탈 아틀리에', cost: 3, dice: [['회피', 8, 11], ['참격', 7, 11], ['참격', 7, 11]] },
+  { name: '휠스 인더스트리', cost: 4, dice: [['타격', 14, 24], ['방어', 5, 8]] },
+] });
+FURIOSO.name = 'Furioso'; FURIOSO.cost = 3; FURIOSO.dice = [['참격', 20, 39]]; FURIOSO.onHit = { bleed: 5, para: 3 };
+
+// 붉은안개 (게부라 열화판 / 균열의 잔영): 체력 절반 이하에서 E.G.O 발현 — 모든 주사위 위력 +2, 대절단-가로 사용
+const RED_MIST_POOL = [
+  { name: '종베기', cost: 2, dice: [['타격', 6, 10], ['타격', 6, 9]] },
+  { name: '찌르기', cost: 2, dice: [['관통', 3, 8], ['관통', 3, 7], ['관통', 3, 7]] },
+  { name: '횡베기', cost: 2, dice: [['참격', 5, 9], ['참격', 5, 8]], onHit: { bleed: 3 } },
+  { name: '기합', cost: 2, dice: [['방어', 8, 12], ['타격', 5, 7]], onUse: { nextStr: 3 } },
+  { name: '대절단-세로', cost: 5, dice: [['참격', 20, 39]] },
+];
+const GREATER_SPLIT_H = { name: '대절단-가로', cost: 6, dice: [['참격', 28, 42]], onHit: { bleed: 5 } };
+const redMistRound = e => {
+  if (e.hp <= e.maxHp / 2 && !e.ego) { e.ego = true; e.stg = e.maxStg; e.extra = [GREATER_SPLIT_H]; clog('붉은 안개가 피어오른다 — E.G.O 발현 (흐트러짐 회복, 모든 위력 +2, 대절단-가로)', 'l-bad'); }
+  if (e.ego) e.st.str += 2;
+};
+for (const k of ['gebura_lib', 'rift_redmist'])
+  Object.assign(ENEMIES[k], { light: 6, lightRegen: 3, pool: RED_MIST_POOL, onRound: redMistRound,
+    passive: '붉은안개 — 체력 절반 이하에서 E.G.O 발현: 흐트러짐 회복, 모든 주사위 위력 +2, 대절단-가로 사용' });
+
+// 비나 (열화된 조율자)
+Object.assign(ENEMIES.binah_lib, { light: 6, lightRegen: 3, pool: [
+  { name: '열화된 요정', cost: 0, dice: [['참격', 4, 7], ['참격', 3, 7]], onHit: { bleed: 1 } },
+  { name: '열화된 사슬', cost: 2, dice: [['타격', 8, 14]], onHit: { para: 1 } },
+  { name: '열화된 자물쇠', cost: 2, dice: [['타격', 9, 20], ['방어', 4, 8]] },
+  { name: '열화된 기둥', cost: 3, dice: [['참격', 7, 11], ['참격', 6, 9], ['방어', 4, 8]], onHit: { bleed: 3 } },
+  { name: '열화된 충격파', cost: 3, dice: [['타격', 3, 8], ['타격', 3, 8], ['타격', 4, 9]], onUse: { prot: 3 } },
+] });
+// 조율자 (온전한 특이점) — 적으로 나오는 조율자와 조율자 출신 플레이어 카드
+const ARBITER_POOL = [
+  { name: '요정', cost: 0, dice: [['참격', 4, 7], ['참격', 3, 7]], onHit: { bleed: 1 } },
+  { name: '사슬', cost: 2, dice: [['타격', 9, 16]], onHit: { para: 1 } },
+  { name: '자물쇠', cost: 3, dice: [['타격', 9, 20], ['타격', 4, 7], ['방어', 5, 9]], onHit: { para: 1 } },
+  { name: '기둥', cost: 3, dice: [['참격', 8, 12], ['참격', 7, 11], ['방어', 6, 10]], onHit: { bleed: 3 } },
+  { name: '충격파', cost: 3, dice: [['타격', 7, 10], ['타격', 7, 9], ['타격', 7, 9]], onUse: { prot: 3 } },
+];
+ENEMIES.arbiter_enemy.pool = ARBITER_POOL;
+Object.assign(CARDS, {
+  ar_fairy:  { name: '요정', cost: 0, dice: [['참격', 4, 7], ['참격', 3, 7]], onHit: { bleed: 1 }, onUse: { light: 1 }, desc: '사용 시 빛 1 회복. 적중 시 요정(출혈) 1' },
+  ar_chain:  { name: '사슬', cost: 2, dice: [['타격', 9, 16]], onHit: { para: 1 }, desc: '적중 시 속박(마비) 1' },
+  ar_lock:   { name: '자물쇠', cost: 3, dice: [['타격', 9, 20], ['타격', 4, 7], ['방어', 5, 9]], onHit: { para: 1 }, desc: '적중 시 속박(마비) 1' },
+  ar_pillar: { name: '기둥', cost: 3, dice: [['참격', 8, 12], ['참격', 7, 11], ['방어', 6, 10]], onHit: { bleed: 3 }, desc: '적중 시 요정(출혈) 3' },
+  ar_wave:   { name: '충격파', cost: 3, dice: [['타격', 7, 10], ['타격', 7, 9], ['타격', 7, 9]], onUse: { prot: 3 }, desc: '사용 시 이번 막 보호 3' },
+  // 도서관 보상
+  lib_durandal: { name: '뒤랑달', cost: 2, dice: [['참격', 5, 9], ['참격', 5, 9]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1 — 검은침묵이 가장 아끼던 검' },
+  lib_mimicry:  { name: '미미크리', cost: 2, dice: [['참격', 10, 16]], onHit: { healSelf: 8 }, desc: '적중 시 체력 8 흡수 — 붉은안개의 E.G.O' },
+  lib_pillar:   { name: '열화된 기둥', cost: 3, dice: [['참격', 7, 11], ['참격', 6, 9], ['방어', 4, 8]], onHit: { bleed: 3 }, desc: '적중 시 요정(출혈) 3' },
+  // 균열 보상
+  rf_redmist:   { name: '대절단-세로', cost: 5, dice: [['참격', 20, 39]], desc: '붉은안개의 잔영이 남긴 기술' },
+  rf_argalia:   { name: '푸른 궤적', cost: 3, dice: [['참격', 8, 17], ['방어', 5, 9]], desc: '푸른잔향의 잔영이 남긴 기술' },
+});
+
+// 푸른잔향 (아르갈리아): 진동 → 마비
+Object.assign(ENEMIES.rift_argalia, { light: 6, lightRegen: 3,
+  passive: '공명 — 매 막 당신에게 진동(마비) 1. 체력 절반 이하에서 크레센도·대단원',
+  onRound: (e, P) => { P.st.para += 1; if (e.hp <= e.maxHp / 2 && !e.extra) { e.extra = [
+    { name: '크레센도', cost: 6, dice: [['관통', 6, 10], ['참격', 9, 22]] }, { name: '대단원', cost: 6, dice: [['관통', 30, 40]] }];
+    clog('잔향이 고조된다 — 크레센도, 대단원', 'l-bad'); } },
+  pool: [
+    { name: '라르고', cost: 0, dice: [['방어', 4, 8], ['참격', 5, 9]] },
+    { name: '낫 베기', cost: 0, dice: [['참격', 5, 9], ['타격', 4, 8]] },
+    { name: '진동의 낫', cost: 0, dice: [['참격', 5, 9], ['참격', 5, 9]], onHit: { para: 1 } },
+    { name: '절단', cost: 0, dice: [['참격', 7, 12], ['방어', 6, 8]] },
+    { name: '공명 조절', cost: 1, dice: [['참격', 3, 8], ['타격', 3, 8]] },
+    { name: '알레그로', cost: 2, dice: [['참격', 5, 9], ['타격', 5, 9], ['방어', 4, 7]], onHit: { para: 1 } },
+    { name: '푸른 궤적', cost: 3, dice: [['참격', 8, 17], ['방어', 5, 9]] },
+  ] });
+// 8인의 셰프 (그레타): 모든 공격 적중 시 체력 회복
+Object.assign(ENEMIES.rift_chefs, { name: '균열의 잔영 — 8인의 셰프 「그레타」',
+  pool: [
+    { name: '머리 내려치기', cost: 0, dice: [['타격', 4, 9], ['방어', 5, 9]], onHit: { bleed: 2, healSelf: 2 } },
+    { name: '꼬리치기', cost: 0, dice: [['참격', 4, 8], ['회피', 5, 9]], onHit: { bleed: 2, healSelf: 2 } },
+    { name: '사냥의 시간', cost: 0, dice: [['타격', 4, 8], ['타격', 7, 10], ['방어', 4, 9]], onHit: { bleed: 1, para: 1, healSelf: 2 } },
+    { name: '꼬리 회축', cost: 0, dice: [['타격', 2, 8], ['참격', 5, 10]], onHit: { bleed: 1, para: 1, healSelf: 2 } },
+    { name: '태클 마운트', cost: 2, dice: [['타격', 11, 15], ['참격', 3, 5], ['타격', 3, 5], ['타격', 3, 5]], onHit: { healSelf: 3 } },
+  ] });
+
+/* =========================================================
+   혈귀 — 제1권속 ~ 제9권속. 서열은 바뀌지 않는다.
+   흡혈로 '피'를 모으고, 피를 나눠 권속을 만들어 강해진다.
+========================================================= */
+Object.assign(CARDS, {
+  vp_claw:  { name: '혈귀의 손톱', cost: 1, dice: [['참격', 5, 9], ['참격', 5, 9]], onHit: { healSelf: 2 }, desc: '적중 시 체력 2 흡수' },
+  vp_lance: { name: '피의 창', cost: 1, dice: [['관통', 8, 13]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2' },
+  vp_mist:  { name: '혈무', cost: 0, dice: [['회피', 6, 10]] },
+  vp_feast: { name: '피의 연회', cost: 3, dice: [['참격', 7, 12], ['참격', 7, 12], ['참격', 7, 12]], onHit: { healSelf: 4 }, desc: '적중 시 체력 4 흡수' },
+});
+Object.assign(AFFS, {
+  bloodkin: { name: '혈귀', faction: 'vampire', locked: true,
+    passive: '혈귀 — 적중 시 흡혈 2. 모은 피 3마다, 거느린 권속 1마다 공격 위력 +1 (권속 최대 5). 권속 서열은 바뀌지 않는다.',
+    hooks: { vamp: 2, rollBonus(P, d) { return OFF(d[0]) ? Math.min(5, S.thralls || 0) + Math.floor((S.blood || 0) / 3) : 0; } } },
+});
+EVENTS.push(
+  { id: 'vp_feed', fac: ['vampire'], when: [0, 1, 2, 3], w: 3, title: '갈증',
+    text: '목이 마르다. 사람이었던 때와는 다른 갈증. 혈귀는 피를 마실수록 강해진다.',
+    choices: [
+      { t: '뒷골목의 쥐를 노린다 — 피 +1, 체력 15 회복', fn() { say('골목 구석에서 짧은 비명이 끊겼다.'); S.blood = (S.blood || 0) + 1; heal(15); say(`모은 피: ${S.blood}`, 'l-sys'); } },
+      { t: '둥지의 깃털을 노린다 — 피 +2, 체력 25 회복 (금기 사냥꾼 주의)', fn() {
+        S.blood = (S.blood || 0) + 2; heal(25); say(`둥지의 피는 달다. 모은 피: ${S.blood}`, 'l-sys');
+        if (Math.random() < 0.3) { say('…경보가 울린다. 둥지의 금기를 어겼다.', 'l-bad'); tabooHit('둥지 주민 습격'); fight('hunter', { lethal: true, win() { say('금기 사냥꾼의 피까지 마셨다.'); S.blood += 1; } }); }
+      } },
+      { t: '참는다', def: true, fn() { say('갈증이 몸을 갉아먹는다.', 'l-bad'); hurt(8); } },
+    ] },
+  { id: 'vp_thrall', fac: ['vampire'], when: [1, 2, 3], w: 1.5, cond: () => (S.blood || 0) >= 3 && S.vampRank < 9 && (S.thralls || 0) < 5, title: '권속',
+    build() {
+      this.text = `피를 나누면 권속을 만들 수 있다. 당신은 제${S.vampRank}권속 — 당신이 만드는 혈귀는 그보다 아래 서열이 된다. (모은 피 ${S.blood}, 권속 ${S.thralls || 0}/5)`;
+      return [
+        { t: '피 3을 나눠 권속을 만든다 — 공격 위력 +1', fn() { S.blood -= 3; S.thralls = (S.thralls || 0) + 1; say(`새 권속이 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. 당신을 주인이라 부른다. (권속 ${S.thralls}/5)`, 'l-day'); } },
+        { t: '아직은 피를 아낀다', def: true, fn() { say('피를 삼켰다.'); } },
+      ];
+    }, text: '' },
+);
+
+/* =========================================================
    턴 진행 (자동 진행 + 제한시간)
 ========================================================= */
 function startTurn() {
@@ -2322,6 +2464,7 @@ function applyFx(fx, self, foe) {
   if (fx.light && self === C.P) self.light = Math.min(self.maxLight, self.light + fx.light);
   if (fx.draw && self === C.P) drawCards(fx.draw);
   if (fx.selfDmg) { self.hp -= fx.selfDmg; clog(`${self.name} 자신에게 ${fx.selfDmg} 피해`, 'l-bad'); lastStand(self); }
+  if (fx.prot) self.st.prot += fx.prot;
   if (fx.cleanse) { self.st.bleed = 0; self.st.burn = 0; clog(`${self.name}의 출혈·화상이 사라졌다`, 'l-good'); }
   if (fx.heal) { const v = Math.min(fx.heal, self.maxHp - self.hp); self.hp += v; clog(`${self.name} 체력 +${v}`, 'l-good'); }
   if (fx.nextStr) self.next.str += fx.nextStr;
@@ -2626,7 +2769,7 @@ function showHelp() {
   <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
   <b>안(眼)</b> — 원화와 비슷한 가치입니다. 둥지 중상위층의 월급이 400만 안 정도입니다.<br>
   <b>정신 압박</b> — 부상·패배·공포로 쌓이고 회복·휴식으로 줄어듭니다. 100%가 되면 자신과 마주하게 됩니다.<br>
-  · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 세 번 외면해도 뒤틀립니다.<br>
+  · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 두 번 외면해도 뒤틀립니다. E.G.O 개화는 어렵고, 뒤틀림은 쉽습니다.<br>
   · 뒤틀리면 소속을 잃고 하나 협회 토벌대에게 사냥당합니다. Limbus Company에게 "지면" 해소됩니다. 머리 소속은 흔들리지 않습니다.<br>
   <b>외곽</b> — 「외곽으로」 이벤트로 직접 갈 수 있고, 외곽 열차로 다음 날부터 돌아올 수 있습니다. 외곽에서는 황무지의 도서관에 합류하거나 도전할 수 있습니다.<br>
   <b>금기와 조율자</b> — 날개의 금기를 4번 어기거나(금기 사냥꾼 처치 포함) 발톱을 죽이면 불순물로 지정되어 조율자가 찾아옵니다.
@@ -2687,7 +2830,7 @@ $('#rollBtn').onclick = async () => {
   box.innerHTML = `<div class="origin t${ch.tier}">
     <span class="tier tier-${ch.tier}">${TIER_NAME[ch.tier]}</span> <span class="dim" style="font-size:12px">확률 ${p.toFixed(p < 1 ? 2 : 1)}%</span>
     <h2>${ch.name}</h2>
-    <div class="dim">소속: <b style="color:var(--text)">${ch.affTitle || affName(ch.aff, ch.grade, ch.gangFinger)}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
+    <div class="dim">소속: <b style="color:var(--text)">${ch.affTitle || (ch.vampRank ? `혈귀 — 제${ch.vampRank}권속` : affName(ch.aff, ch.grade, ch.gangFinger))}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
       ${a.locked ? '<br><span class="l-bad">🔒 머리 소속 — 소속을 옮길 수 없다</span>' : '<br><span class="l-good">소속은 이벤트로 옮길 수 있다</span>'}</div>
     <div class="dim" style="margin-top:4px">태어난 곳: <b style="color:var(--gold)">${ch.loc.label}</b>${ch.loc.note ? ' — ' + ch.loc.note : ''}${ch.loc.area === 'outskirts' ? ' (최대 체력 +8)' : ''}</div>
     <div style="margin-top:10px;line-height:1.7">${ch.intro}</div>
