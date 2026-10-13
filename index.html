@@ -770,7 +770,8 @@ function H() {
   if (!S) return {};
   if (S._h) return S._h;
   const out = {};
-  for (const h of [S.ch.hooks || {}, AFF().hooks || {}, S.ego ? EGO_HOOKS : {}, ...(S.relics || []).filter(id => RELICS[id]).map(id => RELICS[id].hooks)]) {
+  for (const h of [S.ch.hooks || {}, AFF().hooks || {}, S.ego ? EGO_HOOKS : {}, S.ego && S.egoType && EGO_TYPES[S.egoType] ? EGO_TYPES[S.egoType].hooks : {},
+    faction() === 'twisted' && S.twistForm && TWIST_FORMS[S.twistForm] ? TWIST_FORMS[S.twistForm].hooks : {}, ...(S.relics || []).filter(id => RELICS[id]).map(id => RELICS[id].hooks)]) {
     for (const k in h) {
       const v = h[k], prev = out[k];
       if (typeof v === 'function') out[k] = prev ? (...a) => (prev(...a) || 0) + (v(...a) || 0) : v;
@@ -783,7 +784,8 @@ function H() {
   return (S._h = out);
 }
 function passiveText() {
-  return `[출신] ${S.ch.trait}<br>[소속] ${AFF().passive}` + (faction() === 'twisted' && S.twistForm === 'index_puppet' ? '<br>[뒤틀린 형상] 지령의 인형 — 전달하던 지령에 매달린 몸. 불길한 낙인·잠금·뒤틀린 검. 매 막 지령 1회, 최대 빛 최소 7(전투 시작 시 빛 4).' : '') + (S.ego ? `<br>[E.G.O 「${S.ego}」] 모든 주사위 위력 상승(공격 +2, 방어 +1), 빛 +1, 전투마다 1번 치명상을 버틴다.` : '') + relicPassiveText();
+  return `[출신] ${S.ch.trait}<br>[소속] ${AFF().passive}` + (faction() === 'twisted' && S.twistForm === 'index_puppet' ? '<br>[뒤틀린 형상] 지령의 인형 — 전달하던 지령에 매달린 몸. 불길한 낙인·잠금·뒤틀린 검. 매 막 지령 1회, 최대 빛 최소 7(전투 시작 시 빛 4).' : '') + (S.ego ? `<br>[E.G.O 「${S.ego}」${S.egoType ? ' · ' + EGO_TYPES[S.egoType].label + '형' : ''}] 모든 주사위 위력 상승(공격 +2, 방어 +1), 빛 +1, 전투마다 1번 치명상을 버틴다.${S.egoType ? ' ' + EGO_TYPES[S.egoType].label + '형: ' + EGO_TYPES[S.egoType].passive : ''}` : '')
+    + (faction() === 'twisted' && TWIST_FORMS[S.twistForm] ? `<br>[뒤틀린 형상 — ${TWIST_FORMS[S.twistForm].label}] ${TWIST_FORMS[S.twistForm].passive}` : '') + relicPassiveText();
 }
 // 소속 변경. 조직·손가락을 떠나면 추격자가 따라온다.
 function changeAff(id, after) {
@@ -1864,6 +1866,94 @@ function untwist() {
 }
 const TWIST_RANKS = ['뜬소문', '뜬소문', '도시 괴담', '도시 괴담', '도시 전설', '도시 전설', '도시 질병', '도시 악몽', '도시의 별'];
 const twistRank = () => TWIST_RANKS[9 - S.grade];
+
+Object.assign(STATUS_NAME, { curse: '주살' });   // (유물 블록보다 먼저 쓰이므로 여기서도 등록)
+/* ---------- E.G.O 유형 — 개화할 때 하나가 정해진다. 공통 효과에 유형별 패시브·카드 3장 ---------- */
+const EGO_TYPES = {
+  oath:    { label: '수호', names: ['피에 젖은 맹세', '녹슨 약속', '무너지지 않는 문'], passive: '매 막 보호 3', hooks: { roundStart(P) { P.st.prot += 3; } },
+    cards: [['방패의 맹세', 1, [['방어', 11, 16], ['타격', 6, 10]]], ['지키는 손', 1, [['방어', 9, 14]], { onUse: { nextProt: 3 } }], ['약속의 무게', 3, [['타격', 15, 23], ['방어', 10, 14]]]] },
+  flame:   { label: '불꽃', names: ['꺼지지 않는 불씨', '잿불의 서약', '타오르는 장례'], passive: '공격 적중 시 화상 2', hooks: { hitStatus: { burn: 2 } },
+    cards: [['불티', 1, [['참격', 7, 11], ['참격', 7, 11]], { onHit: { burn: 1 } }], ['재가 되는 손', 2, [['타격', 11, 17]], { onHit: { burn: 3 } }], ['장작불', 3, [['참격', 15, 24], ['타격', 10, 15]], { onHit: { burn: 4 } }]] },
+  blood:   { label: '피', names: ['붉은 눈물', '삼켜진 비명', '끝나지 않는 장례'], passive: '공격 적중 시 출혈 2, 흡수 2', hooks: { hitStatus: { bleed: 2 }, vamp: 2 },
+    cards: [['핏방울', 1, [['관통', 8, 12]], { onHit: { bleed: 2, healSelf: 3 } }], ['붉은 실', 2, [['참격', 8, 13], ['참격', 7, 11]], { onHit: { bleed: 2 } }], ['피의 개화', 3, [['참격', 16, 25]], { onHit: { healSelf: 10 } }]] },
+  mirror:  { label: '거울', names: ['거짓 없는 거울', '뒤집힌 얼굴', '반사되는 고백'], passive: '방어·회피 주사위 위력 +4', hooks: { rollBonus(P, d) { return OFF(d[0]) ? 0 : 4; } },
+    cards: [['비추기', 0, [['회피', 9, 14]]], ['반사', 1, [['회피', 10, 15], ['관통', 8, 12]]], ['깨진 거울', 3, [['참격', 12, 18], ['참격', 10, 16], ['회피', 8, 12]]]] },
+  bell:    { label: '울림', names: ['잿빛 자장가', '빈 둥지의 노래', '멈추지 않는 종소리'], passive: '공격 적중 시 마비 1, 첫 막 적 전원 마비 2', hooks: { hitStatus: { para: 1 }, roundStart(P) { if (C.round === 1) combatEnemies().forEach(e => { e.st.para += 2; }); } },
+    cards: [['한 번의 종', 1, [['타격', 8, 13]], { onHit: { para: 1 } }], ['자장가', 1, [['방어', 9, 13]], { onUse: { enemy: { para: 2 } } }], ['진혼곡', 3, [['타격', 14, 22], ['타격', 10, 15]], { onHit: { para: 2 } }]] },
+  lantern: { label: '등불', names: ['부서진 등불', '돌아오는 길', '창가의 촛불'], passive: '매 막 체력 5 회복, 카드 1장 추가', hooks: { roundStart(P) { P.hp = Math.min(P.maxHp, P.hp + 5); }, extraDraw: 1 },
+    cards: [['길잡이', 0, [['회피', 7, 11]], { onUse: { draw: 1 } }], ['밝히는 손', 1, [['참격', 8, 13]], { onUse: { heal: 8 } }], ['등불의 개화', 3, [['타격', 14, 22], ['참격', 12, 18]], { onUse: { heal: 15 } }]] },
+  blade:   { label: '칼날', names: ['날 선 후회', '마지막 한 마디', '버리지 못한 칼'], passive: '공격 주사위 위력 +3', hooks: { rollBonus(P, d) { return OFF(d[0]) ? 3 : 0; } },
+    cards: [['일섬', 1, [['참격', 10, 15]]], ['연속 베기', 2, [['참격', 7, 11], ['참격', 7, 11], ['참격', 7, 11]]], ['끝맺음', 3, [['참격', 18, 30]]]] },
+};
+for (const [k, t] of Object.entries(EGO_TYPES)) t.cards.forEach(([nm, cost, dice, extra], i) => {
+  CARDS[`ego_${k}_${i}`] = { name: `E.G.O — ${nm}`, base: nm, cost, dice, ...(extra || {}),
+    desc: extra ? [extra.onHit && Object.entries(extra.onHit).map(([s, v]) => s === 'healSelf' ? `적중 시 흡수 ${v}` : `적중 시 ${STATUS_NAME[s]} ${v}`).join(', '),
+      extra.onUse && Object.entries(extra.onUse).map(([s, v]) => ({ heal: `사용 시 체력 ${v}`, draw: `카드 ${v}장`, nextProt: `다음 막 보호 ${v}` }[s] || (s === 'enemy' ? '적 마비 2' : ''))).join(', ')].filter(Boolean).join(' / ') : '' };
+});
+manifestEGO = function () {
+  const key = pick(Object.keys(EGO_TYPES)), t = EGO_TYPES[key], nm = pick(t.names);
+  S.ego = nm; S.egoType = key; S.press = 0; S._h = null;
+  t.cards.forEach((_, i) => { const c = CARDS[`ego_${key}_${i}`]; c.name = `「${nm}」 — ${c.base}`; });
+  S.maxHp += 20; S.hp = S.maxHp; S.maxStg += 10;
+  say(`✦ E.G.O 개화 — 「${nm}」 (${t.label}형). 자신의 마음을 무기로 꺼내 들었다.`, 'l-day');
+  say(`공통: 최대 체력 +20, 흐트러짐 +10, 빛 +1, 모든 주사위 위력 상승, 치명상 1회 버팀, 정신 압박 면역 / ${t.label}형: ${t.passive}`, 'l-sys');
+  t.cards.forEach((_, i) => addCard(`ego_${key}_${i}`));
+};
+
+/* ---------- 뒤틀림 형상 — 뒤틀릴 때 하나가 정해진다 (지령의 인형은 별도 조건) ---------- */
+const TWIST_FORMS = {
+  beast:  { label: '짐승', names: ['배고픈 골목', '이름 없는 쥐', '털 난 울음'], passive: '공격 적중 시 출혈 2', hooks: { hitStatus: { bleed: 2 } },
+    cards: [['tw_rend'], ['tw_devour'], ['도약해 물어뜯기', 2, [['관통', 11, 17], ['참격', 8, 12]], { onHit: { bleed: 3 } }]] },
+  clock:  { label: '시계', names: ['되감기는 시계', '끝없는 야근', '멈춘 정오'], passive: '매 막 빛 1 추가 회복, 카드 1장 추가', hooks: { roundStart(P) { if (C.round > 1) P.light = Math.min(P.maxLight, P.light + 1); }, extraDraw: 1 },
+    cards: [['초침 베기', 0, [['참격', 6, 10]]], ['되감기', 1, [['회피', 10, 15]], { onUse: { heal: 10 } }], ['멈춘 시간', 3, [['타격', 16, 24]], { onHit: { para: 3 } }]] },
+  tree:   { label: '가지', names: ['뿌리내린 집', '가지 뻗은 아이', '창문을 뚫은 나무'], passive: '매 막 보호 3, 체력 4 재생', hooks: { roundStart(P) { P.st.prot += 3; P.hp = Math.min(P.maxHp, P.hp + 4); } },
+    cards: [['뻗는 가지', 1, [['관통', 8, 13], ['관통', 6, 10]]], ['껍질 두르기', 1, [['방어', 12, 17]]], ['뿌리 조이기', 2, [['타격', 12, 18]], { onHit: { para: 2 } }]] },
+  hollow: { label: '공허', names: ['울지 못한 얼굴', '닫히지 않는 문', '빈 액자'], passive: '공격 적중 시 마비 1, 흐트러짐 피해 증가', hooks: { hitStatus: { para: 1 } },
+    cards: [['tw_howl'], ['비어 있는 손', 1, [['타격', 9, 14]], { onHit: { para: 1 } }], ['삼키는 구멍', 3, [['타격', 18, 26]]]] },
+  flame:  { label: '불', names: ['녹아내린 등불', '타다 만 편지', '꺼지지 않는 부엌'], passive: '공격 적중 시 화상 3', hooks: { hitStatus: { burn: 3 } },
+    cards: [['녹아내리는 팔', 1, [['타격', 8, 13]], { onHit: { burn: 2 } }], ['tw_rend'], ['불타는 집', 3, [['타격', 15, 22], ['참격', 10, 15]], { onHit: { burn: 4 } }]] },
+  debt:   { label: '족쇄', names: ['빚진 손가락', '갚지 못한 약속', '끝나지 않는 계약서'], passive: '공격 적중 시 주살 1 (막마다 수치×3 피해)', hooks: { curseOnHit: 1 },
+    cards: [['차용증', 1, [['관통', 8, 12]], { onHit: { curse: 2 } }], ['족쇄', 1, [['타격', 9, 14]], { onHit: { para: 1 } }], ['tw_devour']] },
+};
+for (const [k, f] of Object.entries(TWIST_FORMS)) f.cards = f.cards.map(([nm, cost, dice, extra], i) => {
+  if (!dice) return nm;   // 기존 뒤틀림 카드 재사용
+  const id = `tw_${k}_${i}`;
+  CARDS[id] = { name: nm, cost, dice, ...(extra || {}), desc: extra && extra.onHit ? Object.entries(extra.onHit).map(([s, v]) => `적중 시 ${STATUS_NAME[s]} ${v}`).join(', ') : extra && extra.onUse ? `사용 시 체력 ${extra.onUse.heal}` : '' };
+  return id;
+});
+const _twist = twist;
+twist = function () {
+  if (faction() === 'twisted') return;
+  const puppet = S.aff === 'f_index' && fingerTier(S.grade) === 1 && S.ch.id !== 'index_oracle';
+  if (puppet) return _twist();
+  const key = pick(Object.keys(TWIST_FORMS)), f = TWIST_FORMS[key];
+  S.twistForm = key; S.twistCards = [...f.cards]; S.twistBonus = { hp: 40, stg: 15 };
+  S.prevAff = S.aff; S.aff = 'twisted'; S._h = null; S.press = 0;
+  S.ch.twistName = pick(f.names);
+  S.maxHp += 40; S.hp = S.maxHp; S.maxStg += 15;
+  say(`✦ 뒤틀림 — 몸이 찢어지고, 다른 무언가가 되었다. ${f.label}의 형상. 사람들은 이제 당신을 「${S.ch.twistName}」이라 부른다.`, 'l-bad');
+  say(`뒤틀린 형상(${f.label}): ${f.passive}`, 'l-sys');
+  say(`하나 협회가 재해 등급을 매기기 시작한다: ${twistRank()}. 소속은 사라졌고, 도시는 당신을 사냥할 것이다.`, 'l-bad');
+  S.twistCards.forEach(addCard);
+};
+
+/* ---------- 특색: 색과 상징 확장 ---------- */
+COLORS.push('분홍', '보라', '초록', '주황', '다홍', '하늘', '갈색', '옥색', '상아', '비취', '흑색', '백색');
+Object.assign(COLOR_SYMBOLS, {
+  '가시': { kind: '닿는 자를 찢는 가시', dice: [['참격', 7, 11], ['참격', 7, 11]], onHit: { bleed: 2 } },
+  '천칭': { kind: '죄의 무게를 다는 천칭', dice: [['방어', 12, 17], ['타격', 9, 14]] },
+  '시계': { kind: '멈춘 초침', dice: [['타격', 10, 15]], onHit: { para: 2 }, onUse: { draw: 1 } },
+  '사자': { kind: '포효하는 사자의 일격', dice: [['타격', 15, 23]] },
+  '늑대': { kind: '무리 사냥', dice: [['참격', 6, 10], ['관통', 6, 10], ['참격', 6, 10]] },
+  '나비': { kind: '잡히지 않는 날갯짓', dice: [['회피', 12, 17], ['참격', 8, 12]] },
+  '물결': { kind: '밀려오는 물결', dice: [['타격', 8, 12], ['타격', 8, 12]], onHit: { para: 1 } },
+  '달': { kind: '달빛을 꿰뚫는 창', dice: [['관통', 14, 21]] },
+  '꽃': { kind: '피어나는 회복의 꽃', dice: [['참격', 10, 15]], onUse: { heal: 18 } },
+  '뿔': { kind: '들이받는 뿔', dice: [['관통', 11, 16], ['타격', 8, 12]] },
+  '열쇠': { kind: '모든 것을 잠그는 열쇠', dice: [['방어', 10, 14]], onUse: { nextEnd: 2, draw: 1 } },
+  '연기': { kind: '시야를 가리는 연기', dice: [['회피', 10, 14], ['관통', 9, 13]] },
+});
+CANON_COLORS.push('보라눈물', '보랏빛눈물', '검은침묵', '붉은안개');
 
 EVENTS.push(
   { id: 'crisis', when: [0, 1, 2, 3], w: 0, cond: () => false, title: '자신과 마주한다',
@@ -3869,6 +3959,7 @@ function relicOnHit(def) {
     if (def.st.tremor >= 15) { const t = def.st.tremor; def.hp -= t * 2; stgDmg(def, t * 2); def.st.tremor = 0; clog(`✦ 붕괴 — 쌓인 진동이 ${def.name}을(를) 무너뜨린다 (${t * 2} 피해·흐트러짐)`, 'l-day'); }
   }
   if (R.curseOnHit) def.st.curse = (def.st.curse || 0) + R.curseOnHit;
+  if (R.hitStatus) for (const k in R.hitStatus) def.st[k] = (def.st[k] || 0) + R.hitStatus[k];
   if (C.P.laev >= 1) def.st.burn += C.P.laev === 2 ? 4 : 2;
   if (R.clone && def.hp > 0 && (C.P.cloneAll || Math.random() < R.clone)) {
     const v = rnd(6, 11) + rankPower(); clog('→ 분신이 뒤따라 벤다', 'l-good'); dmg(def, v, '참격');
