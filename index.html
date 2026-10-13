@@ -286,10 +286,17 @@ const CARDS = {
   gg_rush:    { name: '패거리 돌격', cost: 1, dice: [['참격', 2, 4], ['참격', 2, 4]] },
   gg_ink:     { name: '강화 문신 활성화', cost: 1, instant: true, fx: { nextStr: 1, draw: 1 }, desc: '즉시: 다음 막 힘 1, 카드 1장 뽑기' },
   // 1급 해결사
-  top_slash:  { name: '정점의 검격', cost: 2, dice: [['참격', 7, 13], ['참격', 5, 9]] },
-  top_guard:  { name: '완벽한 방어', cost: 1, dice: [['방어', 6, 11]] },
-  top_counter:{ name: '역습', cost: 1, dice: [['회피', 5, 9], ['관통', 4, 8]] },
-  top_pierce: { name: '일점 돌파', cost: 1, dice: [['관통', 6, 11]] },
+  // 숙련 해결사와 손가락 간부의 주력 책장
+  top_finish: { name: '빈틈을 끝내는 검', cost: 3, dice: [['참격', 12, 18], ['관통', 8, 13]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  officer_thumb: { name: '간부의 집중 사격', cost: 2, dice: [['관통', 8, 12], ['관통', 7, 11]], onHit: { burn: 1 }, desc: '공격 주사위 적중마다 화상 1' },
+  officer_index: { name: '지령의 집행자', cost: 2, dice: [['참격', 9, 14], ['관통', 6, 10]], onUse: { nextEnd: 1 }, desc: '사용 시 다음 막 인내 1' },
+  officer_middle: { name: '형님의 응징', cost: 2, dice: [['타격', 8, 13], ['타격', 7, 11]], onHit: { para: 1 }, desc: '공격 주사위 적중마다 마비 1' },
+  officer_ring: { name: '완성의 붓질', cost: 2, dice: [['참격', 7, 12], ['참격', 7, 11]], onHit: { bleed: 2 }, desc: '공격 주사위 적중마다 출혈 2' },
+  officer_pinky: { name: '결전의 마침표', cost: 2, dice: [['참격', 9, 14], ['관통', 7, 11]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  top_slash:  { name: '정점의 검격', cost: 2, dice: [['참격', 9, 15], ['참격', 7, 11]] },
+  top_guard:  { name: '완벽한 방어', cost: 1, dice: [['방어', 8, 13]] },
+  top_counter:{ name: '역습', cost: 1, dice: [['회피', 7, 11], ['관통', 6, 10]] },
+  top_pierce: { name: '일점 돌파', cost: 1, dice: [['관통', 8, 13]] },
   // 손가락 — 엄지
   th_load:    { name: '탄환 장전 사격', cost: 1, dice: [['관통', 5, 10]], onHit: { burn: 2 }, desc: '적중 시 화상 2' },
   th_volley:  { name: '일제 사격', cost: 2, dice: [['관통', 4, 8], ['관통', 4, 8]], onHit: { burn: 1 }, desc: '적중 시 화상 1' },
@@ -510,7 +517,7 @@ const ORIGINS = [
   { id: 'fixer_top', w: 8, tier: 3, variant: 'fixer', grades: [2], label: '해결사 (2급)' },
   { id: 'grade1', w: 7, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 300000000, light: 4,
     trait: '해결사의 정점 — 최대 빛 4, 매 막 카드를 1장 더 뽑는다.',
-    deck: ['top_slash', 'top_slash', 'top_guard', 'top_guard', 'top_counter', 'top_pierce', 'top_pierce', 'flow', 'deflect'],
+    deck: ['top_slash', 'top_slash', 'top_guard', 'top_guard', 'top_counter', 'top_pierce', 'top_pierce', 'flow', 'top_finish'],
     intro: '날개조차 당신을 함부로 대하지 않는다. 엄지는 당신을 카포와 동등하게 대접한다.',
     hooks: { extraDraw: 1 } },
   { id: 'finger', w: 6, tier: 3, variant: 'finger', rank: 2, label: '손가락 상위 간부' },
@@ -543,7 +550,7 @@ const FIXER_BANDS = [
     intro: '둥지 주민의 의뢰도 받을 만큼은 이름이 났다. 그만큼 위험한 일도 들어온다.' },
   { max: 4, deck: ['zw_justice', 'combo', 'mook_blade', 'deflect', 'train', 'bullet', 'shi_vital', 'hi_mirror', 'md_counter'],
     intro: '도시 질병급 의뢰를 몇 번 넘겼다. 이제 뒷골목의 쥐들은 당신을 보면 길을 비킨다.' },
-  { max: 2, deck: ['top_slash', 'top_guard', 'top_counter', 'mook_blade', 'hi_mirror', 'combo', 'flow', 'deflect', 'hi_rifle'],
+  { max: 2, deck: ['top_slash', 'top_guard', 'top_counter', 'top_pierce', 'hi_mirror', 'top_slash', 'flow', 'top_guard', 'hi_rifle'],
     intro: '내로라하는 해결사들 사이에서도 인간 흉기 대접을 받는다. 1급까지는 한 걸음.' },
 ];
 const FIXER_MONEY = { 8: 500000, 7: 1000000, 6: 3000000, 5: 8000000, 4: 15000000, 3: 40000000, 2: 100000000 };
@@ -553,11 +560,12 @@ const FINGER_RANK_STATS = [
   { grade: 4, hp: 98, stg: 52, money: 80000000, light: 3 },
   { grade: 2, hp: 140, stg: 72, money: 500000000, light: 4 },
 ];
+const OFFICER_CARDS = { f_thumb: 'officer_thumb', f_index: 'officer_index', f_middle: 'officer_middle', f_ring: 'officer_ring', f_pinky: 'officer_pinky' };
 function fingerDeck(k, rank) {
   const fd = FINGER_DECKS[k];
   if (rank === 0) return [fd[0], fd[0], fd[5], 'gg_knife', 'gg_knife', 'rt_flail', 'rt_flail', 'gg_ink'];
-  if (rank === 1) return [fd[0], fd[0], fd[1], fd[2], fd[5], fd[6], 'combo', 'deflect', 'train'];
-  return FINGER_DECKS[k];
+  if (rank === 1) return [fd[0], fd[0], fd[1], fd[2], fd[5], fd[6], OFFICER_CARDS[k], 'deflect', 'train'];
+  return [OFFICER_CARDS[k], OFFICER_CARDS[k], fd[2], fd[3], fd[4], fd[5], 'top_guard', 'flow', 'top_counter'];
 }
 
 // 손가락 간부 출신: 소속 손가락별 시작 덱
@@ -874,12 +882,16 @@ function merit(n) {
     if (S.grade === 6 || S.grade === 3) { S.lightBonus = (S.lightBonus || 0) + 1; say('✦ 전투 감각이 한 단계 깊어졌다 — 최대 빛 +1', 'l-day'); }
     if (faction() === 'finger' && fingerTier(S.grade) > tierBefore) {
       const a = AFF(), t = fingerTier(S.grade);
+      addCard(OFFICER_CARDS[S.aff]);
+      if (t === 2) addCard('top_guard');
       say(`★ 승진 — ${a.ranks[t - 1]} → <b>${a.ranks[t]}</b> (${FINGER_TIER_NAME[t]}). ${t === 2 ? '이제 손가락의 간부석에 앉는다. 아랫사람들이 당신의 눈을 피한다.' : '아랫사람이 생겼다. 상납금은 이제 당신에게도 올라온다.'}`, 'l-day');
       S.money += pay(t === 2 ? 50000000 : 5000000);
       say(`승진 축하금 +${won(pay(t === 2 ? 50000000 : 5000000))}`, 'l-good');
     }
     if (isFixer()) {
       say(`★ 하나 협회 승급 심사 통과 — ${S.grade}급 해결사가 되었다. (최대 체력 +12, 흐트러짐 +5, 완치, 주사위 위력 +${rankPower()}, 의뢰 보수 증가)`, 'l-day');
+      if (S.grade === 2) { addCard('top_slash'); addCard('top_guard'); }
+      if (S.grade === 1) addCard('top_finish');
       if (S.grade === 1) say('도시가 당신의 이름을 기억하기 시작했다. 이제 특색까지 남은 것은 단 하나의 색뿐.', 'l-day');
     } else if (faction() === 'twisted') say(`★ 재해 등급 상승 — ${twistRank()}`, 'l-bad');
     else say(`★ 뒷골목에 당신의 이름이 퍼진다 — 위상 ${rankText()} (최대 체력 +12, 흐트러짐 +5, 완치, 주사위 위력 +${rankPower()}, 보수 증가)`, 'l-day');
@@ -2413,6 +2425,134 @@ function startTurn() {
   $('#nextBtn').classList.add('hidden');
   renderTop();
 }
+
+/* ---------- 해결사와 손가락의 일상 ---------- */
+// 소액 지출은 보유금으로만 지불한다. 시간 초과 선택은 항상 무료다.
+function dailyChoice(t, line, fx = {}, def = false) {
+  const notes = [];
+  if (fx.cost) notes.push(`${won(fx.cost)} 지출`);
+  if (fx.money) notes.push(`${won(fx.money)} 수입`);
+  if (fx.heal) notes.push(`체력 ${fx.heal} 회복`);
+  if (fx.stress) notes.push(`정신 압박 ${fx.stress > 0 ? '증가' : '완화'}`);
+  if (fx.merit) notes.push(`실적 +${fx.merit}(위상 보정)`);
+  return { t: t + (notes.length ? ' — ' + notes.join(', ') : ''), def,
+    ...(fx.cost ? { cost: fx.cost, req: () => S.money >= fx.cost, reqText: '보유금 부족' } : {}),
+    fn() {
+      if (fx.cost) spend(fx.cost);
+      say(line);
+      if (fx.money) gain(fx.money);
+      if (fx.heal) heal(fx.heal);
+      if (fx.stress) stress(fx.stress);
+      if (fx.merit) merit(fx.merit);
+    } };
+}
+const FIXER_DAILY = [
+  { id: 'fx_paperwork', junior: true, when: [0, 1], title: '도장 하나가 부족합니다',
+    text: '함께 일하는 사무소에서 의뢰 완료 서류를 돌려보냈다. 해결한 사건보다 첨부 서류가 더 많다. 옆자리 선배가 도장 위치를 손가락으로 짚는다.',
+    options: [ ['영수증까지 맞춰 다시 제출한다', '서류가 드디어 접수됐다. 오늘의 적은 철제 서류철이었다.', { money: 18000, merit: 1, stress: 3 }], ['선배와 나눠 정리한다', '서로 틀린 곳을 잡아주니 생각보다 일찍 끝났다.', { money: 8000, stress: -3 }, true] ] },
+  { id: 'fx_dinner', when: [2], title: '오늘은 회식',
+    text: '합동 의뢰를 마친 해결사들이 작은 식당에 모였다. 테이블 위에는 값싼 고기와 찌그러진 냄비. 누군가 건배하다 말고 내일 출근 시간을 묻는다.',
+    options: [ ['회비를 내고 끝까지 함께한다', '위험했던 순간도 밥상에서는 우스운 이야기가 됐다.', { cost: 12000, heal: 12, stress: -8 }], ['식사만 하고 먼저 일어난다', '선배가 남은 주먹밥을 싸줬다. 내일 보자는 말이 조금 든든하다.', { heal: 6, stress: -4 }, true] ] },
+  { id: 'fx_coffee', junior: true, when: [0], title: '커피 주문 여섯 잔',
+    text: '공동 의뢰 대기실. 모두 다른 커피를 주문해놓고 당신을 쳐다본다. 종이쪽지에 이름과 주문을 적자 한 선배가 자기 것도 헷갈렸다고 웃는다.',
+    options: [ ['주문표를 만들어 다녀온다', '심부름값을 받고 남은 거스름돈까지 정확히 돌려줬다.', { money: 6000, stress: 1 }], ['물을 올리고 함께 타 마신다', '원두는 없지만 뜨거운 믹스커피는 충분했다.', { stress: -3 }, true] ] },
+  { id: 'fx_phone', junior: true, when: [0, 1], title: '전화 당번',
+    text: '협력 사무소가 잠깐 자리를 비워달라며 수신기를 맡겼다. 길 잃은 반려동물, 소음 민원, 견적 문의. 칼을 뽑을 일은 하나도 없다.',
+    options: [ ['요청을 분류해 인계한다', '주소와 연락처를 빠짐없이 적었다. 다음 담당자가 고개를 숙인다.', { money: 15000, merit: 1, stress: 2 }], ['긴급 연락만 받아둔다', '중요한 전화는 놓치지 않았다. 수신기를 내려놓으니 어깨가 풀렸다.', { money: 6000 }, true] ] },
+  { id: 'fx_receipts', junior: true, when: [1, 2], title: '구겨진 경비 영수증',
+    text: '코트 주머니에서 교통비 영수증이 우수수 떨어졌다. 피가 묻은 것, 비에 젖은 것, 누구 것인지 모를 것. 정산 마감은 오늘이다.',
+    options: [ ['날짜와 금액을 맞춘다', '작은 지출도 모이면 식비가 된다. 경비 일부를 돌려받았다.', { money: 22000, stress: 3 }], ['읽을 수 있는 것만 제출한다', '무리해서 복원하지는 않았다. 그래도 몇 끼 값은 건졌다.', { money: 9000 }, true] ] },
+  { id: 'fx_cleaning', junior: true, when: [0, 2], title: '대기실 대청소',
+    text: '함께 쓰는 대기실 소파 밑에서 탄피와 오래된 과자 봉지가 나왔다. 칠판에는 큼지막하게 적혀 있다. 마지막으로 쓴 사람이 치울 것.',
+    options: [ ['창문과 바닥까지 닦는다', '걸레를 짜고 나니 방이 조금 넓어 보인다. 관리인이 수고비를 건넸다.', { money: 10000, stress: 2 }], ['동료와 반씩 맡는다', '불평도 반씩 나누니 청소가 금세 끝났다.', { stress: -4 }, true] ] },
+  { id: 'fx_gear', when: [0, 1], title: '장비 손질하는 시간',
+    text: '정비대 위에 닳은 손잡이와 헐거운 버클을 늘어놓았다. 동료가 숫돌을 밀어준다. 큰 수리는 공방 몫이지만 작은 손질은 직접 해야 한다.',
+    options: [ ['소모품을 사서 꼼꼼히 손질한다', '칼집이 걸리지 않는다. 사소한 불안 하나가 사라졌다.', { cost: 8000, stress: -7 }], ['빌린 공구로 기본 점검을 한다', '나사부터 조였다. 다음 의뢰 전에 확인하길 잘했다.', { stress: -3 }, true] ] },
+  { id: 'fx_lunch', when: [1], title: '점심 메뉴 회의',
+    text: '의뢰 브리핑은 삼 분이었는데 점심 메뉴로 십 분째 논쟁 중이다. 국수파와 덮밥파 사이에서 누군가 도시락을 조용히 연다.',
+    options: [ ['근처 식당에서 한 끼 먹는다', '뜨거운 밥을 먹는 동안만큼은 의뢰 이야기를 하지 않았다.', { cost: 7000, heal: 14, stress: -3 }], ['준비한 간식을 나눠 먹는다', '과자 몇 개에도 취향은 갈렸다. 이번에는 웃으면서.', { heal: 4, stress: -3 }, true] ] },
+  { id: 'fx_senior', junior: true, when: [0, 1], title: '선배의 계약서 수업',
+    text: '계약서를 읽던 선배가 특정 조항에 줄을 긋는다. “성공 보수만 보지 마. 실패했을 때 누가 돈을 내는지도 봐야지.”',
+    options: [ ['예전 의뢰와 비교하며 메모한다', '부상 보상과 장비 손실 조항을 새로 외웠다. 검술 못지않게 필요한 지식이었다.', { merit: 1, stress: 1 }], ['중요한 조항만 표시해둔다', '다음에는 계약서 뒷장도 읽기로 했다.', { stress: -2 }, true] ] },
+  { id: 'fx_waiting', when: [0, 1, 2], title: '의뢰인이 늦는 오후',
+    text: '약속 장소에 도착했지만 의뢰인은 오지 않는다. 맞은편 해결사도 같은 처지다. 서로의 시계를 보고 한숨을 동시에 쉰다.',
+    options: [ ['대기 시간을 기록해 정산한다', '뒤늦게 온 의뢰인이 계약된 대기료를 지급했다.', { money: 20000, stress: 3 }], ['동료와 잡담하며 기다린다', '좋은 수선집과 싼 식당 정보를 얻었다. 기다림이 조금 짧게 느껴졌다.', { stress: -5 }, true] ] },
+  { id: 'fx_backup', junior: true, when: [1, 2], title: '보고서 백업',
+    text: '공용 단말기가 또 멈췄다. 오늘 작성한 보고서를 날렸다는 비명이 들린다. 다행히 임시 저장 폴더는 아직 열려 있다.',
+    options: [ ['누락된 보고서를 복구한다', '문장 몇 줄을 다시 입력하고 파일을 살렸다. 동료가 야근 수당 일부를 나눠줬다.', { money: 18000, merit: 1, stress: 3 }], ['백업 방법을 적어 붙인다', '저장 버튼을 누르는 소리가 대기실 여기저기서 들렸다.', { stress: -2 }, true] ] },
+  { id: 'fx_laundry', junior: true, when: [2], title: '비 맞은 코트',
+    text: '하루 종일 비를 맞았다. 대기실 난방기 앞에는 해결사들의 코트가 줄지어 걸려 있다. 누구 소매가 누구 것인지 벌써 헷갈린다.',
+    options: [ ['세탁소에 맡기고 따뜻한 차를 산다', '마른 옷을 입으니 오늘이 그럭저럭 끝난 것 같다.', { cost: 9000, heal: 8, stress: -5 }], ['옷에 이름표를 달고 말린다', '남의 코트를 입고 갈 사고는 막았다. 난방기 앞에서 잠깐 쉬었다.', { heal: 3, stress: -2 }, true] ] },
+  { id: 'fx_training', when: [0, 1], title: '목검으로 하는 복기',
+    text: '동료가 지난 의뢰에서 아찔했던 동작을 재현해 보인다. 오늘은 진검도 내기도 없다. 틀린 자세를 고쳐줄 사람이 있다는 건 드문 행운이다.',
+    options: [ ['끝까지 자세를 맞춰본다', '같은 실수를 반복하지 않도록 발 위치를 기억했다.', { merit: 1, stress: 2 }], ['가벼운 스트레칭만 함께한다', '굳은 어깨가 풀렸다. 동료도 오늘은 무리하지 말자고 한다.', { heal: 5, stress: -3 }, true] ] },
+  { id: 'fx_birthday', when: [2], title: '작은 생일 케이크',
+    text: '동료의 신분증을 정리하다 오늘이 생일이라는 사실을 알았다. 당사자는 모른 척 서류를 넘긴다. 다른 해결사가 조용히 초 하나를 꺼낸다.',
+    options: [ ['작은 케이크를 사 온다', '초를 끄기 전 한참 침묵하더니, 내년에도 보자고 했다.', { cost: 10000, stress: -9 }], ['종이 카드에 한 줄을 쓴다', '구겨지지 않게 코트 안주머니에 넣는 모습이 보였다.', { stress: -5 }, true] ] },
+  { id: 'fx_lostbox', junior: true, when: [0, 1], title: '분실물 상자',
+    text: '협력 사무소의 분실물 상자를 정리한다. 한 짝 장갑, 이름 없는 열쇠, 금 간 머그잔. 버리려던 우산에 연락처가 남아 있다.',
+    options: [ ['주인에게 연락하고 목록을 만든다', '우산 주인이 몇 번이나 감사 인사를 했다. 보관 업무 수당을 받았다.', { money: 12000, merit: 1 }], ['종류별로 나눠 표지만 붙인다', '다음 사람이 찾기 쉬워졌다. 그 정도로도 충분한 날이다.', { stress: -2 }, true] ] },
+  { id: 'fx_route', when: [0, 1], title: '다음 의뢰의 동선',
+    text: '지도 위에 의뢰 장소를 표시한다. 환승 비용을 줄일지, 조금 돌아가 안전한 길을 쓸지. 옆자리 동료가 최근 막힌 골목을 알려준다.',
+    options: [ ['안전한 경로를 함께 검토한다', '돌아오는 길까지 표시했다. 동료가 지도 사본을 챙긴다.', { merit: 1 }], ['익숙한 길을 확인하고 쉰다', '내일 길에서 헤매지는 않겠다. 지도를 접었다.', { stress: -3 }, true] ] },
+];
+EVENTS.push(...FIXER_DAILY.map(e => ({
+  id: e.id, title: e.title, text: e.text, when: e.when, fac: ['fixer', 'assoc'],
+  get w() { return S.grade >= 7 ? (e.junior ? 1.1 : 0.8) : 0.35; },
+  cond: () => !e.junior || S.grade >= 7,
+  build() { return e.options.map(args => dailyChoice(...args)); },
+})));
+
+const FINGER_DAILY = [
+  { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
+    text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
+    options: [ ['식탁에 앉아 이야기를 듣는다', '별것 아닌 농담이 오갔다. 적어도 이 식탁에서는 등을 벽에 붙이지 않아도 된다.', { heal: 10, stress: -5 }, true], ['설거지를 맡는다', '마지막 그릇을 닦을 때 누군가 남겨둔 간식을 건넸다.', { heal: 4, merit: 1 }] ] },
+  { id: 'fg_inventory', junior: true, when: [0, 1], title: '창고 당번',
+    text: '붕대, 식량, 탄약 상자마다 수량을 적는다. 말단에게 돌아오는 일은 늘 비슷하다. 그래도 오늘은 밖에서 칼을 맞댈 필요가 없다.',
+    options: [ ['빠진 물품까지 확인한다', '재고 차이를 찾아 보고했다. 책임자는 묵묵히 수고비를 내밀었다.', { money: 20000, merit: 1, stress: 2 }], ['맡은 선반부터 정리한다', '당번표에 완료 표시를 했다. 오늘 몫은 끝났다.', { money: 8000 }, true] ] },
+  { id: 'fg_roster', officer: true, when: [0, 1], title: '간부의 근무표',
+    text: '조직원들의 부상 기록과 교대표가 책상에 쌓였다. 인원을 무리하게 돌리면 다음 주가 버티지 못한다. 지금 필요한 것은 힘보다 배치다.',
+    options: [ ['부상자를 쉬게 하고 교대를 조정한다', '빈자리를 나눠 맡도록 정리했다. 치료실에서 작게 안도하는 소리가 들렸다.', { merit: 1, stress: -3 }], ['담당자와 기존 근무표를 점검한다', '누락된 이름 두 개를 채웠다. 적어도 같은 사람에게 당번이 겹치진 않는다.', { stress: -2 }, true] ] },
+  { id: 'fg_thumb_table', aff: 'f_thumb', when: [1, 2], title: '엄지 — 좌석의 순서',
+    text: '손님을 맞기 전 식탁의 명패를 정리한다. 누구의 의자를 먼저 빼는지, 누구의 말이 끝나야 잔을 드는지. 이곳의 예절은 장식이 아니다.',
+    options: [ ['서열과 호칭을 다시 확인한다', '실수 없이 자리가 시작됐다. 상석에서 짧게 고개를 끄덕였다.', { merit: 1, stress: 2 }], ['담당자의 지시대로 배치한다', '확신이 없을 때는 묻는 편이 낫다. 명패가 제자리를 찾았다.', {}, true] ] },
+  { id: 'fg_thumb_ammo', aff: 'f_thumb', when: [0, 1], title: '엄지 — 탄약 장부',
+    text: '보급 상자의 수량과 지급 기록이 맞지 않는다. 옆자리 솔다토가 자신이 반납을 깜빡했다며 주머니를 뒤진다.',
+    options: [ ['반납분을 확인하고 장부를 고친다', '부족했던 탄약이 채워졌다. 보고서에는 실제 수량만 남겼다.', { money: 18000, merit: 1 }], ['담당자와 함께 다시 센다', '두 번 세니 오해가 풀렸다. 솔다토가 안도의 숨을 내쉰다.', { stress: -3 }, true] ] },
+  { id: 'fg_index_buttons', aff: 'f_index', when: [0, 1], title: '검지 — 단추 세 개',
+    text: '오늘의 지령은 낡은 외투에 흰 단추 세 개를 달아 지정된 문 앞에 걸라는 것이다. 단추의 크기까지 적혀 있다. 이유는 없다.',
+    options: [ ['규격에 맞는 단추를 구해 수행한다', '외투를 걸자 안쪽에서 문이 열렸다. 지령의 다음 부분은 다른 사람의 몫이었다.', { cost: 3000, merit: 1 }], ['공용 바느질함에서 규격을 찾아 수행한다', '한참 뒤 알맞은 단추 세 개를 찾았다. 시간을 들였지만 지령은 지켰다.', { stress: 2 }, true] ] },
+  { id: 'fg_index_wait', aff: 'f_index', when: [1, 2], title: '검지 — 빈 봉투를 기다리며',
+    text: '지정된 벤치에서 빈 봉투를 받을 때까지 기다리라는 지령. 옆에 앉은 신도도 같은 종이를 들고 있다. 둘은 서로 자리를 조금 비켜준다.',
+    options: [ ['지령의 시간과 장소를 함께 대조한다', '해가 기울 무렵 전달자가 왔다. 봉투는 정말 비어 있었다.', { merit: 1 }], ['조용히 함께 기다린다', '많은 말은 하지 않았다. 기다리는 사람이 둘이라는 사실만으로 덜 지루했다.', { stress: -4 }, true] ] },
+  { id: 'fg_middle_ledger', aff: 'f_middle', when: [0, 1], title: '중지 — 원한 장부의 오자',
+    text: '장부의 이름 한 글자가 번졌다. 동생 둘의 기억도 서로 다르다. 잘못된 이름을 남기는 것은 형제에게도 수치다.',
+    options: [ ['당시 함께 있던 형제에게 확인한다', '기록을 바로잡았다. 장부는 기억을 대신하기에 더 정확해야 한다.', { merit: 1 }], ['확인 전까지 표시를 남겨둔다', '추측으로 채우지는 않았다. 옆의 동생도 그 편이 낫겠다고 했다.', { stress: -2 }, true] ] },
+  { id: 'fg_middle_visit', aff: 'f_middle', when: [1, 2], title: '중지 — 다친 동생의 병문안',
+    text: '붕대를 감은 동생이 괜찮다며 자리에서 일어나려 한다. 식탁에서는 큰소리치던 녀석이 약 냄새 앞에서는 말수가 줄었다.',
+    options: [ ['먹을 것을 사서 함께 앉는다', '회복하면 같이 먹으러 가자는 약속을 했다. 그제야 동생이 다시 농담했다.', { cost: 8000, stress: -8 }], ['물과 붕대를 갈아준다', '고맙다는 말 대신 어깨를 툭 쳤다. 중지에서는 그것도 충분한 말이다.', { stress: -4 }, true] ] },
+  { id: 'fg_ring_frame', aff: 'f_ring', when: [0, 1], title: '약지 — 전시 준비',
+    text: '작품보다 액자를 수평으로 맞추는 일이 더 오래 걸린다. 도슨트가 한 걸음 물러서더니 다시 손가락 한 마디만큼 옮기라고 한다.',
+    options: [ ['조명과 간격까지 맞춘다', '마침내 고개를 끄덕였다. 작품 옆의 빈 공간도 전시의 일부라고 했다.', { money: 20000, merit: 1, stress: 3 }], ['담당 구역의 표찰을 정리한다', '제목과 위치가 맞았다. 오늘의 일은 여기까지다.', { money: 8000 }, true] ] },
+  { id: 'fg_ring_critique', aff: 'f_ring', when: [1, 2], title: '약지 — 습작 합평',
+    text: '종이 위의 선 하나를 두고 방 안의 의견이 갈린다. 자신의 습작을 내놓은 견습은 아무렇지 않은 척 손끝을 만지작거린다.',
+    options: [ ['구도에 대한 의견을 내놓는다', '반박도 있었지만 다음 습작에 써볼 방법이 생겼다.', { merit: 1, stress: 2 }], ['다른 이들의 설명을 듣는다', '침묵도 관찰의 시간이 됐다. 나올 때 견습이 작게 인사했다.', { stress: -3 }, true] ] },
+  { id: 'fg_pinky_practice', aff: 'f_pinky', when: [0, 1], title: '소지 — 결전 전의 준비',
+    text: '조직의 연습장에서는 발을 디디는 소리만 반복된다. 맞은편 동료가 오늘은 승패 대신 거리를 맞춰보자고 한다.',
+    options: [ ['같은 동작을 서로 교정한다', '한 발을 아끼는 법을 배웠다. 끝나자 둘 다 먼저 물통을 찾았다.', { merit: 1, stress: 2 }], ['호흡과 준비 자세를 가다듬는다', '조급함이 가라앉았다. 오늘은 기본부터 돌아봤다.', { heal: 4, stress: -3 }, true] ] },
+  { id: 'fg_pinky_watch', aff: 'f_pinky', when: [2], title: '소지 — 교대 직전',
+    text: '거점 입구에서 교대자가 오기를 기다린다. 오늘의 방문 기록을 넘겨주려는데 종이에 빗방울이 떨어진다.',
+    options: [ ['방문 기록을 다시 정리해 인계한다', '번진 이름을 복원하고 시간까지 맞췄다. 다음 당번이 종이를 조심히 접는다.', { money: 16000, merit: 1 }], ['중요한 내용을 말로 짚어준다', '빠뜨린 연락은 없었다. 처마 밑에서 잠깐 비를 피했다.', { stress: -3 }, true] ] },
+];
+EVENTS.push(...FINGER_DAILY.map(e => ({
+  id: e.id, title: e.title, text: e.text, when: e.when, fac: ['finger'],
+  ...(e.aff ? { aff: [e.aff] } : {}),
+  get w() { return e.aff ? 1.5 : (e.junior ? 1.2 : 0.8); },
+  cond: () => (!e.junior || fingerTier(S.grade) === 0) && (!e.officer || fingerTier(S.grade) >= 1),
+  build() { return e.options.map(args => dailyChoice(...args)); },
+})));
+
+
 
 function chooseEvent() {
   if (S.flags.crisis && !S.seenToday.includes('crisis')) return EVENTS.find(e => e.id === 'crisis');
