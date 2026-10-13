@@ -153,6 +153,8 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       <span class="stat" id="clock"></span>
       <span class="stat">HP <b id="sHp"></b></span>
       <span class="stat">자금 <b id="sMoney"></b></span>
+      <span class="stat l-bad" id="sDebt"></span>
+      <span class="stat" id="sPress"></span>
       <span class="stat"><span id="sRole" class="dim"></span> <b id="sGrade"></b></span>
       <span class="stat">실적 <b id="sMerit"></b></span>
       <button id="cityBtn" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">도시 시설</button>
@@ -490,6 +492,7 @@ function buildOrigin(o, fingerKey) {
       intro: '하나 협회가 당신에게 색을 부여했다. 도시의 별을 떨어뜨리는 것이 당신의 일이다.' };
   }
   if (o.aff === 'assoc') return { ...o, aff: pick(ASSOC_KEYS) };
+  if (o.aff === 'gang') return { ...o, gangFinger: pick(FINGER_NAMES) };
   return { ...o };
 }
 
@@ -498,8 +501,11 @@ const AFF = () => AFFS[S.aff];
 const isFixer = () => !!AFF().fixer;
 const faction = () => AFF().faction;
 const hasHome = () => !!AFF().home || !!S.ownHome;
-function affName(id = S.aff, grade = S ? S.grade : 9) {
+const FINGER_NAMES = ['엄지', '검지', '중지', '약지', '소지'];
+// gf: 뒷골목 조직이 속한 손가락 (지정하지 않으면 현재 게임의 값)
+function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   const a = AFFS[id];
+  if (id === 'gang') return `뒷골목 조직원 [${gf || '?'} 산하]`;
   if (a.ranks) return grade <= 2 ? a.ranks[1] : a.ranks[0];
   if (a.faction === 'assoc') return `${a.name} 해결사`;
   return a.name;
@@ -509,7 +515,7 @@ function H() {
   if (!S) return {};
   if (S._h) return S._h;
   const out = {};
-  for (const h of [S.ch.hooks || {}, AFF().hooks || {}]) {
+  for (const h of [S.ch.hooks || {}, AFF().hooks || {}, S.ego ? EGO_HOOKS : {}]) {
     for (const k in h) {
       const v = h[k], prev = out[k];
       if (typeof v === 'function') out[k] = prev ? (...a) => (prev(...a) || 0) + (v(...a) || 0) : v;
@@ -522,7 +528,7 @@ function H() {
   return (S._h = out);
 }
 function passiveText() {
-  return `[출신] ${S.ch.trait}<br>[소속] ${AFF().passive}`;
+  return `[출신] ${S.ch.trait}<br>[소속] ${AFF().passive}` + (S.ego ? `<br>[E.G.O 「${S.ego}」] 모든 주사위 위력 상승(공격 +2, 방어 +1), 빛 +1, 전투마다 1번 치명상을 버틴다.` : '');
 }
 // 소속 변경. 조직·손가락을 떠나면 추격자가 따라온다.
 function changeAff(id, after) {
@@ -602,16 +608,16 @@ let T = null;   // 현재 턴 상태
 let C = null;   // 전투 상태
 
 function newGame(ch) {
-  S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff,
+  S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff, gangFinger: ch.gangFinger || pick(FINGER_NAMES),
     deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0,
-    loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [] };
+    loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [], debt: 0, debtDue: 0, press: 0, ego: null };
   if (S.loc.area === 'outskirts') { S.maxHp += 8; S.hp += 8; }
   restockShop();
   $('#title').classList.add('hidden');
   $('#topbar').classList.remove('hidden');
   $('#day').classList.remove('hidden');
   $('#log').innerHTML = '';
-  print(`출신: ${ch.name} · 소속: ${affName(ch.aff, ch.grade)}. ${ch.intro}`, 'l-sys');
+  print(`출신: ${ch.name} · 소속: ${affName(ch.aff, ch.grade, S.gangFinger)}. ${ch.intro}`, 'l-sys');
   print(`태어난 곳: ${S.loc.label}${S.loc.note ? ' — ' + S.loc.note : ''}${S.loc.area === 'outskirts' ? '. 괴물들 사이에서 자란 몸은 질기다 (최대 체력 +8).' : ''}`, 'l-sys');
   print(`1일차 — 오늘도 도시는 굴러간다.`, 'l-day');
   startTurn();
@@ -631,7 +637,7 @@ function print(text, cls = '') {
 function say(text, cls = '') { T.queue.push([text, cls]); }
 
 // 해결사는 'N급', 그 외 출신은 위상 단계(1~9)로 표시
-function rankText() { return isFixer() ? `${S.grade}급` : `${10 - S.grade}단계`; }
+function rankText() { if (faction() === 'twisted') return twistRank(); return isFixer() ? `${S.grade}급` : `${10 - S.grade}단계`; }
 function payMul() { return (1 + (9 - S.grade) * 0.5) * (1 + (H().payBonus || 0)); }
 function pay(n) { return Math.round(n * payMul()); }
 // 안(眼): 원화와 비슷한 가치. 1만 이상은 '만', 1억 이상은 '억' 단위로 표시
@@ -641,10 +647,37 @@ function won(n) {
   return `${n}안`;
 }
 function gain(n) { S.money += n; say(`+${won(n)} (보유 ${won(S.money)})`, 'l-good'); }
-function spend(n) { S.money = Math.max(0, S.money - n); say(`-${won(n)} (보유 ${won(S.money)})`, 'l-bad'); }
-function heal(n) { const v = Math.min(n, S.maxHp - S.hp); S.hp += v; if (v > 0) say(`체력 +${v}`, 'l-good'); }
+function spend(n) {
+  if (n > S.money) {   // 모자란 만큼은 사채로 메운다
+    const short = n - S.money, owe = Math.ceil(short * (1 + DEBT_RATE));
+    if (!S.debt) S.debtDue = S.day + DEBT_DAYS;
+    S.debt += owe; S.money = 0;
+    say(`-${won(n)} — 모자란 ${won(short)}을(를) 엄지 계열 사채로 빌렸다. 갚을 돈 ${won(owe)} 추가 (총 빚 ${won(S.debt)}, ${S.debtDue}일차까지)`, 'l-bad');
+    return;
+  }
+  S.money -= n; say(`-${won(n)} (보유 ${won(S.money)})`, 'l-bad');
+}
+
+/* =========================================================
+   빚 — 돈이 모자라면 사채를 쓸 수 있다 (총 빚 상한 20만 안, 이자 20%)
+   기한까지 갚지 못하면 손가락 조직원이 추심하러 온다
+========================================================= */
+const DEBT_CAP = 200000, DEBT_RATE = 0.2, DEBT_DAYS = 3;
+const debtNeeded = cost => Math.max(0, Math.ceil((cost - S.money) * (1 + DEBT_RATE)));
+const canPay = cost => S.money >= cost || S.debt + debtNeeded(cost) <= DEBT_CAP;
+const avail = c => (!c.req || c.req()) && (!c.cost || canPay(c.cost));
+function repayDebt(amount, immediate) {
+  const v = Math.min(amount, S.money, S.debt);
+  if (v <= 0) return 0;
+  S.money -= v; S.debt -= v;
+  const msg = S.debt ? `빚 ${won(v)} 상환 (남은 빚 ${won(S.debt)})` : `빚 ${won(v)} 상환 — 빚을 전부 갚았다.`;
+  if (immediate) print('💸 ' + msg, 'l-good'); else say(msg, 'l-good');
+  if (!S.debt) { S.debtDue = 0; S.flags.collected = 0; }
+  return v;
+}
+function heal(n) { const v = Math.min(n, S.maxHp - S.hp); S.hp += v; if (v > 0) say(`체력 +${v}`, 'l-good'); stress(-Math.ceil(n / 3)); }
 function hurt(n, lethal = false) {
-  S.hp -= n; say(`체력 -${n}`, 'l-bad');
+  S.hp -= n; say(`체력 -${n}`, 'l-bad'); stress(Math.ceil(n / 2));
   if (S.hp <= 0) { if (lethal) { gameOver('뒷골목에서 숨이 끊어졌다.'); return; } S.hp = 1; say('간신히 의식을 붙잡았다.', 'l-bad'); }
 }
 function merit(n) {
@@ -654,7 +687,8 @@ function merit(n) {
     if (isFixer()) {
       say(`★ 하나 협회 승급 심사 통과 — ${S.grade}급 해결사가 되었다. (최대 체력 +5, 의뢰 보수 증가)`, 'l-day');
       if (S.grade === 1) say('도시가 당신의 이름을 기억하기 시작했다. 이제 특색까지 남은 것은 단 하나의 색뿐.', 'l-day');
-    } else say(`★ 뒷골목에 당신의 이름이 퍼진다 — 위상 ${rankText()} (최대 체력 +5, 보수 증가)`, 'l-day');
+    } else if (faction() === 'twisted') say(`★ 재해 등급 상승 — ${twistRank()}`, 'l-bad');
+    else say(`★ 뒷골목에 당신의 이름이 퍼진다 — 위상 ${rankText()} (최대 체력 +5, 보수 증가)`, 'l-day');
   }
 }
 function addCard(id) { S.deck.push(id); say(`덱에 「${CARDS[id].name}」 추가`, 'l-good'); }
@@ -666,7 +700,10 @@ function renderTop() {
   const hp = S.phase === 'combat' && C ? C.P.hp : S.hp;
   $('#sHp').textContent = `${hp}/${S.maxHp}`;
   $('#sMoney').textContent = won(S.money);
-  $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}` + (isFixer() ? '' : ' · 위상');
+  $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
+  $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : isFixer() ? '' : ' · 위상');
+  const ps = $('#sPress');
+  ps.innerHTML = mindImmune() ? '' : `정신 압박 <b style="color:${S.press >= 70 ? 'var(--red)' : S.press >= 40 ? 'var(--orange)' : 'var(--green)'}">${S.press || 0}%</b>`;
   $('#sGrade').textContent = rankText();
   $('#sMerit').textContent = S.grade > 1 ? `${S.merit}/${GRADE_REQ[S.grade - 1]}` : S.merit;
   $('#turns').innerHTML = TURNS.map((x, i) => `<span class="${i === S.turn ? 'cur' : i < S.turn ? 'done' : ''}">${x.name}</span>`).join('');
@@ -703,7 +740,7 @@ const EVENTS = [
     text: '좁은 골목, 앞뒤로 그림자가 막아선다. "가진 거 다 내놔. 아니면 콩팥이라도." 뒷골목의 쥐들이다.',
     choices: [
       { t: '싸운다', fn() { fight('rat', { lethal: false, win() { say('쥐들이 흩어졌다. 주머니에서 쓸 만한 것을 챙겼다.'); merit(1); } }); } },
-      { t: '1만 안을 던져주고 지나간다', req: () => S.money >= 10000, reqText: '안 부족', fn() { spend(10000); say('쥐들은 돈을 줍느라 길을 비켰다.'); } },
+      { t: '1만 안을 던져주고 지나간다', cost: 10000, fn() { spend(10000); say('쥐들은 돈을 줍느라 길을 비켰다.'); } },
       { t: '도망친다', def: true, fn() {
         const ok = Math.random() < (H().flee || (S.grade <= 3 ? 0.95 : 0.55));
         if (ok) say('익숙한 지름길로 빠져나왔다.'); else { say('등 뒤로 쇠파이프가 날아왔다.'); hurt(8); }
@@ -716,7 +753,7 @@ const EVENTS = [
       return [
         ...items.map(id => {
           const c = CARDS[id];
-          return { t: `「${c.name}」 구매 — ${won(c.price)} <span class="dim">(${diceText(c)})</span>`, req: () => S.money >= c.price, reqText: '안 부족',
+          return { t: `「${c.name}」 구매 — ${won(c.price)} <span class="dim">(${diceText(c)})</span>`, cost: c.price,
             fn() { spend(c.price); addCard(id); } };
         }),
         { t: '구경만 하고 나간다', def: true, fn() { say('공방 주인이 혀를 찼다.'); } },
@@ -725,11 +762,11 @@ const EVENTS = [
   { id: 'clinic', when: [0, 1], w: 1.5, title: '강화시술 클리닉',
     text: '"전봇대를 뽑는 팔, 오늘만 특가!" 간판이 반쯤 떨어진 시술소. 안쪽에서 드릴 소리가 난다.',
     choices: [
-      { t: '싸구려 시술 (50만 안) — 최대 체력 +8', req: () => S.money >= 500000, reqText: '안 부족', fn() {
+      { t: '싸구려 시술 (50만 안) — 최대 체력 +8', cost: 500000, fn() {
         spend(500000); S.maxHp += 8; S.hp += 8; say('몸이 가벼워졌다.', 'l-good');
         if (Math.random() < 0.25) { say('…시술 부위가 살짝 녹아내린다. 싼 게 비지떡이다.'); hurt(10); }
       } },
-      { t: '정품 시술 (500만 안) — 최대 체력 +15, 흐트러짐 저항 +5', req: () => S.money >= 5000000, reqText: '안 부족', fn() {
+      { t: '정품 시술 (500만 안) — 최대 체력 +15, 흐트러짐 저항 +5', cost: 5000000, fn() {
         spend(5000000); S.maxHp += 15; S.hp += 15; S.maxStg += 5; say('제대로 된 시술은 확실히 다르다.', 'l-good');
       } },
       { t: '지나친다', def: true, fn() { say('드릴 소리가 멀어졌다.'); } },
@@ -737,13 +774,13 @@ const EVENTS = [
   { id: 'hamham', when: [0, 1, 2], w: 2, title: '햄햄팡팡',
     text: '뒷골목 어디에나 있는 샌드위치 가게. 기간 한정 스페셜 메뉴 냄새가 골목까지 퍼진다.',
     choices: [
-      { t: '스페셜 샌드위치 (8천 안) — 체력 15 회복', req: () => S.money >= 8000, reqText: '안 부족', fn() { spend(8000); say('도시에서 몇 안 되는, 확실한 행복.'); heal(15); } },
+      { t: '스페셜 샌드위치 (8천 안) — 체력 15 회복', cost: 8000, fn() { spend(8000); say('도시에서 몇 안 되는, 확실한 행복.'); heal(15); } },
       { t: '지나친다', def: true, fn() { say('배가 꼬르륵거렸다.'); } },
     ] },
   { id: 'zwei', when: [1, 2], w: 1.5, cond: () => !S.flags.zweiTonight, title: '츠바이 협회 보호 계약',
     text: '방패 문양의 해결사가 전단을 내민다. "오늘 밤, 츠바이가 지켜드립니다. 거주구역 보호 계약 30만 안."',
     choices: [
-      { t: '계약한다 (30만 안) — 오늘 밤 안전 확보', req: () => S.money >= 300000, reqText: '안 부족', fn() { spend(300000); S.flags.zweiTonight = true; say('계약서에 서명했다. 오늘 밤은 조금 덜 무섭다.'); } },
+      { t: '계약한다 (30만 안) — 오늘 밤 안전 확보', cost: 300000, fn() { spend(300000); S.flags.zweiTonight = true; say('계약서에 서명했다. 오늘 밤은 조금 덜 무섭다.'); } },
       { t: '거절한다', def: true, fn() { say('"후회하실 텐데요." 그는 다음 사람에게 갔다.'); } },
     ] },
   { id: 'kong', when: [1, 2], w: 2, title: '전당포 앞의 소란',
@@ -791,7 +828,7 @@ const EVENTS = [
     choices: [
       { t: '맞서 싸운다', fn() { fight('twisted_small', { lethal: true, win() { say('사람이었던 것이 쓰러졌다. 협회에 보고하자 포상금이 나왔다.'); gain(pay(1000000)); merit(3); } }); } },
       { t: '협회에 신고한다', fn() { say('신고는 했지만 협회가 도착했을 땐 이미 늦었다. 그래도 기록은 남았다.'); merit(1); } },
-      { t: '도망친다', def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다.'); } },
+      { t: '도망친다', def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다. …들려왔지만.'); stress(15); } },
     ] },
   { id: 'library', when: [1, 2], w: 0.6, cond: () => S.day >= 3 && !S.flags.library, title: '금빛 초대장',
     text: '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 들어간 사람 중 돌아온 이는 드물다.',
@@ -853,7 +890,7 @@ const EVENTS = [
       { t: '보호 계약·경호 하에 밤을 보낸다 — 체력 25% 회복', req: () => S.flags.zweiTonight || S.flags.guardTonight, reqText: '계약·경호 없음', fn() {
         say(S.flags.zweiTonight ? '츠바이 해결사가 문 앞을 지켰다. 밤새 몇 번인가 금속음이 들렸다.' : '고용한 3급 해결사가 밤새 문 앞을 지켰다. 값을 한다.'); heal(Math.round(S.maxHp * 0.25));
       } },
-      { t: '거주구역을 빌린다 (5만 안) — 체력 30% 회복', req: () => S.money >= 50000, reqText: '안 부족', fn() {
+      { t: '거주구역을 빌린다 (5만 안) — 체력 30% 회복', cost: 50000, fn() {
         spend(50000); say('집주인이 돈을 세고 문을 열어주었다. 이 안은 누구도 침범할 수 없다.'); heal(Math.round(S.maxHp * 0.3));
         if (Math.random() < 0.35) return 'knock';
       } },
@@ -872,12 +909,13 @@ const EVENTS = [
         if (Math.random() < 0.5) { say('피투성이 청년이 굴러들어왔다. 아침이 되자 그는 가진 돈을 전부 내밀었다.'); gain(pay(100000)); merit(1); }
         else { say('문틈으로 강철 하회탈이 웃는다. "고맙네잉~ 문 열어줘서."', 'l-bad'); fight('smile', { lethal: true, win() { say('웃는 얼굴이 쓰러졌다. 도시 악몽급 조직원을 처치했다는 소문이 퍼질 것이다.'); gain(pay(3000000)); merit(4); } }); }
       } },
-      { t: '열지 않는다', def: true, fn() { say('목소리는 몇 번 더 애원하다가… 짧은 비명과 함께 끊겼다.'); } },
+      { t: '열지 않는다', def: true, fn() { say('목소리는 몇 번 더 애원하다가… 짧은 비명과 함께 끊겼다.'); stress(12); } },
     ] },
 ];
 
 // 밤에 아무 곳에도 들어가지 못했을 때
 function alleyHide() {
+  stress(8);
   const r = Math.random();
   if (r < 0.55) say('숨을 죽였다. 기계음이 바로 옆을 지나갔다… 무사히 4시 34분이 되었다.');
   else if (r < 0.85) { say('무언가가 다리를 스치고 지나갔다.', 'l-bad'); hurt(12); }
@@ -992,22 +1030,23 @@ EVENTS.push(
       { t: '작은 글씨를 끝까지 읽는다', def: true, fn() { say('"…필요 시 협조자의 신체를 회사 자산으로 간주한다." 조용히 공지를 닫았다.'); } },
     ] },
   { id: 'gang_tribute', fac: ['gang'], when: [0, 1, 2], w: 2, title: '상납금',
-    text: '조직의 선배가 손바닥을 내민다. "이번 주 상납금. 10만 안. 모자라면 몸으로 때우든가."',
+    build() { this.text = `조직의 선배가 손바닥을 내민다. "이번 주 상납금. 10만 안. ${S.gangFinger}에 올릴 몫이야. 모자라면 몸으로 때우든가."`; return this.choices; },
+    text: '',
     choices: [
-      { t: '10만 안을 낸다', req: () => S.money >= 100000, reqText: '안 부족', fn() { spend(100000); say('선배가 만족스럽게 어깨를 두드렸다.'); merit(1); } },
+      { t: '10만 안을 낸다', cost: 100000, fn() { spend(100000); say('선배가 만족스럽게 어깨를 두드렸다.'); merit(1); } },
       { t: '몸으로 때운다', def: true, fn() { say('구석에서 한참을 맞았다. 이것도 조직의 규칙이다.', 'l-bad'); hurt(12); } },
     ] },
   { id: 'finger_duty', fac: ['finger'], when: [0, 1, 2], w: 2.5, title: '상부의 명령',
     text: '봉투 하나가 전달된다. 다른 손가락의 간부가 우리 구역을 넘봤다. "처리하라."',
     choices: [
       { t: '명령을 수행한다 (강적)', fn() { fight('finger_exec', { lethal: true, win() { say('구역은 지켜졌다. 상부는 당신의 이름을 기억할 것이다.'); merit(4); } }); } },
-      { t: '돈으로 무마한다 (5천만 안)', req: () => S.money >= 50000000, reqText: '안 부족', fn() { spend(50000000); say('돈이 오갔고, 문제는 조용히 사라졌다. 상부는 마뜩잖아한다.'); } },
+      { t: '돈으로 무마한다 (5천만 안)', cost: 50000000, fn() { spend(50000000); say('돈이 오갔고, 문제는 조용히 사라졌다. 상부는 마뜩잖아한다.'); } },
       { t: '미룬다', def: true, fn() { say('명령을 미룬 대가로 손가락 하나가… 아니, 경고로 끝났다.', 'l-bad'); hurt(15); } },
     ] },
   { id: 'finger_tribute', fac: ['finger'], when: [1, 2], w: 1.5, cond: () => S.grade > 2, title: '손가락의 상납',
     text: '"윗선에 올릴 몫이 모자라." 조직 서열은 절대적이다. 아래는 위를 먹여 살린다.',
     choices: [
-      { t: '300만 안을 바친다', req: () => S.money >= 3000000, reqText: '안 부족', fn() { spend(3000000); merit(2); say('윗선이 고개를 끄덕였다. 서열이 조금 올라갔다.'); } },
+      { t: '300만 안을 바친다', cost: 3000000, fn() { spend(3000000); merit(2); say('윗선이 고개를 끄덕였다. 서열이 조금 올라갔다.'); } },
       { t: '바치지 못한다', def: true, fn() { say('간부의 주먹은 무거웠다.', 'l-bad'); hurt(18); } },
     ] },
   { id: 'head_order', fac: ['head'], when: [0, 1, 2], w: 4, title: '머리의 지령 — 금기 위반자 처단',
@@ -1032,14 +1071,14 @@ EVENTS.push(
     text: '사무소 문이 소리 없이 열린다. 종 모양 장식을 단 해결사. "당신을 정리해 달라는 의뢰가 들어와서요. 개인적인 감정은 없습니다."',
     choices: [
       { t: '맞선다 (강적)', def: true, fn() { fight('color_rival', { lethal: true, win() { say('종소리가 멎었다. 특색을 쓰러뜨렸다는 소문이 하나 협회까지 닿았다.'); merit(6); } }); } },
-      { t: '의뢰비의 두 배를 제시한다 (5억 안)', req: () => S.money >= 500000000, reqText: '안 부족', fn() { spend(500000000); say('"…합리적이군요." 그는 정중히 고개를 숙이고 떠났다.'); } },
+      { t: '의뢰비의 두 배를 제시한다 (5억 안)', cost: 500000000, fn() { spend(500000000); say('"…합리적이군요." 그는 정중히 고개를 숙이고 떠났다.'); } },
     ] },
 
   /* ---------- 소속 변경 ---------- */
   { id: 'license', when: [0, 1], w: 1.6, cond: () => !AFF().locked && !isFixer() && !['finger', 'head'].includes(faction()), title: '하나 협회 해결사 면허 시험',
     text: '하나 협회 지부 앞에 응시자들이 줄지어 있다. 면허 한 장이면 쥐도 해결사가 된다. 물론 살아서 시험을 통과한다면.',
     choices: [
-      { t: '응시한다 (응시료 5만 안)', req: () => S.money >= 50000, reqText: '안 부족', fn() {
+      { t: '응시한다 (응시료 5만 안)', cost: 50000, fn() {
         spend(50000);
         const p = Math.min(0.9, 0.45 + (9 - S.grade) * 0.07 + S.kills * 0.03);
         if (Math.random() < p) { say('실기 시험관의 목검을 받아냈다. 합격.', 'l-good'); changeAff('fixer'); }
@@ -1060,7 +1099,8 @@ EVENTS.push(
     cond: () => !AFF().locked && ['street', 'gang', 'fixer', 'assoc'].includes(faction()) && (S.grade <= 6 || (faction() === 'gang' && S.kills >= 2)),
     title: '손가락의 손짓',
     build() {
-      const k = pick(FINGER_KEYS), a = AFFS[k];
+      // 조직원이면 자기 조직 위의 손가락이 끌어올린다
+      const k = faction() === 'gang' ? FINGER_KEYS[FINGER_NAMES.indexOf(S.gangFinger)] : pick(FINGER_KEYS), a = AFFS[k];
       this.text = `${a.name}의 사람이 찾아왔다. "당신 같은 인재가 뒷골목에서 썩기엔 아깝지." 손가락에 들어가면 다시는 나올 수 없다는 소문이 있다. (${a.passive})`;
       return [
         { t: `${a.name}에 들어간다 — ${affName(k)}`, fn() { say('손가락의 일원이 되었다. 뒷골목이 당신을 다르게 보기 시작한다.'); changeAff(k); } },
@@ -1068,15 +1108,18 @@ EVENTS.push(
       ];
     }, text: '' },
   { id: 'gang_scout', fac: ['street'], when: [1, 2], w: 1.3, cond: () => !AFF().locked, title: '조직의 권유',
-    text: '하와이안 셔츠의 남자가 담배를 건넨다. "혼자 다니면 밤을 못 넘겨. 우리 식구가 되면 거주구역도 나눠 쓰고."',
-    choices: [
-      { t: '조직에 들어간다', fn() { say('어깨에 첫 강화 문신을 새겼다.'); changeAff('gang'); } },
-      { t: '거절한다', def: true, fn() { say('"후회할걸."'); } },
-    ] },
+    build() {
+      const gf = pick(FINGER_NAMES);
+      this.text = `하와이안 셔츠의 남자가 담배를 건넨다. "혼자 다니면 밤을 못 넘겨. 우리 식구가 되면 거주구역도 나눠 쓰고. 걱정 마, 우리 위엔 ${gf}가 있으니까."`;
+      return [
+        { t: `조직에 들어간다 — ${gf} 산하`, fn() { say('어깨에 첫 강화 문신을 새겼다.'); S.gangFinger = gf; changeAff('gang'); } },
+        { t: '거절한다', def: true, fn() { say('"후회할걸."'); } },
+      ];
+    }, text: '' },
   { id: 'wing_exam', when: [0], w: 1, cond: () => !AFF().locked && ['street', 'fixer', 'gang'].includes(faction()), title: '날개 입사 시험',
     text: '둥지의 입사 시험 공고. 합격하면 깃털이 된다. 매달 월급, 둥지의 집. 대신 날개의 소모품이 된다.',
     choices: [
-      { t: '응시한다 (응시료 20만 안)', req: () => S.money >= 200000, reqText: '안 부족', fn() {
+      { t: '응시한다 (응시료 20만 안)', cost: 200000, fn() {
         spend(200000);
         if (Math.random() < 0.35 + (9 - S.grade) * 0.05) { say('합격 통지서가 도착했다. 둥지의 문이 열린다.', 'l-good'); changeAff('wing'); }
         else say('불합격. 입시촌의 수많은 사람들처럼, 내년을 기약한다.', 'l-bad');
@@ -1157,7 +1200,9 @@ function cityRender() {
     `<div class="fac-row"><div><b>${label}</b><div class="dim">${desc}</div></div>
      <button data-act="${act}" ${(!ok || S.money < cost) ? 'disabled' : ''}>${won(cost)}</button></div>`;
   let h = `<h3>도시 시설 <span class="dim" style="font-size:13px">보유 ${won(S.money)} · ${S.loc ? S.loc.label : ''}</span></h3>`;
-  if (night) {
+  if (faction() === 'twisted') {
+    h += '<p class="l-bad">문을 두드리자 비명이 돌아왔다. 괴물에게 팔 물건은 없다.</p>';
+  } else if (night) {
     h += '<p class="l-bad">뒷골목의 밤(03:13~04:34)에는 모든 시설이 문을 닫는다.</p>';
   } else {
     h += '<h4>공방 — 오늘의 진열대</h4>';
@@ -1172,6 +1217,10 @@ function cityRender() {
     if (!S.ownHome) h += row('뒷골목 주택 구입', '밤을 무료로 보낼 내 집. 체력 35% 회복', 30000000, 'home:alley');
     if (S.ownHome !== 'nest') h += row('둥지 이주권', '둥지의 집. 밤에 체력 50% 회복. 날개의 허가 필요 (위상 5 이상 또는 날개·머리 소속)', 300000000, 'home:nest',
       S.grade <= 5 || ['wing', 'head'].includes(faction()));
+    if (S.debt) {
+      h += `<h4 class="l-bad">사채 — 빚 ${won(S.debt)} (${S.day > S.debtDue ? '연체 중' : S.debtDue + '일차까지'})</h4>`;
+      h += `<div class="fac-row"><div><b>빚 갚기</b><div class="dim">가진 돈으로 최대한 갚는다</div></div><button data-act="repay" ${S.money ? '' : 'disabled'}>${won(Math.min(S.money, S.debt))}</button></div>`;
+    }
     h += '<h4>기타</h4>';
     h += row('3급 해결사 경호 고용 (오늘 밤)', '뒷골목의 밤을 안전하게 보내려면 최소 3급은 고용해야 한다', 3000000, 'guard', !S.flags.guardTonight);
     h += row(`HP 앰플${S.loc && S.loc.letter === 'K' ? ' (K사 둥지 할인)' : ''}`, 'K사 특이점. 체력을 전부 회복한다', ampPrice(), 'amp', S.hp < S.maxHp);
@@ -1195,6 +1244,7 @@ function cityAct(act) {
   else if (k === 'home') { if (buy(v === 'nest' ? 300000000 : 30000000, v === 'nest' ? '둥지 이주권 취득' : '뒷골목 주택 구입')) S.ownHome = v; }
   else if (k === 'guard') { if (buy(3000000, '오늘 밤 3급 해결사 경호 고용')) S.flags.guardTonight = true; }
   else if (k === 'amp') { if (buy(ampPrice(), 'HP 앰플 투여')) S.hp = S.maxHp; }
+  else if (k === 'repay') repayDebt(S.debt, true);
   else if (k === 'forget') { if (S.deck.length > 6 && buy(100000, `기억 파쇄 — 「${CARDS[v].name}」을(를) 잊었다`)) S.deck.splice(S.deck.indexOf(v), 1); }
   renderTop(); cityRender();
 }
@@ -1209,6 +1259,31 @@ const TABOO_CASES = [
   '뒷골목의 밤에 타인의 거주구역을 무단 침입한 기록',
   '특이점 연구 과정에서 금지된 수준의 인체 개조가 의심됨',
 ];
+EVENTS.push(
+  { id: 'dun', when: [0, 1, 2], w: 4, cond: () => S.debt > 0 && S.day <= S.debtDue, title: '사채업자의 독촉',
+    build() {
+      this.text = `정장 차림의 남자가 골목 끝에서 손을 흔든다. 손목에 엄지의 문신. "빚 ${won(S.debt)}, ${S.debtDue}일차까지입니다. 엄지는 약속을 중히 여기죠."`;
+      return [
+        { t: `가진 돈으로 갚는다 (${won(Math.min(S.money, S.debt))})`, req: () => S.money > 0, reqText: '돈 없음', fn() { repayDebt(S.debt); } },
+        { t: '고개를 숙이고 지나간다', def: true, fn() { say('"기한은 지켜주시길." 등 뒤로 웃음 섞인 목소리가 따라온다.'); } },
+      ];
+    }, text: '' },
+  { id: 'collect', when: [0, 1, 2], w: 0, cond: () => false, title: '추심',
+    build() {
+      const n = S.flags.collected || 0;
+      this.text = `기한이 지났다. 골목 양쪽에서 엄지의 조직원들이 걸어 나온다. "빚 ${won(S.debt)}. 예법을 어긴 대가는 탄환으로 받습니다."` + (n ? ' 이번에는 간부까지 따라왔다.' : '');
+      return [
+        { t: `전부 갚는다 (${won(S.debt)})`, req: () => S.money >= S.debt, reqText: '돈 부족', fn() { repayDebt(S.debt); say('조직원들이 정중히 모자를 들어 보이고 물러났다.'); } },
+        { t: '맞서 싸운다', def: true, fn() {
+          fight(n ? 'finger_exec' : 'thumb', { lethal: false,
+            win() { S.flags.collected = n + 1; S.debt = Math.ceil(S.debt * 1.5); S.debtDue = S.day + 2;
+              say(`추심원들을 쫓아냈다. 하지만 손가락은 잊지 않는다. 빚이 ${won(S.debt)}(으)로 불어났다 (${S.debtDue}일차까지).`, 'l-bad'); },
+            lose() { say('눈을 떠보니 수술 자국이 남아 있었다. 빚은 "현물"로 정산되었다. (최대 체력 -10)', 'l-bad');
+              S.maxHp = Math.max(20, S.maxHp - 10); S.hp = Math.min(S.hp, S.maxHp); S.debt = 0; S.debtDue = 0; S.flags.collected = 0; } });
+        } },
+      ];
+    }, text: '' },
+);
 const restrictAff = (id, aff) => Object.assign(EVENTS.find(e => e.id === id), { aff });
 restrictAff('head_order', ['claw', 'arbiter']);
 restrictAff('head_wing', ['claw', 'arbiter']);
@@ -1262,6 +1337,125 @@ EVENTS.push(
 );
 
 /* =========================================================
+   마음 — 정신 압박, E.G.O 개화, 뒤틀림
+   정신 압박이 100%가 되면 '자신과 마주한다' 이벤트.
+   직시에 성공하면 E.G.O 개화, 실패하면 뒤틀림. 머리 소속은 흔들리지 않는다.
+========================================================= */
+const EGO_NAMES = ['피에 젖은 맹세', '부서진 등불', '끝나지 않는 장례', '녹슨 약속', '잿빛 자장가', '붉은 눈물', '삼켜진 비명', '빈 둥지의 노래', '꺼지지 않는 불씨', '거짓 없는 거울'];
+const TWIST_NAMES = ['울지 못한 얼굴', '끝없는 야근', '빚진 손가락', '닫히지 않는 문', '배고픈 골목', '녹아내린 등불', '되감기는 시계', '이름 없는 쥐'];
+const EGO_HOOKS = { rollBonus(P, d) { return OFF(d[0]) ? 2 : 1; }, lastStand: true };
+
+Object.assign(AFFS, {
+  twisted: { name: '뒤틀림', faction: 'twisted', locked: true, passive: '뒤틀린 몸 — 공격 주사위 위력 +3, 매 막 체력 3 재생. 도시가 당신을 사냥한다.',
+    hooks: { rollBonus(P, d) { return OFF(d[0]) ? 3 : 0; }, roundStart(P) { P.hp = Math.min(P.maxHp, P.hp + 3); } } },
+});
+Object.assign(CARDS, {
+  // E.G.O (이름은 개화 시 정해진다)
+  ego_strike: { name: 'E.G.O — 일격', cost: 2, dice: [['참격', 10, 16], ['관통', 8, 12]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2' },
+  ego_guard:  { name: 'E.G.O — 수호', cost: 1, dice: [['방어', 9, 14], ['회피', 8, 12]] },
+  ego_bloom:  { name: 'E.G.O — 개화', cost: 3, dice: [['타격', 14, 22], ['참격', 12, 18]], onUse: { heal: 10 }, desc: '사용 시 체력 10 회복' },
+  // 뒤틀림
+  tw_rend:    { name: '뒤틀린 팔', cost: 1, dice: [['참격', 8, 13], ['참격', 6, 10]], onUse: { selfDmg: 3 }, desc: '사용 시 자신에게 3 피해' },
+  tw_howl:    { name: '찢어지는 울음', cost: 1, dice: [['타격', 7, 12]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
+  tw_devour:  { name: '포식', cost: 2, dice: [['관통', 10, 16]], onHit: { healSelf: 8, bleed: 2 }, desc: '적중 시 체력 8 흡수, 출혈 2' },
+});
+Object.assign(ENEMIES, {
+  purge_team: { elite: true, name: '하나 협회 토벌대', desc: '재해로 지정된 뒤틀림을 처리하러 온 협회 정예.', hp: 150, stg: 65, slots: 3,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0],
+    passive: '토벌 — 매 막 인내 1', onRound: e => { e.st.end += 1; },
+    pool: [{ name: '협회식 검격', dice: [['참격', 7, 12], ['참격', 5, 9]] }, { name: '포위', dice: [['관통', 8, 13]] },
+      { name: '방진', dice: [['방어', 8, 13]] }, { name: '제압', dice: [['타격', 8, 13]], onHit: { para: 1 } }] },
+  lcb_team: { elite: true, name: 'Limbus Company 수감자들', desc: '뒤틀림을 "해소"하러 왔다는 이상한 회사. 시계 머리의 관리자가 지휘한다.', hp: 140, stg: 60, slots: 3,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0],
+    pool: [{ name: '연계 공격', dice: [['참격', 6, 10], ['관통', 6, 10]] }, { name: '되감기', dice: [['방어', 7, 12]], onUse: { heal: 10 } },
+      { name: '집중 공격', dice: [['타격', 9, 14]] }, { name: '대화 시도', dice: [['회피', 8, 12]] }] },
+});
+
+const mindImmune = () => !S || ['head', 'twisted'].includes(faction()) || !!S.ego;
+function stress(n) {
+  if (mindImmune() || !n) return;
+  const before = S.press || 0;
+  S.press = Math.max(0, Math.min(100, before + n));
+  if (Math.abs(n) >= 5) say(`정신 압박 ${n > 0 ? '+' : ''}${n}% (${S.press}%)`, n > 0 ? 'l-bad' : 'l-sys');
+  if (S.press >= 100 && before < 100) { S.flags.crisis = true; say('…마음 깊은 곳에서 무언가 금이 가는 소리가 들린다.', 'l-bad'); }
+}
+function manifestEGO() {
+  const nm = pick(EGO_NAMES);
+  S.ego = nm; S.press = 0; S._h = null;
+  CARDS.ego_strike.name = `「${nm}」 — 일격`; CARDS.ego_guard.name = `「${nm}」 — 수호`; CARDS.ego_bloom.name = `「${nm}」 — 개화`;
+  S.maxHp += 20; S.hp = S.maxHp; S.maxStg += 10;
+  say(`✦ E.G.O 개화 — 「${nm}」. 자신의 마음을 무기로 꺼내 들었다.`, 'l-day');
+  say('최대 체력 +20, 흐트러짐 +10, 빛 +1, 모든 주사위 위력 상승, 전투마다 1번 치명상을 버틴다. 정신 압박에 더 이상 흔들리지 않는다.', 'l-sys');
+  ['ego_strike', 'ego_guard', 'ego_bloom'].forEach(addCard);
+}
+function twist() {
+  S.prevAff = S.aff; S.aff = 'twisted'; S._h = null; S.press = 0;
+  S.ch.twistName = pick(TWIST_NAMES);
+  S.maxHp += 40; S.hp = S.maxHp; S.maxStg += 15;
+  say(`✦ 뒤틀림 — 몸이 찢어지고, 다른 무언가가 되었다. 사람들은 이제 당신을 「${S.ch.twistName}」이라 부른다.`, 'l-bad');
+  say(`하나 협회가 재해 등급을 매기기 시작한다: ${twistRank()}. 소속은 사라졌고, 도시는 당신을 사냥할 것이다.`, 'l-bad');
+  ['tw_rend', 'tw_howl', 'tw_devour'].forEach(addCard);
+}
+function untwist() {
+  S.aff = S.prevAff || 'street'; S._h = null; S.maxHp = Math.max(30, S.maxHp - 40); S.hp = Math.min(S.hp, S.maxHp);
+  for (const id of ['tw_rend', 'tw_howl', 'tw_devour']) { const i = S.deck.indexOf(id); if (i >= 0) S.deck.splice(i, 1); }
+  say(`✦ 뒤틀림이 해소되었다. 사람의 모습으로 돌아왔다. 소속: ${affName()}`, 'l-day');
+}
+const TWIST_RANKS = ['뜬소문', '뜬소문', '도시 괴담', '도시 괴담', '도시 전설', '도시 전설', '도시 질병', '도시 악몽', '도시의 별'];
+const twistRank = () => TWIST_RANKS[9 - S.grade];
+
+EVENTS.push(
+  { id: 'crisis', when: [0, 1, 2, 3], w: 0, cond: () => false, title: '자신과 마주한다',
+    text: '버텨온 것들이 한꺼번에 무너져 내린다. 머릿속에서 누군가 속삭인다. "이대로 괜찮아? 정말로?" 눈을 돌리면 편해질 것이다. 마주하면… 무엇이 될지 모른다.',
+    build() {
+      const p = Math.max(0.2, Math.min(0.85, 0.3 + (9 - S.grade) * 0.05 + Math.min(S.kills, 10) * 0.02 + (S.merit >= 20 ? 0.1 : 0)));
+      return [
+        { t: `마음을 직시한다 — E.G.O 개화 시도 (성공 확률 약 ${Math.round(p * 100)}%, 실패 시 뒤틀림)`, fn() {
+          S.flags.crisis = false;
+          if (Math.random() < p) manifestEGO(); else twist();
+        } },
+        { t: '외면한다 — 압박이 조금 가라앉지만, 금이 남는다', def: true, fn() {
+          S.flags.crisis = false; S.flags.cracks = (S.flags.cracks || 0) + 1;
+          S.press = 60; S.maxHp = Math.max(20, S.maxHp - 5); S.hp = Math.min(S.hp, S.maxHp);
+          if (S.flags.cracks >= 3) { say('세 번째 외면. 더는 버틸 수 없었다.', 'l-bad'); twist(); }
+          else say(`눈을 감았다. 마음에 금이 하나 더 갔다. (${S.flags.cracks}/3, 최대 체력 -5)`, 'l-bad');
+        } },
+      ];
+    } },
+  /* ---------- 뒤틀림 전용 ---------- */
+  { id: 'tw_purge', fac: ['twisted'], when: [0, 1, 2], w: 3, title: '토벌대',
+    text: '하나 협회의 문양. 해결사들이 골목 양쪽을 막아선다. "재해 확인. 토벌을 개시한다."',
+    choices: [
+      { t: '맞서 싸운다', fn() { fight('purge_team', { lethal: true, win() { say('토벌대가 전멸했다. 하나 협회가 재해 등급을 올린다.'); merit(4); say(`재해 등급: ${twistRank()}`, 'l-bad'); } }); } },
+      { t: '하수구로 숨어든다', def: true, fn() { if (Math.random() < 0.5) say('토벌대의 발소리가 머리 위를 지나갔다.'); else { say('추적 장치에 걸렸다. 몸 일부를 잘라내고 도망쳤다.', 'l-bad'); hurt(20); } } },
+    ] },
+  { id: 'tw_hunger', fac: ['twisted'], when: [0, 1, 2], w: 3, title: '굶주림',
+    text: '배가 고프다. 사람이었을 때와는 다른 종류의 허기. 골목 끝에 혼자 걷는 사람이 보인다.',
+    choices: [
+      { t: '덮친다', fn() { say('…배가 불렀다. 협회의 기록에 당신의 이름이 한 줄 더 늘었다.', 'l-bad'); heal(30); merit(2); } },
+      { t: '참는다', def: true, fn() { say('몸이 스스로를 갉아먹는다.', 'l-bad'); hurt(10); } },
+    ] },
+  { id: 'tw_memory', fac: ['twisted'], when: [0, 1, 2], w: 1.5, title: '남은 기억',
+    text: '익숙한 간판 앞에서 걸음이 멈춘다. 사람이었을 때 자주 오던 곳이다. 무엇을 먹었더라.',
+    choices: [{ t: '기억을 붙잡는다', def: true, fn() { say('이름이 생각날 듯하다가, 사라졌다. 그래도 조금은 편해졌다.'); heal(10); } }] },
+  { id: 'tw_lcb', fac: ['twisted'], when: [1, 2], w: 1, title: '수상한 회사',
+    text: '버스 한 대가 골목에 멈춘다. 시계 머리를 한 사람과 열두 명의 수감자. "뒤틀림을 해소하러 왔습니다. 조금 아플 겁니다."',
+    choices: [
+      { t: '받아들인다 — 그들에게 "져야" 해소된다', fn() {
+        fight('lcb_team', { lethal: false, win() { say('수감자들이 물러났다. "다음에 다시 오죠." 시계 머리가 째깍거렸다.'); },
+          lose() { untwist(); } });
+      } },
+      { t: '도망친다', def: true, fn() { say('버스는 당신을 쫓지 않았다. 아직은.'); } },
+    ] },
+  { id: 'tw_night', fac: ['twisted'], when: [3], w: 1, title: '뒷골목의 밤 — 괴물의 시간',
+    text: '청소부의 기계음이 들린다. 그들은 뒤틀림도 가리지 않고 먹는다.',
+    choices: [
+      { t: '청소부를 사냥한다', fn() { fight('sweeper', { lethal: true, win() { say('청소부의 잔해를 삼켰다.'); heal(20); merit(2); } }); } },
+      { t: '폐건물 깊숙이 웅크린다', def: true, fn() { say('밤이 지나갔다.'); heal(15); } },
+    ] },
+);
+
+/* =========================================================
    턴 진행 (자동 진행 + 제한시간)
 ========================================================= */
 function startTurn() {
@@ -1277,12 +1471,14 @@ function startTurn() {
 }
 
 function chooseEvent() {
+  if (S.flags.crisis && !S.seenToday.includes('crisis')) return EVENTS.find(e => e.id === 'crisis');
+  if (S.debt > 0 && S.day > S.debtDue && S.turn < 3 && !S.seenToday.includes('collect')) return EVENTS.find(e => e.id === 'collect');
   const f = faction();
   let pool = EVENTS.filter(e => !e.chainOnly && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
     && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.origin || e.origin.includes(S.ch.id))
-    && (!e.aff || e.aff.includes(S.aff))
+    && (!e.aff || e.aff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted')))
     && (!e.cond || e.cond()));
-  if (!pool.length) pool = EVENTS.filter(e => e.id === 'rest');
+  if (!pool.length) pool = EVENTS.filter(e => e.id === (f === 'twisted' ? 'tw_memory' : 'rest'));
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total;
   for (const e of pool) { r -= e.w; if (r <= 0) return e; }
   return pool[pool.length - 1];
@@ -1299,8 +1495,10 @@ function showEvent(ev) {
   const defIdx = Math.max(0, choices.findIndex(c => c.def));
   box.innerHTML = `<h3>${ev.title}</h3><div class="ev-timer" id="evTimer"></div><p>${ev.text}</p><div class="choices">${
     choices.map((c, i) => {
-      const ok = !c.req || c.req();
-      return `<button data-i="${i}" ${ok ? '' : 'disabled'}>${i + 1}. ${c.t}${i === defIdx ? '<span class="def">[시간 초과 시 자동 선택]</span>' : ''}${ok ? '' : `<span class="req">(${c.reqText || '조건 불충족'})</span>`}</button>`;
+      const ok = avail(c);
+      const why = c.req && !c.req() ? (c.reqText || '조건 불충족') : `안 부족 — 빚 상한 ${won(DEBT_CAP)} 초과`;
+      const debtTag = ok && c.cost && S.money < c.cost ? `<span class="req">[빚 ${won(debtNeeded(c.cost))}]</span>` : '';
+      return `<button data-i="${i}" ${ok ? '' : 'disabled'}>${i + 1}. ${c.t}${debtTag}${i === defIdx ? '<span class="def">[시간 초과 시 자동 선택]</span>' : ''}${ok ? '' : `<span class="req">(${why})</span>`}</button>`;
     }).join('')}</div>`;
   box.querySelectorAll('button[data-i]').forEach(b => b.onclick = () => choose(+b.dataset.i));
   updateEvTimer();
@@ -1317,10 +1515,12 @@ function choose(i, auto = false) {
   let c = choices[i];
   if (auto) {
     c = choices.find(x => x.def) || choices[0];
-    if (c.req && !c.req()) c = choices.find(x => !x.req || x.req());
+    // 시간 초과로는 빚을 지지 않는다
+    const noDebt = x => avail(x) && !(x.cost && S.money < x.cost);
+    if (!noDebt(c)) c = choices.find(noDebt) || choices.find(avail);
     print('— 시간 초과. 망설이는 사이 상황이 흘러갔다.', 'l-bad');
   }
-  if (!c || (c.req && !c.req())) return;
+  if (!c || !avail(c)) return;
   T.awaiting = null;
   $('#event').classList.add('hidden');
   print(`▷ ${c.t.replace(/<[^>]+>/g, '')}`, 'l-choice');
@@ -1394,8 +1594,8 @@ function fight(key, opts = {}) {
   const E = { d, name: d.name, maxHp: Math.round(d.hp * m), maxStg: Math.round(d.stg * m), res: d.res,
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, isEnemy: true };
   E.hp = E.maxHp; E.stg = E.maxStg;
-  const P = { name: S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
-    st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0), light: Math.max(S.ch.light || 3, AFF().light || 0), lastStandUsed: false };
+  const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
+    st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0), lastStandUsed: false };
   C = { E, P, key, opts, round: 0, drawPile: shuffle([...S.deck]), hand: [], discard: [], played: [], intents: [], busy: false };
   S.phase = 'combat';
   $('#day').classList.add('hidden');
@@ -1485,6 +1685,7 @@ function applyFx(fx, self, foe) {
   if (!fx) return;
   if (fx.light && self === C.P) self.light = Math.min(self.maxLight, self.light + fx.light);
   if (fx.draw && self === C.P) drawCards(fx.draw);
+  if (fx.selfDmg) { self.hp -= fx.selfDmg; clog(`${self.name} 자신에게 ${fx.selfDmg} 피해`, 'l-bad'); lastStand(self); }
   if (fx.cleanse) { self.st.bleed = 0; self.st.burn = 0; clog(`${self.name}의 출혈·화상이 사라졌다`, 'l-good'); }
   if (fx.heal) { const v = Math.min(fx.heal, self.maxHp - self.hp); self.hp += v; clog(`${self.name} 체력 +${v}`, 'l-good'); }
   if (fx.nextStr) self.next.str += fx.nextStr;
@@ -1669,13 +1870,15 @@ function endCombat(win) {
     let money = Math.round(rnd(a, b) * (C.E.d.elite ? 1 : payMul()) * (H().moneyMul || 1));
     gain(money);
     S.hp = Math.max(S.hp, 1);
+    stress(C.E.d.elite ? 10 : 3);
+    if (S.hp < S.maxHp * 0.25) { say('간신히 이겼다. 손이 떨린다.', 'l-bad'); stress(10); }
     opts.win && opts.win();
     T.resolved = true;
     rewardModal(opts.rare);
   } else {
     if (opts.lethal === false) {
       print('⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
-      S.hp = 1; spend(Math.floor(S.money / 2));
+      S.hp = 1; spend(Math.floor(S.money / 2)); stress(25);
       opts.lose && opts.lose();
       T.resolved = true;
     } else {
@@ -1772,6 +1975,10 @@ function showHelp() {
   <b>성장</b> — 의뢰와 전투로 실적을 쌓으면 하나 협회 승급 심사로 등급이 오릅니다. 등급이 오를수록 보수가 늘어납니다.<br>
   <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
   <b>안(眼)</b> — 원화와 비슷한 가치입니다. 둥지 중상위층의 월급이 400만 안 정도입니다.<br>
+  <b>정신 압박</b> — 부상·패배·공포로 쌓이고 회복·휴식으로 줄어듭니다. 100%가 되면 자신과 마주하게 됩니다.<br>
+  · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 세 번 외면해도 뒤틀립니다.<br>
+  · 뒤틀리면 소속을 잃고 하나 협회 토벌대에게 사냥당합니다. Limbus Company에게 "지면" 해소됩니다. 머리 소속은 흔들리지 않습니다.<br>
+  <b>빚</b> — 돈이 모자란 선택지도 사채(이자 20%, 총 20만 안까지)로 고를 수 있습니다. 3일 안에 갚지 못하면 손가락 조직원이 추심하러 옵니다. 도시 시설에서 갚을 수 있습니다.<br>
   <b>출신과 소속</b> — 출신은 바뀌지 않지만, 소속(협회·손가락·조직·날개 등)은 이벤트로 옮길 수 있습니다. 출신 특성과 소속 패시브가 함께 적용됩니다.<br>
   · 예) 쥐·고아 → 면허 시험 → 해결사 → 협회 스카우트 / 손가락의 손짓 → 손가락 → … 1급이 되면 특색 지정<br>
   · 조직·손가락을 떠나면 추격자가 따라옵니다. <b>머리(발톱·응시자·조율자)는 소속을 옮길 수 없습니다.</b><br>
@@ -1827,7 +2034,7 @@ $('#rollBtn').onclick = async () => {
   box.innerHTML = `<div class="origin t${ch.tier}">
     <span class="tier tier-${ch.tier}">${TIER_NAME[ch.tier]}</span> <span class="dim" style="font-size:12px">확률 ${p.toFixed(p < 1 ? 2 : 1)}%</span>
     <h2>${ch.name}</h2>
-    <div class="dim">소속: <b style="color:var(--text)">${affName(ch.aff, ch.grade)}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
+    <div class="dim">소속: <b style="color:var(--text)">${affName(ch.aff, ch.grade, ch.gangFinger)}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
       ${a.locked ? '<br><span class="l-bad">🔒 머리 소속 — 소속을 옮길 수 없다</span>' : '<br><span class="l-good">소속은 이벤트로 옮길 수 있다</span>'}</div>
     <div class="dim" style="margin-top:4px">태어난 곳: <b style="color:var(--gold)">${ch.loc.label}</b>${ch.loc.note ? ' — ' + ch.loc.note : ''}${ch.loc.area === 'outskirts' ? ' (최대 체력 +8)' : ''}</div>
     <div style="margin-top:10px;line-height:1.7">${ch.intro}</div>
