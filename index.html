@@ -238,6 +238,24 @@ const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', 
    onUse: 합 시작 시 효과 / onHit: 이 카드의 공격 주사위 적중 시 / instant: 즉시 사용 카드(fx)
 ========================================================= */
 const CARDS = {
+  free_cut: { name: '실전 베기', cost: 1, dice: [['참격', 4, 7], ['참격', 2, 4]], price: 180000 },
+  free_probe: { name: '간격 재기', cost: 0, dice: [['관통', 2, 4]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기', price: 220000 },
+  free_parry: { name: '흘리고 찌르기', cost: 1, dice: [['방어', 4, 7], ['관통', 3, 5]], price: 250000 },
+  free_step: { name: '골목길 발놀림', cost: 0, dice: [['회피', 3, 6]], price: 160000 },
+  free_bind: { name: '손목 끊어치기', cost: 1, dice: [['타격', 4, 8]], onHit: { para: 1 }, desc: '적중 시 마비 1', price: 350000 },
+  free_breath: { name: '호흡 고르기', cost: 1, dice: [['방어', 4, 7]], onUse: { light: 1 }, desc: '사용 시 빛 1 회복', price: 300000 },
+  free_cross: { name: '노련한 교차격', cost: 2, dice: [['참격', 7, 11], ['관통', 6, 10]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기', price: 7000000 },
+  free_read: { name: '수 읽기', cost: 1, dice: [['회피', 7, 11], ['관통', 6, 9]], onUse: { nextEnd: 1 }, desc: '사용 시 다음 막 인내 1', price: 9000000 },
+  th_cover: { name: '엄호 사격', cost: 1, dice: [['관통', 4, 7], ['방어', 3, 6]], onHit: { burn: 1 }, desc: '공격 적중 시 화상 1' },
+  th_check: { name: '탄창 점검', cost: 0, dice: [['방어', 3, 5]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  ix_trace: { name: '지령의 자취', cost: 1, dice: [['관통', 4, 8]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  ix_patience: { name: '묵묵한 대기', cost: 0, dice: [['방어', 3, 6]], onUse: { nextEnd: 1 }, desc: '사용 시 다음 막 인내 1' },
+  md_shoulder: { name: '동생의 어깨치기', cost: 1, dice: [['타격', 4, 7], ['방어', 3, 6]] },
+  md_remember: { name: '잊지 않을 얼굴', cost: 0, dice: [['방어', 2, 5]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1' },
+  rg_sketch: { name: '밑그림 긋기', cost: 1, dice: [['참격', 4, 7], ['관통', 2, 4]], onHit: { bleed: 1 }, desc: '공격 주사위 적중마다 출혈 1' },
+  rg_observe: { name: '구도 관찰', cost: 0, dice: [['회피', 3, 5]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  pk_measure: { name: '검끝의 거리', cost: 1, dice: [['관통', 4, 8], ['회피', 3, 5]] },
+  pk_breath: { name: '발도 전의 호흡', cost: 0, dice: [['방어', 3, 5]], onUse: { nextEnd: 1 }, desc: '사용 시 다음 막 인내 1' },
   // 츠바이 협회
   zw_slash:   { name: '츠바이식 검술', cost: 1, dice: [['참격', 3, 6]] },
   zw_guard:   { name: '방어 태세', cost: 1, dice: [['방어', 4, 8]] },
@@ -517,7 +535,7 @@ const ORIGINS = [
   { id: 'fixer_top', w: 8, tier: 3, variant: 'fixer', grades: [2], label: '해결사 (2급)' },
   { id: 'grade1', w: 7, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 300000000, light: 4,
     trait: '해결사의 정점 — 최대 빛 4, 매 막 카드를 1장 더 뽑는다.',
-    deck: ['top_slash', 'top_slash', 'top_guard', 'top_guard', 'top_counter', 'top_pierce', 'top_pierce', 'flow', 'top_finish'],
+    deck: ['top_slash', 'free_cross', 'top_guard', 'free_read', 'top_counter', 'top_pierce', 'free_breath', 'flow', 'top_finish'],
     intro: '날개조차 당신을 함부로 대하지 않는다. 엄지는 당신을 카포와 동등하게 대접한다.',
     hooks: { extraDraw: 1 } },
   { id: 'finger', w: 6, tier: 3, variant: 'finger', rank: 2, label: '손가락 상위 간부' },
@@ -542,6 +560,15 @@ const ORIGINS = [
     intro: '도시는 당신이 정한 대로 존재한다. 날개도, 손가락도, 특색도 당신 앞에서는 불순물일 뿐.' },
 ];
 
+// 낮은 가중치(9 이하) 출신만 5% 소폭 상향. 추첨과 확률표가 같은 값을 사용한다.
+ORIGINS.forEach(o => { if (o.w <= 9) o.w = Math.round(o.w * 1.05 * 1000) / 1000; });
+
+const FREE_DECKS = [
+  ['free_cut', 'free_probe', 'free_parry', 'free_step', 'free_bind', 'free_breath', 'combo', 'deflect'],
+  ['free_cut', 'free_probe', 'free_parry', 'free_bind', 'free_breath', 'md_doubletap', 'train', 'zw_justice', 'st_smoke'],
+  ['free_cross', 'free_read', 'free_probe', 'mook_blade', 'hi_mirror', 'bullet', 'shi_vital', 'free_breath', 'deflect'],
+  ['top_slash', 'top_guard', 'top_counter', 'top_pierce', 'free_read', 'free_cross', 'flow', 'free_breath', 'hi_rifle'],
+];
 // 해결사 출신: 등급대별 능력치와 덱
 const FIXER_BANDS = [
   { max: 9, deck: ['zw_slash', 'zw_slash', 'combo', 'zw_guard', 'deflect', 'st_feint', 'md_counter', 'rt_flail'],
@@ -561,10 +588,21 @@ const FINGER_RANK_STATS = [
   { grade: 2, hp: 140, stg: 72, money: 500000000, light: 4 },
 ];
 const OFFICER_CARDS = { f_thumb: 'officer_thumb', f_index: 'officer_index', f_middle: 'officer_middle', f_ring: 'officer_ring', f_pinky: 'officer_pinky' };
+const FINGER_BASIC = {
+  f_thumb: ['th_cover', 'th_check'], f_index: ['ix_trace', 'ix_patience'],
+  f_middle: ['md_shoulder', 'md_remember'], f_ring: ['rg_sketch', 'rg_observe'], f_pinky: ['pk_measure', 'pk_breath'],
+};
+const FINGER_MEMBER_DECKS = {
+  f_thumb: ['th_load', 'th_volley', 'th_manner', 'th_cover', 'th_check', 'gg_knife', 'deflect', 'st_feint'],
+  f_index: ['ix_order', 'ix_will', 'ix_trace', 'ix_patience', 'gg_knife', 'combo', 'deflect', 'st_feint'],
+  f_middle: ['md_hammer', 'md_bond', 'md_shoulder', 'md_remember', 'md_ledger', 'gg_knife', 'deflect', 'st_feint'],
+  f_ring: ['rg_brush', 'rg_canvas', 'rg_sketch', 'rg_observe', 'gg_knife', 'combo', 'deflect', 'st_feint'],
+  f_pinky: ['pk_draw', 'pk_stance', 'pk_measure', 'pk_breath', 'gg_knife', 'combo', 'deflect', 'st_feint'],
+};
 function fingerDeck(k, rank) {
   const fd = FINGER_DECKS[k];
-  if (rank === 0) return [fd[0], fd[0], fd[5], 'gg_knife', 'gg_knife', 'rt_flail', 'rt_flail', 'gg_ink'];
-  if (rank === 1) return [fd[0], fd[0], fd[1], fd[2], fd[5], fd[6], OFFICER_CARDS[k], 'deflect', 'train'];
+  if (rank === 0) return [...FINGER_MEMBER_DECKS[k]];
+  if (rank === 1) return [fd[0], FINGER_BASIC[k][0], FINGER_BASIC[k][1], fd[2], fd[5], fd[6], OFFICER_CARDS[k], 'deflect', 'train'];
   return [OFFICER_CARDS[k], OFFICER_CARDS[k], fd[2], fd[3], fd[4], fd[5], 'top_guard', 'flow', 'top_counter'];
 }
 
@@ -650,7 +688,7 @@ function buildOrigin(o, fingerKey) {
     const post = { 8: '협회 직속 사무소', 7: '협회 직속 사무소', 6: '6과', 5: '6과 부장', 4: '3과', 3: '2과', 2: '1과' }[g];
     return { id: 'fixer', tier: o.tier, w: o.w, name: `${g}급 해결사` + (aff === 'fixer' ? ' (무소속)' : ` (${AFFS[aff].name} ${post})`),
       aff, grade: g, hp: 50 + (9 - g) * 11, stg: 30 + (9 - g) * 6, money: FIXER_MONEY[g], light: g <= 4 ? 4 : 3,
-      trait: `${g}급 해결사 — 하나 협회가 실적으로 인정한 등급.`, deck: band.deck, intro: band.intro };
+      trait: `${g}급 해결사 — 하나 협회가 실적으로 인정한 등급.`, deck: [...(aff === 'fixer' ? FREE_DECKS[g >= 7 ? 0 : g >= 5 ? 1 : g >= 3 ? 2 : 3] : band.deck)], intro: band.intro };
   }
   if (o.variant === 'color') {
     const title = makeColorTitle();
