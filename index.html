@@ -894,6 +894,7 @@ function renderHistory() {
       '<div class="dim">' + e(r.affiliation) + ' · ' + e(r.rank) + ' · 실적 ' + e(r.merit) + ' · 처치 ' + e(r.kills) + ' · 자금 ' + e(r.money) +
       '</div>' + (r.reason ? '<div class="dim">' + e(r.reason) + '</div>' : '') + '<div class="dim">' + e(r.updated.replace('T',' ').slice(0,16)) + ' UTC</div></article>').join('') : '<p class="dim">아직 기록이 없습니다. 첫 삶을 시작하면 여러 출신 뽑기가 열립니다.</p>');
   $('#rollCountBtn').classList.toggle('hidden', !historyRows.length);
+  if (typeof syncRollCount === 'function') syncRollCount();
 }
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveHistory(); });
 window.addEventListener('pagehide', () => saveHistory());
@@ -3508,6 +3509,191 @@ EVENTS.push(
     }, text: '' },
 );
 
+/* =========================================================
+   워프 열차 — 원작 설정 반영 (나무위키 「Warp Corporation」·「워프 열차」 문서 기준)
+   - 바깥에서는 10초. 열차 안에서는 수만~수십만 일이 흐르고 승객들은 미쳐간다(자살자 유형, 내장놀이, 수천 년 단련한 승객).
+   - 열차 안에서는 몸이 찢겨도 혈관으로 이어져 죽지 못한다.
+   - 도착하면 정리 요원(1~5등급, 숫자가 클수록 높음)이 들어와 수습하고, W사의 진짜 특이점 '현상 복구'로
+     승객을 출발 직전 상태로 되돌린다. 승객은 아무것도 기억하지 못한다.
+   - 열차 상황 분류: 원활(3등급 이하) / 지연(3등급 이상) / 혼잡(4등급) / 결항(5등급, 1급 해결사급 위협) / 탈선(특색급, R사 토끼팀)
+   - 1등석: 냉동 수면 캡슐로 잠든 채 시간을 흘려보낸다. 날개 월급 두 달치 수준. 특색은 별도 열차.
+   게임 각색: 「도착 처리 지연」 사고로 바깥 7일(열차 안 3만 일)을 버티는 시나리오, 각 수치·보상.
+========================================================= */
+const W_STATUS = [
+  { key: '원활', grades: [1, 2], desc: '위협이 될 승객이 거의 없다' },
+  { key: '지연', grades: [3], desc: '전투가 불가피한 승객이 있다. 3등급 미만 출입 금지' },
+  { key: '혼잡', grades: [4], desc: '보급형 장비로는 상대할 수 없다. 4등급 이상 투입' },
+  { key: '결항', grades: [5], desc: '1급 해결사 혹은 그에 준하는 위협. 5등급 투입' },
+  { key: '탈선', grades: [0], desc: '정리 요원으로 해결할 수 없다. R사에 의뢰' },
+];
+function warpStatusFor() {   // 플레이어의 위험도로 열차 상황이 정해진다
+  const f = faction();
+  if (f === 'color' || f === 'head' || S.colorBadge) return 4;
+  if (S.grade <= 1) return 3;
+  if (S.grade <= 2) return 2;
+  if (S.grade <= 5 || ['finger', 'twisted', 'vampire'].includes(f)) return 1;
+  return 0;
+}
+Object.assign(ENEMIES, {
+  warp_mad: { name: '미쳐버린 승객', desc: '몇 천 일째 같은 칸에 갇힌 승객. 제 내장을 늘어뜨린 채 웃는다. 찢겨도 죽지 못한다.', hp: 100, stg: 45, slots: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0],
+    pool: [{ name: '내장놀이', dice: [['참격', 5, 9], ['참격', 4, 8]], onHit: { bleed: 2 } }, { name: '웃음소리', dice: [['타격', 6, 10]], onHit: { para: 1 } },
+      { name: '엉겨붙기', dice: [['타격', 7, 11]] }, { name: '물어뜯기', dice: [['관통', 6, 11]], onHit: { bleed: 2 } }] },
+  warp_veteran: { elite: true, name: '수천 년을 단련한 승객들', desc: '할 일이 없어 수천 년을 단련했다. 원작에선 이런 승객들이 정리 요원들을 압도한 적이 있다.', hp: 230, stg: 95, slots: 3,
+    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [0, 0], light: 6, lightRegen: 3,
+    passive: '억겁의 수련 — 매 막 힘 1', onRound: e => { e.st.str += 1; },
+    pool: [{ name: '천 년의 주먹', dice: [['타격', 11, 17], ['타격', 9, 13]] }, { name: '수만 번의 베기', dice: [['참격', 7, 11], ['참격', 7, 11], ['참격', 7, 11]] },
+      { name: '굳어진 몸', dice: [['방어', 11, 16]] }, { name: '찌르기의 끝', dice: [['관통', 13, 20]] }] },
+  w_agent: { elite: true, name: 'W사 정리 요원', desc: '공간 절단 기술의 에너지 무기와 역장으로 무장했다. 방전되면 사용자의 체력을 뽑아 쓴다.', hp: 120, stg: 55, slots: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0], light: 4, lightRegen: 2,
+    pool: [{ name: '공간 절단', dice: [['참격', 8, 13]], onHit: { bleed: 1 } }, { name: '차원 절단', dice: [['관통', 9, 14]] },
+      { name: '역장', dice: [['방어', 8, 13]] }, { name: '정리', dice: [['참격', 6, 10], ['타격', 6, 10]] }] },
+  r_rabbit: { elite: true, name: 'R사 토끼팀', desc: '정리 요원으로 감당할 수 없는 「탈선」 상황에 W사가 의뢰한 R사의 사병. 원작에서도 특색 밀항 사건을 수습했다.', hp: 320, stg: 130, slots: 4,
+    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [0, 0], light: 8, lightRegen: 4,
+    passive: '사냥개의 규율 — 매 막 힘 2', onRound: e => { e.st.str += 2; },
+    pool: [{ name: '돌격 사격', dice: [['관통', 10, 15], ['관통', 10, 15]] }, { name: '도약 강습', dice: [['타격', 14, 21]] },
+      { name: '분대 엄호', dice: [['방어', 12, 17]] }, { name: '섬멸', dice: [['관통', 9, 13], ['참격', 9, 13], ['타격', 9, 13]] }] },
+});
+if (typeof CAPTIVES !== 'undefined') Object.assign(CAPTIVES, { warp_veteran: { label: '단련한 승객', pow: 3, yield: 2, feed: 3 }, w_agent: { label: 'W사 정리 요원', pow: 3, yield: 2, feed: 3 } });
+
+// 탑승 전 상태를 기록한다 — 현상 복구는 이 시점으로 되돌린다
+function warpSnapshot() {
+  return { hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, press: S.press, deck: [...S.deck], aff: S.aff, prevAff: S.prevAff, ego: S.ego, egoType: S.egoType,
+    twistForm: S.twistForm, twistCards: S.twistCards && [...S.twistCards], twistBonus: S.twistBonus, twistName: S.ch.twistName, crisis: S.flags.crisis, cracks: S.flags.cracks };
+}
+enterWarp = function () {
+  const st = warpStatusFor();
+  S.warp = { start: S.day, end: S.day + WARP_DAYS, turns: 0, status: st, snap: warpSnapshot(), arrived: false };
+  say('출발 신호. 10초 뒤면 도착이다. …10초가 지나지 않는다.', 'l-bad');
+  say(`도착 처리 지연. 바깥의 ${WARP_DAYS}일이 열차 안에서는 ${WARP_INNER.toLocaleString()}일이 된다. 열차 안에서는 아무도 죽지 못한다. 도착하면 W사가 모든 것을 '복구'할 것이다.`, 'l-day');
+};
+exitWarp = function () {   // 바깥 7일이 지나면 도착 — 정리 작업 이벤트로 이어진다
+  if (!S.warp || S.warp.arrived) return;
+  S.warp.arrived = true;
+  say('열차가 멈췄다. 문이 열리고, 푸른 제복들이 들어온다.', 'l-day');
+};
+function finishWarp(restore) {
+  const w = S.warp; S.warp = null;
+  if (restore) {
+    const s = w.snap;
+    Object.assign(S, { hp: s.hp, maxHp: s.maxHp, maxStg: s.maxStg, press: s.press, deck: s.deck, aff: s.aff, prevAff: s.prevAff, ego: s.ego, egoType: s.egoType,
+      twistForm: s.twistForm, twistCards: s.twistCards, twistBonus: s.twistBonus }); S.ch.twistName = s.twistName; S.flags.crisis = s.crisis; S.flags.cracks = s.cracks; S._h = null;
+    say('현상 복구 — 몸도, 기억도 안전벨트를 맨 그 순간으로 돌아갔다.', 'l-sys');
+    say('10초 만에 도착한 쾌적한 여행이었다. …그런데 왜 이렇게 지쳤을까.', 'l-day');
+  } else {
+    S.maxHp += 20; S.hp = Math.min(S.maxHp, S.hp + 20); S.maxStg += 10; S.flags.warpSurvivor = true; S.flags.wTruth = true;
+    say('복구를 거부하고 열차를 빠져나왔다. 열차 안의 3만 일이 고스란히 남아 있다. [3만 일의 기억] 최대 체력 +20, 흐트러짐 +10', 'l-good');
+    say('당신은 워프 열차의 진실을 안다. W사는 이 사실을 달가워하지 않을 것이다.', 'l-bad');
+    merit(6);
+  }
+  if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; say(`📍 도착 — ${S.loc.label}`, 'l-day'); }
+}
+
+// ---------- 이벤트 정리: 원작과 맞지 않는 것 제거·교체 ----------
+for (const id of ['wp_dining', 'wp_cleanup']) { const i = EVENTS.findIndex(e => e.id === id); if (i >= 0) EVENTS.splice(i, 1); }
+const notArrived = () => S.warp && !S.warp.arrived;
+for (const id of ['wp_carriage', 'wp_passengers', 'wp_time', 'wp_night']) EVENTS.find(e => e.id === id).cond = notArrived;
+const fightInTrain = (key, opts = {}) => fight(key, { lethal: false, noRob: true, noCow: true, ...opts,
+  lose() { say('몸이 찢겼다. 하지만 혈관 한 가닥으로 이어진 채, 죽지 못했다.', 'l-bad'); stress(20); opts.lose && opts.lose(); } });
+Object.assign(EVENTS.find(e => e.id === 'wp_passengers'), {
+  text: '같은 칸의 승객들이 둥글게 모여 앉아 있다. 누군가 제 배를 가르고 내장을 꺼내 옆 사람에게 건넨다. 다들 웃고 있다. 몇 천 일째 하고 있는 놀이다.',
+  choices: [
+    { t: '눈을 돌리고 다른 칸으로 간다', def: true, fn() { say('웃음소리가 등 뒤로 길게 따라왔다.'); stress(10); } },
+    { t: '말린다', fn() { say('그들이 일제히 고개를 돌렸다. 놀이에 끼어든 사람은 처음이라는 듯이.', 'l-bad'); fightInTrain('warp_mad', { count: 2 }); } },
+  ] });
+Object.assign(EVENTS.find(e => e.id === 'wp_carriage'), {
+  build() { this.text = `객차는 끝없이 이어진다. 창밖은 색이 없다. 열차 안 시간 ${warpInner().toLocaleString()}일째. 정상적인 얼굴을 한 승객은 더 이상 찾기 어렵다.`; return [
+    { t: '좌석에 앉아 버틴다', def: true, fn() { say('눈을 감고 숫자를 셌다. 몇 번째 세는지도 잊었다.'); heal(10); stress(7); } },
+    { t: '다음 칸으로 걸어간다', fn() {
+      const r = Math.random();
+      if (r < 0.35) { say('엉겨붙은 승객들 사이로 길이 막혀 있다. 누군가 당신의 발목을 붙잡는다.', 'l-bad'); fightInTrain('warp_mad'); }
+      else if (r < 0.6) { say('바닥과 천장까지 피로 칠해진 칸. 혈관이 실처럼 이어져 있다. 아무도 죽지 않았다. 그게 더 끔찍하다.', 'l-bad'); stress(14); }
+      else if (r < 0.8) { say('수천 년을 단련했다는 승객들이 칸을 차지하고 있다. "새 상대다."', 'l-bad'); fightInTrain('warp_veteran'); }
+      else { say('다음 칸은 방금 지나온 칸과 똑같았다. 좌석의 얼룩까지.', 'l-bad'); stress(12); }
+    } },
+  ]; } });
+Object.assign(EVENTS.find(e => e.id === 'wp_night'), {
+  text: '열차 안에는 밤이 없다. 조명도 꺼지지 않는다. 잠든 척하는 승객들 사이로 무언가를 씹는 소리가 들린다.',
+  choices: [
+    { t: '잠을 청한다 — 체력 15 회복', def: true, fn() { say('꿈속에서도 열차는 달렸다.'); heal(15); stress(6); } },
+    { t: '불침번을 선다', fn() { if (Math.random() < 0.5) { say('다가오던 그림자를 쫓아냈다.'); fightInTrain('warp_mad'); } else { say('아무 일도 없었다. 그래도 눈을 붙이지 못했다.'); stress(6); } } },
+  ] });
+EVENTS.push(
+  { id: 'wp_trained', warp: true, when: [0, 1, 2], w: 1.2, cond: notArrived, title: '수련하는 승객들',
+    text: '한 칸 전체가 도장이 되어 있다. 몇 천 년 동안 할 일이 없었던 승객들이 주먹과 칼을 갈고닦고 있다. 정리 요원들이 이들을 감당할 수 있을까.',
+    choices: [
+      { t: '대련을 청한다 (강적, 이 안에서는 죽지 않는다)', fn() { fightInTrain('warp_veteran', { win() { say('그들이 고개를 숙였다. "수천 년 만에 진 건 처음이군."'); S.maxStg += 2; merit(2); } }); } },
+      { t: '구석에서 지켜보며 따라 한다', def: true, fn() { say('천 년쯤 보고 있으니 몸이 기억했다.'); S.maxStg += 3; stress(4); } },
+    ] },
+  { id: 'wp_announce', warp: true, when: [0, 1, 2], w: 1, cond: notArrived, title: '차내 방송',
+    text: '"W사 워프 열차를 이용해 주셔서 감사합니다. 차내에서 판매 중인 패키지 여행 상품을 안내해 드리겠습니다." 같은 방송이 수만 일째 반복되고 있다.',
+    choices: [{ t: '방송을 세며 버틴다', def: true, fn() { say('방송 횟수를 세다가, 숫자가 무의미해졌다.'); stress(8); } },
+      { t: '스피커를 부순다', fn() { say('스피커는 다음 날 같은 자리에 있었다. 아니, 다음 날이라는 게 있나.'); stress(3); } }] },
+  { id: 'wp_arrival', warp: true, when: [0, 1, 2, 3], w: 100, cond: () => S.warp && S.warp.arrived, title: '정리 작업',
+    build() {
+      const st = W_STATUS[S.warp.status], g = pick(st.grades);
+      const who = st.key === '탈선' ? 'R사 토끼팀' : `W사 ${g}등급 정리 요원`;
+      this.text = `열차 상황 분류: 「${st.key}」 — ${st.desc}. ${josa(who, '이', '가')} 들어와 승객들의 살점을 검사기로 찍어 하나하나 제자리에 맞춘다. 정리가 끝나면 '현상 복구'가 시작된다. 모든 것이 출발 직전으로 돌아가고, 아무것도 기억하지 못하게 된다.`;
+      const enemy = st.key === '탈선' ? 'r_rabbit' : 'w_agent';
+      const scale = st.key === '탈선' ? {} : { name: who, hpMul: 0.6 + g * 0.3, power: Math.max(0, g - 2), count: g <= 2 ? 2 : 1,
+        desc: g >= 4 ? '높은 실적의 고등급 정리 요원. 충전식 엑소 슈트 「클리닝 아머」를 입었다.' : ENEMIES.w_agent.desc };
+      return [
+        { t: '정리 작업을 받아들인다 — 현상 복구 (열차 안의 모든 것을 잊는다)', def: true, fn() { finishWarp(true); } },
+        { t: `복구를 거부하고 저항한다 — ${who}와 전투`, fn() {
+          fight(enemy, { lethal: false, noRob: true, noCow: true, ...scale, win() { finishWarp(false); }, lose() { say('제압당했다. 검사기의 빛이 몸을 훑는다.', 'l-bad'); finishWarp(true); } });
+        } },
+      ];
+    }, text: '' },
+);
+
+// ---------- 승강장·여행: 일반석 / 1등석 / 특색 전용 열차 ----------
+const W_FIRST_CLASS = 8000000;
+Object.assign(EVENTS.find(e => e.id === 'warp_ride'), {
+  text: 'W사 워프 열차 승강장. 출발하면 정확히 10초 뒤에 도착한다. 1등석은 날개 월급 두 달치. 사람들은 10초짜리 여행에 그 돈을 쓰는 걸 비웃지만, 1등석 승객들은 냉동 수면 캡슐에 들어간다. 승강장 한쪽에 사내 카페 「CAFEⓦ」가 있다.',
+  choices: [
+    { t: '일반석을 탄다 (30만 안)', cost: 300000, fn() { spend(300000); if (Math.random() < 0.15) enterWarp(); else { say('10초. 도착했다. 이유 없이 손이 떨린다.'); stress(4); } } },
+    { t: `1등석을 탄다 (${won(W_FIRST_CLASS)}) — 냉동 수면`, cost: W_FIRST_CLASS, fn() { spend(W_FIRST_CLASS); say('캡슐 안에서 눈을 감았다. 눈을 뜨니 도착해 있었다. 아무 일도 없었다. 정말로.'); heal(20); } },
+    { t: 'CAFEⓦ에서 커피만 마신다 (1만 안)', cost: 10000, fn() { spend(10000); heal(8); stress(-4); } },
+    { t: '타지 않는다', def: true, fn() { say('걸어가기로 했다. 시간은 걸려도 시간 안에 있다.'); } },
+  ] });
+Object.assign(EVENTS.find(e => e.id === 'travel_method'), {
+  build() {
+    const dest = makeCityLoc(S.travelDest), isColor = faction() === 'color' || S.colorBadge, high = S.grade <= 2;
+    this.text = `목적지: <b>${dest.label}</b>. W사 워프 열차는 10초 만에 도착한다(겉으로는). 걸어가면 두 턴이 걸린다.`
+      + (isColor ? ' 특색은 별도로 마련된 열차를 타야 한다.' : high ? ' 매표소 직원이 정중히 1등석을 권한다. 고등급 해결사는 일반석 탑승이 곤란하다고.' : '');
+    const goNormal = (price) => () => {
+      spend(price);
+      if (Math.random() < 0.5) { S.travelPending = dest; return 'warp_onboard'; }
+      say('10초. 도착했다.'); arrive(dest); return nextEvent();
+    };
+    return [
+      ...(isColor ? [{ t: `특색 전용 열차 (${won(W_FIRST_CLASS)}) — 바로 도착`, cost: W_FIRST_CLASS, fn() { spend(W_FIRST_CLASS); say('특색 전용 열차는 조용했다. 승객은 당신 하나뿐이었다.'); arrive(dest); return nextEvent(); } }]
+        : [{ t: `W사 열차 일반석 (30만 안)${high ? ' — 직원이 난처해한다' : ''}`, cost: 300000, fn: goNormal(300000) }]),
+      { t: `W사 열차 1등석 (${won(W_FIRST_CLASS)}) — 냉동 수면, 바로 도착`, cost: W_FIRST_CLASS, fn() { spend(W_FIRST_CLASS); say('냉동 캡슐에서 눈을 떴다. 도착이다.'); arrive(dest); return nextEvent(); } },
+      { t: '걸어서 간다 — 무료, 2턴 소모', def: true, fn() { say('골목과 검문소를 몇 개나 지났다. 구역 경계마다 통행 절차가 길다.'); S.travelSkip = 1; S.travelPending = dest; endTurnNow(); } },
+      { t: '그만둔다 — 머문다', fn() { say('떠나지 않기로 했다.'); return nextEvent(); } },
+    ];
+  } });
+Object.assign(EVENTS.find(e => e.id === 'warp_onboard'), {
+  build() {
+    const dest = S.travelPending, r = Math.random();
+    const done = (line) => { if (line) say(line); arrive(dest); S.travelPending = null; return nextEvent(); };
+    if (r < 0.2) {
+      this.text = '10초가 지났다. 도착 안내 방송이 나오지 않는다. 옆자리 승객이 조용히 웃기 시작한다.';
+      return [{ t: '…', def: true, fn() { S.travelPending = null; S.flags.warpDest = dest; enterWarp(); return nextEvent(); } }];
+    }
+    if (r < 0.5) {
+      this.text = '10초 만에 도착했다. 그런데 좌석 팔걸이에 지워지지 않은 얼룩이 있다. 손톱으로 긁은 자국이 수천 줄. 당신의 손톱 끝이 아프다.';
+      return [{ t: '못 본 척 내린다', def: true, fn() { stress(8); return done('승강장 공기가 이상하게 그리웠다.'); } }];
+    }
+    if (r < 0.8) {
+      this.text = '도착. 이유 없이 몸이 무겁다. 몇 년을 앉아 있었던 것처럼 허리가 뻐근하다. 하지만 시계는 10초밖에 지나지 않았다.';
+      return [{ t: '기지개를 켠다', def: true, fn() { stress(5); return done('기억나지 않는 피로가 오래 남았다.'); } }];
+    }
+    this.text = '승강장의 W사 직원이 미소 지으며 설문지를 내민다. "쾌적한 여행이셨습니까?" 그 뒤로, 열차 안을 정리하러 들어가는 푸른 제복들이 보인다.';
+    return [{ t: '"네, 쾌적했어요."', def: true, fn() { return done('설문지에 만점을 적었다. 정말 쾌적했던 것 같다.'); } }];
+  } });
+
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
     text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
@@ -4491,17 +4677,22 @@ $('#oddsTable').innerHTML = '<table>' + ORIGINS.map(o =>
   `<tr><td><span class="tier tier-${o.tier}">${TIER_NAME[o.tier]}</span></td><td>${originLabel(o)}</td><td>${(o.w / totalW * 100).toFixed(o.w / totalW < 0.01 ? 2 : 1)}%</td></tr>`).join('') + '</table>';
 
 renderHistory();
-let rollCount = 1;
+var rollCount = 1;   // var: renderHistory가 먼저 불려도 TDZ 오류가 나지 않도록
+// 새로고침 시 브라우저가 선택 상자의 값을 복원해도 실제 뽑기 수와 표시가 어긋나지 않도록, 항상 선택 상자에서 읽는다
+function syncRollCount() {
+  const n = Number($('#rollCount').value);
+  rollCount = historyRows.length && [1, 3, 5, 10].includes(n) ? n : 1;
+  $('#rollCountBtn').textContent = '×' + rollCount;
+  return rollCount;
+}
 $('#rollCountBtn').onclick = () => {
   const open = $('#rollCountBtn').getAttribute('aria-expanded') !== 'true';
   $('#rollCountBtn').setAttribute('aria-expanded', String(open));
   $('#rollSettings').classList.toggle('hidden', !open);
 };
-$('#rollCount').onchange = () => {
-  const n = Number($('#rollCount').value);
-  rollCount = historyRows.length && [1,3,5,10].includes(n) ? n : 1;
-  $('#rollCountBtn').textContent = '×' + rollCount;
-};
+$('#rollCount').onchange = syncRollCount;
+window.addEventListener('pageshow', () => { if (typeof syncRollCount === 'function' && $('#rollCount')) syncRollCount(); });
+syncRollCount();
 function rollCandidate() {
   const ch = rollOrigin();
   ch.loc = rollBirthplace(ch);
@@ -4521,7 +4712,7 @@ $('#rollBtn').onclick = async () => {
     box.innerHTML = `<div class="spin">${originLabel(pick(ORIGINS))}</div>`;
     await sleep(60 + i * 8);
   }
-  const candidates = Array.from({length:historyRows.length ? rollCount : 1}, rollCandidate);
+  const candidates = Array.from({length: syncRollCount()}, rollCandidate);
   box.innerHTML = (candidates.length > 1 ? '<p class="dim">' + candidates.length + '개의 삶 중 하나를 선택하세요. 선택하지 않은 출신은 기록되지 않습니다.</p>' : '') + '<div class="candidates">' + candidates.map((ch, index) => {
   const a = AFFS[ch.aff];
   const p = (ch.w / totalW * 100);
