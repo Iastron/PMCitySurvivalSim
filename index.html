@@ -1114,7 +1114,7 @@ function renderTop() {
   ps.innerHTML = mindImmune() ? '' : `정신 압박 <b style="color:${S.press >= 70 ? 'var(--red)' : S.press >= 40 ? 'var(--orange)' : 'var(--green)'}">${S.press || 0}%</b>`;
   $('#sGrade').textContent = rankText();
   $('#sMerit').textContent = S.grade > 1 ? `${S.merit}/${GRADE_REQ[S.grade - 1]}` : S.merit;
-  $('#turns').innerHTML = TURNS.map((x, i) => `<span class="${i === S.turn ? 'cur' : i < S.turn ? 'done' : ''}">${x.name}</span>`).join('');
+  $('#turns').innerHTML = TURNS.map((x, i) => `<span class="${i === S.turn ? 'cur' : i < S.turn ? 'done' : ''}">${S.warp ? '열차 안 · ' + (i + 1) : x.name}</span>`).join('');
   $('#timer').classList.toggle('night', S.turn === 3);
   if (T) $('#timerFill').style.width = `${Math.max(0, T.timeLeft / TURN_TIME * 100)}%`;
 }
@@ -2363,9 +2363,9 @@ Object.assign(CARDS, {
   os_aleph: {name:'이름 없는 새벽',cost:4,dice:[['참격',11,18],['관통',10,17],['타격',9,16]],onUse:{nextProt:2},onHit:{erosion:1},desc:'다음 막 보호 2, 적중 시 침식 1 · ALEPH 전리품'}
 });
 Object.assign(ENEMIES, {
-  os_hound: {monster:true,name:'폐허 들개 무리',desc:'철골과 살점이 뒤엉킨 외곽의 창작 괴물. 상처 냄새를 좇는다.',hp:65,stg:32,slots:2,res:{참격:1.2,관통:1,타격:0.9},reward:[40000,90000],
+  os_hound: {monster:true,name:'폐허 들개 무리',desc:'철골과 살점이 뒤엉킨 외곽의 괴물. 상처 냄새를 좇는다.',hp:65,stg:32,slots:2,res:{참격:1.2,관통:1,타격:0.9},reward:[40000,90000],
     pool:[{name:'고철 송곳니',dice:[['관통',3,7],['참격',2,5]],onHit:{bleed:1}},{name:'잔해 사이로',dice:[['회피',3,7]]}]},
-  os_carapace: {monster:true,elite:true,name:'암반 등딱지',desc:'바위처럼 웅크린 외곽의 창작 괴물. 단단한 껍질 아래가 약점이다.',hp:210,stg:85,slots:3,light:5,lightRegen:2,res:{참격:0.7,관통:1.3,타격:0.8},reward:[500000,900000],
+  os_carapace: {monster:true,elite:true,name:'암반 등딱지',desc:'바위처럼 웅크린 외곽의 괴물. 단단한 껍질 아래가 약점이다.',hp:210,stg:85,slots:3,light:5,lightRegen:2,res:{참격:0.7,관통:1.3,타격:0.8},reward:[500000,900000],
     passive:'암반 껍질 — 매 막 보호 2',onRound:e=>{e.st.prot+=2;},
     pool:[{name:'암반 충돌',dice:[['타격',9,15],['타격',5,9]]},{name:'가시 껍질',dice:[['방어',8,13],['관통',5,10]]},{name:'땅 뒤집기',dice:[['타격',12,19]],onHit:{para:2}}]},
 });
@@ -2388,7 +2388,7 @@ const OS_ABNORMALITIES = [
     pool:[{name:'새벽 포식',dice:[['참격',13,21],['관통',10,17]],onHit:{erosion:2}},{name:'지워진 지평선',dice:[['타격',17,27]],onHit:{para:2}},{name:'검은 천막',dice:[['방어',12,19],['참격',10,16]]},{name:'별 없는 밤',dice:[['관통',11,18],['타격',9,16],['참격',8,14]]}]}
 ];
 for (const a of OS_ABNORMALITIES) {
-  ENEMIES[a.key] = {...a,elite:true,abnormality:true,name:`[${a.risk}] ${a.name}`,desc:a.desc+' (이 게임의 창작 환상체)'};
+  ENEMIES[a.key] = {...a,elite:true,abnormality:true,name:`[${a.risk}] ${a.name}`,desc:a.desc};
   EVENTS.push({id:'os_'+a.key,exile:true,when:[0,1,2,3],w:a.weight,title:`환상체 조우 — ${a.risk}`,
     text:`${a.desc} 위험 등급: ${a.risk}. 제압에 실패하면 사망합니다.`,
     choices:[{t:`${ENEMIES[a.key].name} 제압에 도전한다`,fn(){huntOutskirts(a.key);}},
@@ -2447,7 +2447,7 @@ for(const type of CITY_ANOMALY_TYPES) for(let level=1;level<=10;level++) {
   CITY_ANOMALIES.push(entry);
   ENEMIES[key]={elite:true,abnormality:type.kind==='환상체',distortion:type.kind==='뒤틀림',risk:type.risk,threatLevel:level,
     name:'['+label+'] '+type.name+' — '+type.kind,
-    desc:type.desc+' 격리: '+type.contain+' 전투 위험도 '+level+'/10. (이 게임의 창작 개체)',
+    desc:type.desc+' 격리: '+type.contain+' 전투 위험도 '+level+'/10.',
     hp:b.hp,stg:b.stg,slots:b.slots,light:b.light,lightRegen:b.regen,res:{참격:1,관통:1,타격:1},reward:[b.reward,Math.round(b.reward*1.5)],
     pool:[{name:type.moves[0],cost:level>=3?2:1,dice:attack,onHit:hit},
       {name:type.moves[1],cost:2,dice:[[type.type,b.min+2,b.max+3]]},
@@ -2579,21 +2579,21 @@ const CANON_RELICS = {
 };
 Object.assign(RELICS, CANON_RELICS);
 Object.assign(CARDS, {
-  canon_gungnir: { name: '원작 유물 — 궁니르 투척', cost: 1, dice: [['관통', 8, 13]], onHit: { tremor: 4 }, returnHand: true, desc: '적중 시 진동 4. 사용 후 손으로 회수된다' },
-  canon_laev_unseal: { name: '원작 유물 — 봉인 해제', cost: 1, instant: true, fx: { laevUnseal: true }, desc: '즉시: 레바테인 봉인 1단계씩 해제 (전투당 2회)' },
-  canon_laev_strike: { name: '원작 유물 — 레바테인', cost: 3, dice: [['참격', 12, 20], ['타격', 8, 14]], onHit: { burn: 2 }, desc: '적중 시 화상 2 (봉인 해제 단계만큼 더 강해진다)' },
-  canon_odin: { name: '원작 유물 — 찰나의 계산', cost: 1, instant: true, fx: { maxRoll: true }, desc: '즉시: 이번 막 내 모든 주사위가 최대값. 다음 막 과열' },
-  canon_mambrino: { name: '원작 유물 — 동등한 시선', cost: 1, instant: true, fx: { cancelIntent: true }, desc: '즉시: 대상 적의 가장 강한 예고 하나를 무효화' },
-  canon_arayashiki: { name: '원작 유물 — 발도: 아라야시키', cost: 3, dice: [['참격', 18, 30]], onHit: { scar: 1 }, onUse: { forget: true }, desc: '적중 시 검흔. 사용 시 덱의 카드 1장 영구 소실' },
-  canon_tianjiu: { name: '원작 유물 — 금제 해방', cost: 2, dice: [['참격', 12, 20]], onHit: { curse: 4 }, onUse: { selfDmg: 6 }, desc: '적중 시 주살 4. 사용 시 자신에게 6 피해' },
-  canon_dihui: { name: '원작 유물 — 분신 협공', cost: 2, dice: [['참격', 6, 10], ['참격', 6, 10]], onUse: { cloneAll: true }, desc: '이번 막 공격 적중 시 분신 추가 공격 확정' },
+  canon_gungnir: { name: '유물 — 궁니르 투척', cost: 1, dice: [['관통', 8, 13]], onHit: { tremor: 4 }, returnHand: true, desc: '적중 시 진동 4. 사용 후 손으로 회수된다' },
+  canon_laev_unseal: { name: '유물 — 봉인 해제', cost: 1, instant: true, fx: { laevUnseal: true }, desc: '즉시: 레바테인 봉인 1단계씩 해제 (전투당 2회)' },
+  canon_laev_strike: { name: '유물 — 레바테인', cost: 3, dice: [['참격', 12, 20], ['타격', 8, 14]], onHit: { burn: 2 }, desc: '적중 시 화상 2 (봉인 해제 단계만큼 더 강해진다)' },
+  canon_odin: { name: '유물 — 찰나의 계산', cost: 1, instant: true, fx: { maxRoll: true }, desc: '즉시: 이번 막 내 모든 주사위가 최대값. 다음 막 과열' },
+  canon_mambrino: { name: '유물 — 동등한 시선', cost: 1, instant: true, fx: { cancelIntent: true }, desc: '즉시: 대상 적의 가장 강한 예고 하나를 무효화' },
+  canon_arayashiki: { name: '유물 — 발도: 아라야시키', cost: 3, dice: [['참격', 18, 30]], onHit: { scar: 1 }, onUse: { forget: true }, desc: '적중 시 검흔. 사용 시 덱의 카드 1장 영구 소실' },
+  canon_tianjiu: { name: '유물 — 금제 해방', cost: 2, dice: [['참격', 12, 20]], onHit: { curse: 4 }, onUse: { selfDmg: 6 }, desc: '적중 시 주살 4. 사용 시 자신에게 6 피해' },
+  canon_dihui: { name: '유물 — 분신 협공', cost: 2, dice: [['참격', 6, 10], ['참격', 6, 10]], onUse: { cloneAll: true }, desc: '이번 막 공격 적중 시 분신 추가 공격 확정' },
 });
 // 유물 표시: 원작/하위 구분, 원작 설정과 게임 각색을 나눠 보여준다
 relicPassiveText = function () {
   return (S.relics || []).filter(id => RELICS[id]).map(id => {
     const r = RELICS[id], cards = (r.cards || [r.card]).map(c => CARDS[c].name).join(', ');
     return r.tier === 'canon'
-      ? `<br>[원작 유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}<br><span class="dim">　원작: ${r.lore} (소유: ${r.owner})<br>　게임 각색: ${r.adapt}</span>`
+      ? `<br>[유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}<br><span class="dim">　${r.lore} (소유: ${r.owner})</span>`
       : `<br>[하위 유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}`;
   }).join('');
 };
@@ -2605,9 +2605,9 @@ acquireRelic = function (id) {
   const r = RELICS[id], cards = r.cards || [r.card];
   cards.forEach(addCard);
   if (r.tier === 'canon') {
-    say(`★ 원작 유물 발견 — 「${r.name}」`, 'l-day');
-    say(`원작 설정: ${r.lore}`, 'l-sys');
-    say(`[게임 각색 패시브] ${r.adapt}`, 'l-good');
+    say(`★ 유물 발견 — 「${r.name}」`, 'l-day');
+    say(r.lore, 'l-sys');
+    say(`[패시브] ${r.adapt}`, 'l-good');
   } else {
     say(`◆ 하위 유물 발견 — 「${r.name}」`, 'l-day');
     say(`[추가 패시브] ${r.passive} / [전용 스킬] ${cards.map(c => CARDS[c].name).join(', ')}`, 'l-good');
@@ -2623,10 +2623,10 @@ discoverRelic = function (canonChance = 0.08) {
   const chance = Math.min(1, canonChance + (H().relicFind || 0) * 0.5 + (minor.length ? 0 : 0.25));
   if (canon.length && Math.random() < chance) return acquireRelic(pick(canon));
   if (minor.length) return acquireRelic(pick(minor));
-  if (canon.length) { say('하위 유물은 모두 모았다. 이번에 나온 것은 원작 유물의 부서진 파편뿐이다. 디에치 협회 연구소에 팔았다.'); gain(1000000); return false; }
+  if (canon.length) { say('하위 유물은 모두 모았다. 이번에 나온 것은 유물의 부서진 파편뿐이다. 디에치 협회 연구소에 팔았다.'); gain(1000000); return false; }
   say('이미 모든 유물을 확보했다. 남은 파편은 연구용으로 판매했다.'); gain(3000000); return false;
 };
-ENEMIES.ruin_warden = { elite: true, monster: true, name: '유적의 수호자', desc: '유적 심층에서 유물을 지키는 존재. 원작 설정상 유적의 괴물은 HE급 환상체 이상이며, 일부는 손가락 상위 간부도 쉽게 쓰러뜨린다. (이 개체 자체는 게임 창작)',
+ENEMIES.ruin_warden = { elite: true, monster: true, name: '유적의 수호자', desc: '유적 심층에서 유물을 지키는 존재. 유적의 괴물은 HE급 환상체 이상이며, 일부는 손가락 상위 간부도 쉽게 쓰러뜨린다.',
   hp: 300, stg: 120, slots: 3, light: 6, lightRegen: 3, res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [20000000, 40000000],
   passive: '심층의 압력 — 매 막 힘 1, 보호 2', onRound: e => { e.st.str += 1; e.st.prot += 2; },
   pool: [{ name: '심층의 손톱', dice: [['참격', 10, 16], ['참격', 8, 12]] }, { name: '암반 붕괴', dice: [['타격', 14, 22]], onHit: { para: 1 } },
@@ -2634,19 +2634,19 @@ ENEMIES.ruin_warden = { elite: true, monster: true, name: '유적의 수호자',
 // 기존 탐사 이벤트에 원작 유물 확률 연결 (발굴 8% / 장비 발굴 12% / 보관함 10% / 괴물 25%)
 (() => {
   const ex = EVENTS.find(e => e.id === 'os_relic_excavation'), ar = EVENTS.find(e => e.id === 'os_relic_archive'), gd = EVENTS.find(e => e.id === 'os_relic_guardian');
-  ex.text += '<br><span class="dim">드물게 원작 유물(희귀)이 섞여 나온다. 화면에 「원작 유물」/「하위 유물」로 구분된다.</span>';
+  ex.text += '<br><span class="dim">드물게 진짜 유물이 섞여 나온다. 대부분은 하위 유물이다.</span>';
   ex.choices[0].fn = function () { if (Math.random() < 0.35) discoverRelic(0.08); else { say('유물은 부서졌지만 오래된 금속 조각은 챙겼다.'); gain(15000); } };
   ex.choices[1].fn = function () { if (!buy(150000, '유물 발굴 장비와 인부')) return; if (Math.random() < 0.75) discoverRelic(0.12); else say('발굴은 끝났지만 내부는 텅 비어 있었다. 인부들은 약속한 품삯을 받고 돌아갔다.'); };
   ar.choices[0].fn = function () { if (Math.random() < 0.5) discoverRelic(0.1); else { say('잠금장치가 튀어 손을 긁었다. 안에는 젖은 탐사 일지만 남아 있다.', 'l-bad'); hurt(6); } };
   gd.choices[0].fn = function () { fight('os_carapace', { lethal: true, win() { merit(3); discoverRelic(0.25); } }); };
-  gd.choices[0].t = '암반 등딱지를 사냥한다 — 승리 시 유물 확정 (원작 유물 25%)';
+  gd.choices[0].t = '암반 등딱지를 사냥한다 — 승리 시 유물 확정 (유물 25%)';
 })();
 EVENTS.push({ id: 'os_ruin_depths', exile: true, when: [1, 2], w: 0.5,
   cond: () => S.day >= 3 && Object.keys(RELICS).some(id => RELICS[id].tier === 'canon' && !(S.relics || []).includes(id)),
   title: '유적의 심층',
-  text: '무너진 지반 아래로 끝없는 계단이 이어진다. 유적이다. 어느 깊이를 넘으면 그 아래는 도시에 속하지 않는다고 한다. 가장 깊은 곳에서 원작 유물의 맥동이 느껴진다. 수호자를 쓰러뜨리면 확정으로 얻는다. 패배 시 사망.',
+  text: '무너진 지반 아래로 끝없는 계단이 이어진다. 유적이다. 어느 깊이를 넘으면 그 아래는 도시에 속하지 않는다고 한다. 가장 깊은 곳에서 유물의 맥동이 느껴진다. 수호자를 쓰러뜨리면 확정으로 얻는다. 패배 시 사망.',
   choices: [
-    { t: '심층으로 내려간다 — 유적의 수호자 (원작 유물 확정)', fn() { fight('ruin_warden', { lethal: true, noCow: true, win() { merit(5); discoverRelic(1); } }); } },
+    { t: '심층으로 내려간다 — 유적의 수호자 (유물 확정)', fn() { fight('ruin_warden', { lethal: true, noCow: true, win() { merit(5); discoverRelic(1); } }); } },
     { t: '돌아선다', def: true, fn() { say('계단 아래의 어둠은 아직 이르다.'); } },
   ] });
 
@@ -2668,27 +2668,27 @@ Object.assign(CARDS, {
   devjat_case: { name: '제뱌찌 — 배달 가방 강타', cost: 1, dice: [['타격', 6, 10], ['회피', 5, 9]] },
   devjat_rush: { name: '제뱌찌 — 약속된 시간', cost: 1, instant: true, fx: { light: 2 }, desc: '즉시: 빛 2 회복' },
   dieci_key: { name: '디에치 — 황금 열쇠', cost: 1, dice: [['방어', 6, 10]], onUse: { draw: 1 }, desc: '사용 시 카드 1장' },
-  dieci_relic: { name: '디에치 — 성물의 복제품', cost: 2, dice: [['참격', 8, 13], ['관통', 6, 10]], desc: '원작: 디에치 해결사의 제식 무기는 성물의 복제품이자 열화판' },
+  dieci_relic: { name: '디에치 — 성물의 복제품', cost: 2, dice: [['참격', 8, 13], ['관통', 6, 10]], desc: '디에치 해결사의 제식 무기는 성물의 복제품이자 열화판' },
   oufi_halberd: { name: '외우피 — 할버드 집행', cost: 2, dice: [['관통', 8, 13], ['참격', 6, 10]] },
   oufi_contract: { name: '외우피 — 계약 이행', cost: 1, instant: true, fx: { nextStr: 1, nextProt: 2 }, desc: '즉시: 다음 막 힘 1·보호 2' },
 });
 const OUTSKIRTS_MONSTERS = ['gnome', 'toothgear', 'giant', 'os_carapace', 'ruin_warden'];
 Object.assign(AFFS, {
-  hana: { name: '하나 협회', faction: 'assoc', fixer: true, passive: '해결사 업무 총괄(원작: 제1협회) — 의뢰 보수 +30%, 매 막 보호 1·인내 1.',
+  hana: { name: '하나 협회', faction: 'assoc', fixer: true, passive: '해결사 업무 총괄(제1협회) — 의뢰 보수 +30%, 매 막 보호 1·인내 1.',
     hooks: { payBonus: 0.3, roundStart(P) { P.st.prot += 1; P.st.end += 1; } }, cards: ['hana_judge', 'hana_order'] },
-  tres: { name: '트레스 협회', faction: 'assoc', fixer: true, passive: '공방 발명품 심사(원작: 제3협회) — 공방 카드 30% 할인, 매 막 카드 1장 추가.',
+  tres: { name: '트레스 협회', faction: 'assoc', fixer: true, passive: '공방 발명품 심사(제3협회) — 공방 카드 30% 할인, 매 막 카드 1장 추가.',
     hooks: { shopDiscount: 0.3, extraDraw: 1 }, cards: ['tres_patent', 'tres_proto'] },
-  cinq: { name: '섕크 협회', faction: 'assoc', fixer: true, passive: '결투 대리(원작: 제5협회) — 공격 주사위 동률이면 승리, 상대가 하나일 때 공격 위력 +2.',
+  cinq: { name: '섕크 협회', faction: 'assoc', fixer: true, passive: '결투 대리(제5협회) — 공격 주사위 동률이면 승리, 상대가 하나일 때 공격 위력 +2.',
     hooks: { tieWin: true, rollBonus(P, d) { return OFF(d[0]) && C && combatEnemies().filter(e => e.hp > 0).length === 1 ? 2 : 0; } }, cards: ['cinq_duel', 'cinq_parry'] },
-  seven: { name: '세븐 협회', faction: 'assoc', fixer: true, passive: '정보 조사·탐정업(원작: 제7협회) — 첫 막에 적의 약점을 파악해 마비 2, 매 막 카드 1장 추가.',
+  seven: { name: '세븐 협회', faction: 'assoc', fixer: true, passive: '정보 조사·탐정업(제7협회) — 첫 막에 적의 약점을 파악해 마비 2, 매 막 카드 1장 추가.',
     hooks: { roundStart(P, E) { if (C.round === 1) combatEnemies().forEach(e => { e.st.para += 2; }); }, extraDraw: 1 }, cards: ['seven_profile', 'seven_strike'] },
-  eight: { name: '에잇 협회', faction: 'assoc', fixer: true, passive: '항해·외곽 탐사(원작: 제8협회, 업무는 추정) — 외곽의 괴물 상대 공격 위력 +3.',
+  eight: { name: '에잇 협회', faction: 'assoc', fixer: true, passive: '항해·외곽 탐사(제8협회) — 외곽의 괴물 상대 공격 위력 +3.',
     hooks: { rollBonus(P, d) { return OFF(d[0]) && C && OUTSKIRTS_MONSTERS.includes(C.E.key || C.key) ? 3 : 0; } }, cards: ['eight_harpoon', 'eight_sound'] },
-  devjat: { name: '제뱌찌 협회', faction: 'assoc', fixer: true, passive: '운송(원작: 제9협회) — 회피 주사위 위력 +3, 도주 성공률 상승.',
+  devjat: { name: '제뱌찌 협회', faction: 'assoc', fixer: true, passive: '운송(제9협회) — 회피 주사위 위력 +3, 도주 성공률 상승.',
     hooks: { rollBonus(P, d) { return d[0] === '회피' ? 3 : 0; }, flee: 0.9 }, cards: ['devjat_case', 'devjat_rush'] },
-  dieci: { name: '디에치 협회', faction: 'assoc', fixer: true, passive: '지식·유적 탐사(원작: 제10협회) — 유물 발견 시 원작 유물 확률 상승, 매 막 카드 1장 추가.',
+  dieci: { name: '디에치 협회', faction: 'assoc', fixer: true, passive: '지식·유적 탐사(제10협회) — 유물 발견 시 진짜 유물 확률 상승, 매 막 카드 1장 추가.',
     hooks: { relicFind: 0.2, extraDraw: 1 }, cards: ['dieci_key', 'dieci_relic'] },
-  oufi: { name: '외우피 협회', faction: 'assoc', fixer: true, passive: '거래 중개·규정 위반 제재(원작: 제11협회) — 전투 보상 안 +25%, 사채 이자 없음.',
+  oufi: { name: '외우피 협회', faction: 'assoc', fixer: true, passive: '거래 중개·규정 위반 제재(제11협회) — 전투 보상 안 +25%, 사채 이자 없음.',
     hooks: { moneyMul: 1.25, noInterest: true }, cards: ['oufi_halberd', 'oufi_contract'] },
 });
 ASSOC_KEYS.push('tres', 'cinq', 'seven', 'eight', 'devjat', 'dieci', 'oufi');
@@ -2786,13 +2786,13 @@ const CANON_ANOMALIES = [
 for(const a of CANON_ANOMALIES){
   const b=CITY_THREAT[a.level-1];a.label=a.risk+'-'+a.level;a.merit=Math.ceil(a.level/2);a.card='reward_'+a.key;
   const skill=JSON.parse(JSON.stringify(a.pool[0]));
-  CARDS[a.card]={...skill,name:a.name+' — '+skill.name,desc:'원작 개체 제압 전리품 · '+a.label+' (이 게임의 전투 각색)'};
+  CARDS[a.card]={...skill,name:a.name+' — '+skill.name,desc:'제압 전리품 · '+a.label};
   ENEMIES[a.key]={...a,elite:true,abnormality:a.kind==='환상체',distortion:a.kind==='뒤틀림',name:'['+a.label+'] '+a.name,
-    desc:a.desc+' (원작 개체 · 재등장과 전투 수치는 게임 각색'+(a.kind==='뒤틀림'?' · 문자 등급도 게임 자체 분류':'')+')',
+    desc:a.desc,
     hp:b.hp,stg:b.stg,slots:b.slots,light:b.light,lightRegen:b.regen,res:{참격:1,관통:1,타격:1},reward:[b.reward,Math.round(b.reward*1.5)]};
   for(const outside of [false,true])EVENTS.push({id:(outside?'os_':'city_')+a.key,exile:outside,fac:CITY_ANOMALY_FACTIONS,when:outside?[0,1,2,3]:[0,1,2],w:a.w,
-    cond:()=>!!S.exiled===outside,title:'원작 '+a.kind+' 조우 — '+a.label+' '+a.name,
-    text:a.desc+'<br>위험도 '+a.label+'. 전투에 실패하면 사망한다. '+(a.kind==='뒤틀림'?'문자·숫자 위험도는 이 게임의 자체 분류다.':'숫자 위험도는 이 게임의 자체 분류다.'),
+    cond:()=>!!S.exiled===outside,title:a.kind+' 조우 — '+a.label+' '+a.name,
+    text:a.desc+'<br>위험도 '+a.label+'. 전투에 실패하면 사망한다.',
     choices:[{t:a.name+'에 맞선다',fn(){fight(a.key,{lethal:true,win(){merit(a.merit);say(a.name+'을(를) 제압하고 흔적을 회수했다.','l-good');}});}},
       {t:'거리를 유지하고 관측만 한다',def:true,fn(){say(a.name+'과(와)의 접촉을 피하고 관측 기록을 남겼다.');}}]});
 }
@@ -3238,7 +3238,7 @@ function startTurn() {
   T = { timeLeft: TURN_TIME, queue: [], lineCd: 0, ambCd: 6, eventShown: false, awaiting: null, resolved: false };
   if (S.travelPending && !S.travelSkip && !S.warp) { arrive(S.travelPending); S.travelPending = null; }   // 걸어서 이동한 경우 도착
   if (S.warp && !S.warp.arrived) writeWarpLog();
-  print(`— ${t.name} ${t.time} —`, t.cls);
+  print(S.warp ? `— 열차 안 ${Math.max(1, warpInner()).toLocaleString()}일째 —` : `— ${t.name} ${t.time} —`, t.cls);
   const amb = shuffle([...ambientPool()]);
   say(amb[0], 'l-amb'); say(amb[1], 'l-amb');
   $('#event').classList.add('hidden');
@@ -3389,7 +3389,7 @@ EVENTS.push({ id: 'fixer_contracts', when: [0, 1, 2], w: 2.6, cond: () => isFixe
    열차 내부 시간 3만 일·사고·생존 규칙은 이 게임의 각색이다.
 ========================================================= */
 const WARP_DAYS = 7, WARP_INNER = 30000;
-const warpInner = () => S.warp ? Math.min(WARP_INNER, Math.round(S.warp.turns / (WARP_DAYS * 4) * WARP_INNER)) : 0;
+let warpInner = () => S.warp ? Math.min(WARP_INNER, Math.round(S.warp.turns / (WARP_DAYS * 4) * WARP_INNER)) : 0;
 Object.assign(ENEMIES, {
   warp_mad: { name: '시간에 잠식된 승객', desc: '몇 천 일째 같은 객차에 갇힌 승객. 이름도, 내릴 역도 잊었다.', hp: 95, stg: 40, slots: 2,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0],
@@ -3459,7 +3459,7 @@ EVENTS.push(
       { t: '세는 것을 그만둔다', def: true, fn() { say('숫자를 놓았다. 조금 편해졌다. 그것이 더 무섭다.'); stress(12); } },
     ]; }, text: '' },
   { id: 'wp_night', warp: true, when: [3], w: 1, title: '열차의 밤',
-    text: '열차 안에는 뒷골목의 밤이 없다. 조명이 조금 어두워질 뿐이다. 청소부 대신, 다른 승객들의 숨소리가 들린다.',
+    text: '조명이 조금 어두워졌다. 열차 안에도 밤 비슷한 것이 온다. 다른 승객들의 숨소리가 들린다.',
     choices: [
       { t: '잠든다 — 체력 20 회복', def: true, fn() { say('꿈속에서도 열차는 달렸다.'); heal(20); stress(4); } },
       { t: '불침번을 선다', fn() { if (Math.random() < 0.5) { say('다가오던 그림자를 쫓아냈다.'); fight('warp_mad', { lethal: true }); } else { say('아무 일도 없었다. 그래도 눈을 붙이지 못했다.'); stress(6); } } },
@@ -3629,7 +3629,7 @@ Object.assign(ENEMIES, {
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0],
     pool: [{ name: '내장놀이', dice: [['참격', 5, 9], ['참격', 4, 8]], onHit: { bleed: 2 } }, { name: '웃음소리', dice: [['타격', 6, 10]], onHit: { para: 1 } },
       { name: '엉겨붙기', dice: [['타격', 7, 11]] }, { name: '물어뜯기', dice: [['관통', 6, 11]], onHit: { bleed: 2 } }] },
-  warp_veteran: { elite: true, name: '수천 년을 단련한 승객들', desc: '할 일이 없어 수천 년을 단련했다. 원작에선 이런 승객들이 정리 요원들을 압도한 적이 있다.', hp: 230, stg: 95, slots: 3,
+  warp_veteran: { elite: true, name: '수천 년을 단련한 승객들', desc: '할 일이 없어 수천 년을 단련했다. 정리 요원들조차 이들을 감당하지 못한 적이 있다.', hp: 230, stg: 95, slots: 3,
     res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [0, 0], light: 6, lightRegen: 3,
     passive: '억겁의 수련 — 매 막 힘 1', onRound: e => { e.st.str += 1; },
     pool: [{ name: '천 년의 주먹', dice: [['타격', 11, 17], ['타격', 9, 13]] }, { name: '수만 번의 베기', dice: [['참격', 7, 11], ['참격', 7, 11], ['참격', 7, 11]] },
@@ -3638,7 +3638,7 @@ Object.assign(ENEMIES, {
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0], light: 4, lightRegen: 2,
     pool: [{ name: '공간 절단', dice: [['참격', 8, 13]], onHit: { bleed: 1 } }, { name: '차원 절단', dice: [['관통', 9, 14]] },
       { name: '역장', dice: [['방어', 8, 13]] }, { name: '정리', dice: [['참격', 6, 10], ['타격', 6, 10]] }] },
-  r_rabbit: { elite: true, name: 'R사 토끼팀', desc: '정리 요원으로 감당할 수 없는 「탈선」 상황에 W사가 의뢰한 R사의 사병. 원작에서도 특색 밀항 사건을 수습했다.', hp: 320, stg: 130, slots: 4,
+  r_rabbit: { elite: true, name: 'R사 토끼팀', desc: '정리 요원으로 감당할 수 없는 「탈선」 상황에 W사가 의뢰한 R사의 사병. 특색 밀항 사건을 수습한 적이 있다.', hp: 320, stg: 130, slots: 4,
     res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [0, 0], light: 8, lightRegen: 4,
     passive: '사냥개의 규율 — 매 막 힘 2', onRound: e => { e.st.str += 2; },
     pool: [{ name: '돌격 사격', dice: [['관통', 10, 15], ['관통', 10, 15]] }, { name: '도약 강습', dice: [['타격', 14, 21]] },
@@ -3686,7 +3686,7 @@ function finishWarp(restore) {
 for (const id of ['wp_dining', 'wp_cleanup']) { const i = EVENTS.findIndex(e => e.id === id); if (i >= 0) EVENTS.splice(i, 1); }
 const notArrived = () => S.warp && !S.warp.arrived;
 for (const id of ['wp_carriage', 'wp_passengers', 'wp_time', 'wp_night']) EVENTS.find(e => e.id === id).cond = notArrived;
-const fightInTrain = (key, opts = {}) => fight(key, { lethal: false, noRob: true, noCow: true, ...opts,
+let fightInTrain = (key, opts = {}) => fight(key, { lethal: false, noRob: true, noCow: true, ...opts,
   lose() { say('몸이 찢겼다. 하지만 혈관 한 가닥으로 이어진 채, 죽지 못했다.', 'l-bad'); stress(20); opts.lose && opts.lose(); } });
 Object.assign(EVENTS.find(e => e.id === 'wp_passengers'), {
   text: '같은 칸의 승객들이 둥글게 모여 앉아 있다. 누군가 제 배를 가르고 내장을 꺼내 옆 사람에게 건넨다. 다들 웃고 있다. 몇 천 일째 하고 있는 놀이다.',
@@ -3787,71 +3787,360 @@ Object.assign(EVENTS.find(e => e.id === 'warp_onboard'), {
     return [{ t: '"네, 쾌적했어요."', def: true, fn() { return done('설문지에 만점을 적었다. 정말 쾌적했던 것 같다.'); } }];
   } });
 
-/* ---------- 워프 열차 일지 — 열차 시간선 100일마다 플레이어가 남기는 기록 ---------- */
+/* ---------- 워프 열차 일지 — 열차 안 시간이 쌓일수록 기록은 점점 기괴해진다. 같은 문장은 다시 나오지 않는다 ----------
+   기록 시점: 1·3·5·7·10·20·30·50·75일, 이후 100일마다 */
 const WARP_LOG = [
+  { upto: 10, lines: [
+    '도착 안내가 오지 않는다. 다들 시계를 두드린다. 시계는 멀쩡히 가고 있다.',
+    '승무원 호출 버튼을 눌렀다. 아무도 오지 않았다. 지연 보상은 얼마나 나올까.',
+    '창밖에 아무것도 없다. 누군가 "터널인가 봐요"라고 했다. 다들 그렇게 믿기로 했다.',
+    '나는 {who}였다. 내릴 역에서 할 일이 있었다. 늦겠다.',
+    '배가 고프지 않다. 이상하다는 말을 아무도 먼저 꺼내지 않는다.',
+    '{seat}번 좌석 남자가 회사에 늦는다며 화를 낸다. 화낼 상대가 없다.',
+    '옆자리 노인이 귤을 나눠줬다. 귤은 몇 개를 까도 줄지 않는 것 같았다.',
+    '잠이 오지 않는다. 다들 눈을 감은 척한다.',
+    '누군가 비상 정지 레버를 당겼다. 열차는 멈추지 않았다. 레버만 빠졌다.',
+    '아이들이 칸과 칸 사이를 뛰어다닌다. 끝까지 가보겠다고 했다. 아직 안 돌아왔다.',
+  ] },
+  { upto: 100, lines: [
+    '오늘 처음으로 누군가 울었다. 그 뒤로 울음이 전염됐다.',
+    '{seat}번 칸으로 간 아이들이 돌아왔다. 끝이 없었다고 한다. 아이들의 신발 밑창이 다 닳았다.',
+    '면도를 안 했는데 수염이 자라지 않는다. 손톱도. 머리카락도.',
+    '창문을 깨려던 남자가 의자로 유리를 내리쳤다. 유리에는 흠집 하나 나지 않았다.',
+    '사람들이 칸마다 대표를 뽑았다. 대표가 하는 일은 없다.',
+    '누가 먼저 미칠지 내기를 하는 무리가 생겼다. 나도 걸었다.',
+    '처음으로 싸움이 났다. 좌석 하나 때문이었다. 좌석은 수천 개나 남아 있는데.',
+    '나는 날짜를 센다. 손등에 펜으로 선을 긋는다. 지워지지 않는다.',
+    '승무원 제복을 입은 승객이 있다. 그는 W사 직원이 아니라고 몇십 번이나 말했다. 아무도 믿지 않는다.',
+    '방송이 패키지 여행 상품을 안내한다. 사람들이 방송을 따라 외우기 시작했다.',
+  ] },
   { upto: 1000, lines: [
-    '도착 안내가 오지 않는다. 시계는 멈췄고, 나는 손가락으로 날짜를 센다.',
-    '창밖에는 아무것도 없다. 색도, 빛도, 거리도. 그런데 눈이 아프지 않다.',
-    '배가 고프지 않다. 졸리지도 않다. 그게 제일 무섭다.',
-    '{seat}번 좌석 남자가 문을 두드린다. 백 일째 같은 박자로.',
-    '나는 {who}였다. 잊지 않으려고 여기에 적어둔다.',
-    '승무원 호출 버튼을 3,000번쯤 눌렀다. 아무도 오지 않았다.',
-    '다른 칸으로 가는 문은 열린다. 열차는 끝나지 않는다.',
-    '맞은편 여자는 아직 울고 있다. 울음에도 지치지 않는 모양이다.',
-    '처음으로 누군가 자기 손목을 그었다. 피가 흘렀는데, 그는 죽지 않았다.',
-    '차내 방송이 또 패키지 상품을 안내한다. 나는 그 문장을 외워버렸다.',
+    '처음으로 누군가 자기 손목을 그었다. 피가 흘렀는데, 그는 죽지 않았다. 그는 그 사실에 웃었다.',
+    '죽지 못한다는 걸 다들 알게 되자, 열차의 공기가 달라졌다.',
+    '{seat}번 칸 사람들은 서로를 때리는 것으로 시간을 센다. 하루에 한 대씩.',
+    '누군가 문을 열어 바깥으로 뛰어내렸다. 다음 날 그는 같은 좌석에 앉아 있었다. 그 사이를 기억하지 못한다.',
+    '살점이 혈관 한 가닥으로 이어져 있다. 끊어지지 않는다. 아무리 당겨도.',
+    '팔걸이에 내 손톱자국이 늘어간다. 날짜는 거기에 있다.',
+    '어떤 칸은 조용하다. 너무 조용해서 아무도 들어가지 않는다.',
+    '오늘은 다른 승객에게 이름을 물었다. 그는 대답 대신 자기 혀를 보여줬다.',
+    '{seat}번 좌석의 여자는 자기 아이 얼굴을 손톱으로 새긴다. 자기 팔에. 매일 다시.',
+    '귤을 나눠주던 노인이 귤 껍질을 먹고 있다. 귤은 없다.',
   ] },
   { upto: 5000, lines: [
     '{seat}번 칸 사람들이 둥글게 앉아 놀이를 시작했다. 배를 가르고, 서로에게 건넨다. 웃는다.',
-    '죽지 못한다는 걸 다들 알게 되자, 열차의 공기가 달라졌다.',
-    '저쪽 칸에서는 천 년째 주먹을 휘두르는 무리가 있다. 할 일이 그것밖에 없으니까.',
-    '살점이 혈관 한 가닥으로 이어져 있다. 끊어지지 않는다. 아무리 당겨도.',
-    '오늘은 다른 승객에게 이름을 물었다. 그는 대답 대신 자기 혀를 보여줬다.',
+    '저쪽 칸에서는 몇 년째 주먹을 휘두르는 무리가 있다. 할 일이 그것밖에 없으니까.',
     '피범벅의 바닥에 발자국으로 길이 생겼다. 몇 천 일 동안 같은 길을 걸었으니까.',
-    '{seat}번 좌석의 아이가 나를 "아저씨"라고 부른다. 그 아이도 백 살은 넘었을 것이다.',
+    '{seat}번 좌석의 아이가 나를 "아저씨"라고 부른다. 그 아이도 열 살은 아닐 것이다.',
+    '누군가 자기 눈알을 빼서 창밖을 보라고 내밀었다. 거기에도 아무것도 없었다.',
+    '승객들이 서로의 뼈로 악기를 만들었다. 연주가 끝나면 뼈를 돌려준다. 예의다.',
     '단련하는 무리가 나를 불렀다. 거절했다. 아직은.',
-    '내 손톱이 팔걸이에 수천 개의 선을 그었다. 날짜는 거기에 있다.',
-    '누군가 문을 열어 바깥으로 뛰어내렸다. 다음 날 그는 같은 좌석에 앉아 있었다.',
+    '오늘 내 왼손이 내 것이 아닌 것 같았다. 잘라서 확인했다. 다시 붙었다. 내 것이었다.',
+    '{seat}번 칸에는 혈관으로 서로 이어진 사람들이 산다. 한 명이 숨을 쉬면 모두가 숨을 쉰다.',
+    '내장놀이에 초대받았다. 이번엔 웃음을 참기가 어려웠다.',
   ] },
   { upto: 15000, lines: [
-    '계절이 없다. 그래서 나는 일지에 계절을 만들어 적는다. 오늘은 봄이다.',
+    '계절이 없다. 그래서 나는 일지에 계절을 만들어 적는다. 오늘은 봄이다. 봄에는 피가 묽다.',
     '{who}였던 시절의 일이 꿈처럼 느껴진다. 진짜로 있었던 일일까.',
-    '내장놀이에 초대받았다. 이번엔 웃음을 참기가 어려웠다.',
-    '{seat}번 칸의 노인은 열차가 출발하기 전 무엇을 먹었는지 매일 이야기한다. 메뉴가 매일 다르다.',
-    '나는 이제 모든 승객의 얼굴을 안다. 얼굴이 남아 있는 사람에 한해서.',
-    '수련 무리의 우두머리는 칼 한 자루로 공기를 가른다. 소리가 늦게 들린다.',
     '거울을 봤다. 늙지 않았다. 이 몸은 출발한 그 순간 그대로다. 안쪽만 늙는다.',
+    '{seat}번 칸의 노인은 열차가 출발하기 전 무엇을 먹었는지 매일 이야기한다. 메뉴가 매일 다르다.',
+    '얼굴이 남아 있는 사람이 손에 꼽는다. 나머지는 얼굴을 서로 바꿔 쓴다.',
+    '좌석 시트 아래에서 누군가 산다. 몇 년째 나오지 않는다. 가끔 손가락이 나와 발목을 쓰다듬는다.',
+    '나는 이제 혀 없이 말하는 법을 안다. 다들 그렇게 말한다.',
     '오늘 하루를 말없이 보냈다. 아니, 천 일이었던가.',
-    '방송 속 패키지 여행지의 이름을 하나씩 지어 불렀다. 거기엔 해가 뜬다.',
-    '나는 아직 이 일지를 쓴다. 쓰는 동안은 내가 나라는 걸 안다.',
+    '단련하는 무리의 우두머리는 손날 하나로 객차 벽을 가른다. 벽은 바로 아문다. 열차도 죽지 못한다.',
+    '{seat}번 칸 사람들은 자기 갈비뼈로 계단을 만들어 천장으로 올라간다. 천장 위에도 객차가 있다고 한다.',
   ] },
   { upto: 1e9, lines: [
     '내가 누구였는지 첫 장을 다시 읽고서야 알았다. {who}. 낯선 이름이다.',
     '펜이 닳아 피로 쓴다. 피는 마르지 않는다.',
     '{seat}번 칸 사람들은 이제 서로를 구분하지 않는다. 엉겨붙은 채 하나의 덩어리로 숨을 쉰다.',
+    '덩어리가 노래를 부른다. 패키지 여행 상품 안내 방송의 멜로디다.',
     '도착하면 모든 게 되돌려진다는 소문이 돈다. 그렇다면 이 일지도 사라질까.',
     '창밖에서 무언가를 본 것 같다. 아무것도 아니었다. 아무것도 아니어야 한다.',
-    '오늘은 웃었다. 이유는 기억나지 않는다.',
+    '오늘은 웃었다. 이유는 기억나지 않는다. 내 입이 아닌 입으로 웃은 것 같다.',
     '수만 일이 지났는데도, 나는 아직 도착을 기다린다. 그것만은 잊지 않았다.',
-    '열차가 덜컹였다. 수만 일 만의 첫 진동. 모두가 고개를 들었다.',
+    '객차 벽에 사람의 이가 빼곡히 박혀 있다. 누구 것인지 아무도 묻지 않는다. 모두의 것이다.',
     '마지막으로 하고 싶은 말을 적어둔다. …적을 말이 없다.',
-    '창밖의 색이 아주 조금, 돌아오는 것 같다.',
   ] },
 ];
-function warpLogLine(day) {
-  const stage = WARP_LOG.find(s => day <= s.upto);
-  const who = S.ch.name + (affName() && affName() !== S.ch.name ? ` (${affName()})` : '');
-  let line;
-  do { line = pick(stage.lines); } while (S.warp.lastLine === line && stage.lines.length > 1);
-  S.warp.lastLine = line;
+// 손으로 쓴 문장이 바닥나면 단계별 조합 문장으로 이어 쓴다 (역시 중복 없이)
+const WARP_GEN = [
+  { subj: ['회사원', '할머니', '아이', '쥐 출신 소년', '깃털', '해결사', '신혼부부', '노점 상인', '학생', '승무원 차림의 남자', '임산부', '맹인'],
+    act: ['지연 보상 신청서를 쓰고 있다', '창에 입김을 불어 글씨를 쓴다', '도착 시간을 다시 계산한다', '가족에게 보낼 메시지를 고친다', '승무원 호출 버튼을 다시 누른다', '짐을 정리했다가 다시 푼다', '괜찮다고 소리 내어 말한다', '시계를 귀에 대고 있다'] },
+  { subj: ['회사원', '할머니', '아이', '쥐 출신 소년', '깃털', '해결사', '신혼부부', '노점 상인', '학생', '승무원 차림의 남자', '임산부', '맹인'],
+    act: ['좌석 사이를 같은 박자로 걷는다', '손톱을 물어뜯다 손가락까지 씹고 있다', '창문을 맨손으로 두드린다. 손뼈가 보인다', '아무도 없는 좌석에 말을 건다', '자기 이름을 계속 중얼거린다', '울다가 갑자기 멈췄다', '남의 짐을 뒤져 먹을 것을 찾는다. 배는 고프지 않다면서', '머리카락을 한 올씩 뽑아 센다'] },
+  { subj: ['회사원', '할머니', '아이', '쥐 출신 소년', '깃털', '해결사', '신혼부부', '노점 상인', '학생', '승무원 차림의 남자', '임산부', '맹인'],
+    act: ['자기 목을 몇 번이고 긋는다. 매번 아문다', '창틀에 머리를 박으며 숫자를 센다', '다른 승객의 손가락을 모은다', '죽은 척하는 놀이를 몇 년째 하고 있다', '자기 상처를 벌려 안을 들여다본다', '좌석 커버를 뜯어 먹는다', '이를 하나씩 뽑아 주머니에 넣는다', '자기 그림자를 칼로 긁어낸다'] },
+  { subj: ['회사원이었던 것', '할머니였던 것', '아이', '깃털이었던 남자', '해결사였던 여자', '신혼부부', '맹인', '임산부', '승무원 차림의 무언가', '이름 없는 승객'],
+    act: ['제 내장을 목도리처럼 두르고 다닌다', '갈비뼈를 열었다 닫는다. 문처럼', '다른 사람의 혀로 노래한다', '혈관을 뽑아 뜨개질을 한다', '얼굴 가죽을 벗겨 창문에 붙였다', '자기 심장을 공처럼 튀긴다', '찢긴 팔을 다른 사람 어깨에 꿰매 붙였다', '눈알로 구슬치기를 한다'] },
+  { subj: ['여럿이 엉겨붙은 덩어리', '얼굴이 둘인 승객', '팔이 여섯인 승객', '좌석과 붙어버린 노인', '천장에 매달린 아이들', '혈관으로 엮인 일가족', '이가 빼곡한 벽', '바닥에 녹아든 남자'],
+    act: ['서로의 이름을 바꿔 부르며 웃는다', '천천히 박동한다', '패키지 여행 안내 방송을 합창한다', '새로 생긴 입으로 하품을 한다', '지나가는 사람의 발목을 쓰다듬는다', '열차의 진동에 맞춰 숨을 쉰다', '자기들이 몇 명이었는지 세다 포기했다', '당신을 보고 손을 흔든다. 손이 너무 많다'] },
+  { subj: ['칸 전체를 채운 살덩어리', '열차의 벽', '천 개의 손가락', '이름을 잃은 합창단', '좌석들', '창문에 붙은 얼굴들', '통로를 메운 혈관 숲', '덩어리 속의 아이'],
+    act: ['도착을 기다리며 노래한다', '당신의 이름을 부른다. 당신이 잊은 이름을', '숨을 쉰다. 열차가 함께 숨을 쉰다', '낡은 방송을 웅얼거린다', '조금씩 당신 쪽으로 자라난다', '아무 의미 없는 숫자를 센다. 당신의 날짜와 같다', '웃는다. 이유는 아무도 모른다', '눈을 뜬다. 수천 개의 눈이'] },
+];
+const WARP_PRE = ['', '오늘도 ', '조명이 깜빡이는 사이, ', '방송이 끝나자 ', '내가 지나갈 때 ', '아무도 보지 않는 동안 ', '열차가 덜컹일 때마다 ', '눈을 감았다 뜨니 ', '어제와 똑같이, ', '내가 잠든 척하는 동안 '];
+const WARP_LOG_MARKS = [1, 3, 5, 7, 10, 20, 30, 50, 75];
+const warpLogStage = day => WARP_LOG.findIndex(s => day <= s.upto);
+function warpLine(day) {   // 열차 안 시간에 맞는 단계의 문장. 같은 문장은 다시 쓰지 않는다
+  const w = S.warp; w.used = w.used || {};
+  const st = warpLogStage(day), who = S.ch.name + (affName() && affName() !== S.ch.name ? ` (${affName()})` : '');
+  const fresh = shuffle(WARP_LOG[st].lines.filter(l => !w.used[l]));
+  let line = fresh[0];
+  if (!line) {
+    const g = WARP_GEN[st];
+    for (let i = 0; i < 200 && !line; i++) {
+      const pre = pick(WARP_PRE), sj = pick(g.subj), ac = pick(g.act), key = pre + sj + ac;   // 칸 번호만 다른 문장도 중복으로 본다
+      if (!w.used[key]) { w.used[key] = 1; line = `${pre}${rnd(1, 300)}번 칸의 ${josa(sj, '이', '가')} ${ac}.`; }
+    }
+    line = line || `${rnd(1, 300)}번 칸은 오늘도 조용하지 않다.`;
+  }
+  w.used[line] = 1;
   return line.replace('{who}', who).replace('{seat}', rnd(1, 300));
 }
+const warpLogLine = warpLine;
 function writeWarpLog() {
   if (!S.warp) return;
-  const inner = warpInner(), from = (S.warp.logged || 0) + 100;
-  const entries = [];
-  for (let d = from; d <= inner; d += 100) { entries.push(`<div><b>${d.toLocaleString()}일</b> — ${warpLogLine(d)}</div>`); S.warp.logged = d; }
+  const inner = warpInner(), entries = [];
+  const marks = [...WARP_LOG_MARKS]; for (let d = 100; d <= WARP_INNER; d += 100) marks.push(d);
+  for (const d of marks) if (d > (S.warp.logged || 0) && d <= inner) { entries.push(`<div><b>${d.toLocaleString()}일</b> — ${warpLine(d)}</div>`); S.warp.logged = d; }
   if (entries.length) print(`<div class="warp-log">📓 열차 일지<br>${entries.join('')}</div>`, 'l-amb');
+}
+// 열차 안의 주변 묘사도 열차 안 시간에 맞춰 (도시 풍경 대신)
+const _origAmbientPool = ambientPool;
+ambientPool = () => S.warp ? [warpLine(warpInner()), warpLine(warpInner())] : _origAmbientPool();
+
+/* ---------- 워프 열차 시간 단계 — 처음 며칠은 멀쩡하고, 열차 안 시간이 쌓일수록 승객들이 무너진다 ----------
+   열차 안 시간은 턴 안에서도 실시간으로 흐른다(가속 곡선: 첫날은 수십~수백 일, 마지막 날은 하루에 수천 일). */
+warpInner = () => {
+  if (!S || !S.warp) return 0;
+  const frac = T && S.phase === 'day' ? Math.max(0, Math.min(1, 1 - T.timeLeft / TURN_TIME)) : 0;
+  const p = S.warp.turns ? Math.min(1, (S.warp.turns - 1 + frac) / (WARP_DAYS * 4)) : 0;   // 탑승한 턴의 남은 시간은 0일
+  return Math.round(WARP_INNER * p * p);
+};
+const warpStage = () => { const d = warpInner(); return d < 10 ? 0 : d < 300 ? 1 : d < 3000 ? 2 : 3; };   // 0 멀쩡 · 1 불안 · 2 잠식 · 3 광기
+const dayStr = d => `${Math.max(1, d).toLocaleString()}일`;
+// 객실 승객 적 — 열차 안 시간에 맞춰 이름·설명·세기가 달라진다
+function trainFoe(extra = {}) {
+  const d = warpInner(), s = warpStage();
+  const o = s <= 1 ? { name: '공황에 빠진 승객', desc: `열차 안에서 ${dayStr(d)}. 출구를 찾다 이성을 잃고 달려든다. 아직은 사람의 얼굴이다.`, hpMul: 0.7 }
+    : s === 2 ? { name: '시간에 잠식된 승객', desc: `${dayStr(d)}째 같은 객차에 갇힌 승객. 이름도, 내릴 역도 잊어간다. 찢겨도 죽지 못한다.`, hpMul: 0.85 }
+    : { name: '미쳐버린 승객', desc: `${dayStr(d)}째 같은 칸에 갇힌 승객. 제 내장을 늘어뜨린 채 웃는다. 찢겨도 죽지 못한다.` };
+  return { ...o, ...extra };
+}
+const _origWarpFight = fightInTrain;
+// 기존 이벤트들의 'warp_mad' 전투도 단계에 맞춘 이름·설명으로
+fightInTrain = (key, opts = {}) => _origWarpFight(key, key === 'warp_mad' ? trainFoe(opts) : opts);
+
+// 단계 조건 — 광기 이벤트는 열차 안 시간이 충분히 흐른 뒤에만
+const stageCond = (min, max = 3) => () => S.warp && !S.warp.arrived && warpStage() >= min && warpStage() <= max;
+const EV = id => EVENTS.find(e => e.id === id);
+EV('wp_carriage').cond = stageCond(1);
+EV('wp_passengers').cond = stageCond(3);
+EV('wp_time').cond = stageCond(2);
+EV('wp_trained').cond = stageCond(3);
+EV('wp_announce').cond = stageCond(2);
+EV('wp_night').cond = stageCond(1);
+
+Object.assign(EV('wp_carriage'), {
+  build() {
+    const d = warpInner(), s = Math.max(1, warpStage());
+    this.text = s === 1 ? `객차는 끝없이 이어진다. 창밖은 색이 없다. 열차 안 ${dayStr(d)}째. 승객들은 아직 서로에게 말을 건다. 다만 목소리가 점점 날카로워진다.`
+      : s === 2 ? `객차는 끝없이 이어진다. 열차 안 ${dayStr(d)}째. 웃음소리와 울음소리가 구분되지 않는 칸이 늘어간다.`
+      : `객차는 끝없이 이어진다. 창밖은 색이 없다. 열차 안 ${dayStr(d)}째. 정상적인 얼굴을 한 승객은 더 이상 찾기 어렵다.`;
+    return [
+      { t: '좌석에 앉아 버틴다', def: true, fn() { say('눈을 감고 숫자를 셌다. 몇 번째 세는지도 잊었다.'); heal(10); stress(s === 1 ? 4 : 7); } },
+      { t: '다음 칸으로 걸어간다', fn() {
+        const r = Math.random();
+        if (s === 1) {
+          if (r < 0.4) { say('누군가 남긴 비상식량 상자를 찾았다.'); heal(20); }
+          else if (r < 0.65) { say('비상 해치를 억지로 열려던 승객이 당신을 밀쳐낸다. "방해하지 마!"', 'l-bad'); fightInTrain('warp_mad'); }
+          else { say('다음 칸은 방금 지나온 칸과 똑같았다. 좌석의 얼룩까지.', 'l-bad'); stress(10); }
+        } else if (r < 0.35) { say(s === 3 ? '엉겨붙은 승객들 사이로 길이 막혀 있다. 누군가 당신의 발목을 붙잡는다.' : '바닥에 주저앉은 승객이 당신의 발목을 붙잡는다. 눈의 초점이 없다.', 'l-bad'); fightInTrain('warp_mad'); }
+        else if (r < 0.6) { say(s === 3 ? '바닥과 천장까지 피로 칠해진 칸. 혈관이 실처럼 이어져 있다. 아무도 죽지 않았다. 그게 더 끔찍하다.' : '피투성이 칸. 스스로를 해치려던 승객이 상처가 아물지 않은 채 숨을 쉬고 있다. 죽지 못한다는 걸 막 알게 된 얼굴이다.', 'l-bad'); stress(s === 3 ? 14 : 10); }
+        else if (r < 0.8 && s === 3) { say('수십 년을 단련했다는 승객들이 칸을 차지하고 있다. "새 상대다."', 'l-bad'); fightInTrain('warp_veteran'); }
+        else { say('다음 칸은 방금 지나온 칸과 똑같았다. 좌석의 얼룩까지.', 'l-bad'); stress(12); }
+      } },
+    ];
+  }, text: '' });
+Object.assign(EV('wp_announce'), {
+  build() { this.text = `"W사 워프 열차를 이용해 주셔서 감사합니다. 차내에서 판매 중인 패키지 여행 상품을 안내해 드리겠습니다." 같은 방송이 ${dayStr(warpInner())}째 반복되고 있다.`; return [
+    { t: '방송을 세며 버틴다', def: true, fn() { say('방송 횟수를 세다가, 숫자가 무의미해졌다.'); stress(8); } },
+    { t: '스피커를 부순다', fn() { say('스피커는 다음 날 같은 자리에 있었다. 아니, 다음 날이라는 게 있나.'); stress(3); } }]; }, text: '' });
+Object.assign(EV('wp_passengers'), {
+  build() { this.text = `열차 안 ${dayStr(warpInner())}째. 같은 칸의 승객들이 둥글게 모여 앉아 있다. 누군가 제 배를 가르고 내장을 꺼내 옆 사람에게 건넨다. 다들 웃고 있다. 오래전부터 해온 놀이다.`; return this.choices; } });
+Object.assign(EV('wp_trained'), {
+  build() { this.text = `한 칸 전체가 도장이 되어 있다. 열차 안 ${dayStr(warpInner())} — 할 일이 없었던 승객들이 그 세월 동안 주먹과 칼을 갈고닦았다. 정리 요원들이 이들을 감당할 수 있을까.`; return this.choices; } });
+ENEMIES.warp_veteran.name = '수십 년을 단련한 승객들';
+ENEMIES.warp_veteran.desc = '할 일이 없어 열차 안의 세월 내내 단련했다. 정리 요원들조차 이들을 감당하지 못한 적이 있다.';
+
+// 0단계(열차 안 10일 미만) — 승객들은 아직 멀쩡하다. 도착이 늦어질 뿐이라고 믿는다
+EVENTS.push(
+  { id: 'wp_s_delay', warp: true, when: [0, 1, 2, 3], w: 3, cond: stageCond(0, 0), title: '도착 지연',
+    build() { this.text = `열차 안 ${dayStr(warpInner())}째. 10초면 도착한다던 열차가 멈추지 않는다. 승객들은 시계를 보고, 휴대폰을 흔들고, 승무원 호출 버튼을 누른다. 아직은 다들 짜증 섞인 얼굴일 뿐이다.`; return [
+      { t: '다른 승객들과 상황을 정리한다', fn() { say('"지연 운행일 거예요. 보상 신청서 양식, 누가 갖고 있어요?" 사람들이 웃었다. 아직은 웃을 수 있다.'); stress(-3); merit(1); } },
+      { t: '좌석에서 기다린다', def: true, fn() { say('창밖에 아무것도 없다는 사실을, 아직 아무도 소리 내어 말하지 않는다.'); stress(3); } },
+    ]; }, text: '' },
+  { id: 'wp_s_window', warp: true, when: [0, 1, 2, 3], w: 2, cond: stageCond(0, 0), title: '색 없는 창밖',
+    text: '창밖에는 아무것도 없다. 어둠도 아니고 빛도 아니다. 아이 하나가 창에 얼굴을 붙이고 "아무것도 없어"라고 말한다. 엄마가 아이의 눈을 가린다.',
+    choices: [
+      { t: '아이에게 말을 건다', fn() { say('아이는 당신에게 사탕을 하나 나눠줬다. 열차가 금방 도착할 거라고, 둘이서 약속했다.'); stress(-5); } },
+      { t: '창을 보지 않는다', def: true, fn() { say('커튼을 내렸다. 그래도 그 너머가 느껴진다.'); stress(4); } },
+    ] },
+  { id: 'wp_s_hunger', warp: true, when: [0, 1, 2, 3], w: 2, cond: stageCond(0, 0), title: '배고프지 않다',
+    text: '몇 끼를 걸렀는데 배가 고프지 않다. 졸리지도 않다. 누군가 그 사실을 입 밖에 내자, 칸 안이 조용해졌다.',
+    choices: [
+      { t: '침착하게 사람들을 다독인다', fn() { say('"W사가 곧 조치할 겁니다." 당신의 목소리에 몇 명이 고개를 끄덕였다.'); stress(2); merit(1); } },
+      { t: '말없이 생각한다', def: true, fn() { say('열차 안 시간은 바깥과 다르게 흐르는 걸지도 모른다. 그 생각을 머릿속에서 밀어냈다.'); stress(5); } },
+    ] },
+);
+
+
+/* ---------- 혈귀의 워프 열차 — 정체를 숨기고 탄다. 사고는 확정, 내리고 싶을 때 내린다.
+   열차 안의 승객은 죽지 않으니 피주머니에 한도가 없다. 대신 오래 머물수록 하나 협회와 W사 정리 요원이 쫓아온다(특색은 고등급 CCA 정리 요원). ---------- */
+CAPTIVES.w_agent = CAPTIVES.w_agent || { label: 'W사 정리 요원', pow: 3, yield: 2, feed: 3 };
+const stowTrain = () => !!(S.warp && S.warp.stow && !S.warp.arrived);   // 정체를 숨기고 탄 혈귀·특색
+const vampTrain = () => stowTrain() && S.warp.stow === 'vamp';
+// 추격 확률: 열차 안 시간이 길어질수록 오른다 (첫날 거의 없음 → 3만 일 무렵 대부분)
+const vampChaseChance = () => Math.min(0.85, 0.04 + warpInner() / WARP_INNER * 0.9);
+function vampLeaveTrain(forced) {
+  const w = S.warp; S.warp = null;
+  S.day = w.start; S.turn = w.startTurn; S.seenToday = []; S.flags.travelDay = S.day;   // 바깥에서는 몇 초
+  if (forced) say('추격자들에게 밀려 열차 밖으로 내던져졌다. 승강장 바닥에 피가 번진다.', 'l-bad');
+  else say('객차 문의 틈을 손톱으로 찢어 벌렸다. 색 없는 공간을 지나 — 승강장에 발이 닿았다.', 'l-day');
+  say('출발 안내 전광판의 시계는 거의 움직이지 않았다. 누구도 당신이 열차에 있었다는 걸 모른다.', 'l-amb');
+  if (w.pouchesMade) say(`열차에서 데리고 나온 피주머니 ${w.pouchesMade}개. 그들은 아직도 자신이 열차 안에 있다고 믿는다.`, 'l-sys');
+  if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; }
+  if (S.loc) say(`📍 ${S.loc.label}`, 'l-day');
+}
+const VAMP_LEAVE = { t: '열차에서 내린다 — 객차 문을 찢어 연다 (바깥에서는 몇 초)', fn() { vampLeaveTrain(false); } };
+// 제압을 받아들이면(혹은 제압당하면) 기억 소거 — 열차 안의 일은 없었던 일이 되고 도시로 돌아온다
+function stowSubdued(why) {
+  const w = S.warp, s = w.snap;
+  Object.assign(S, { hp: s.hp, maxHp: s.maxHp, maxStg: s.maxStg, press: s.press, deck: s.deck }); S._h = null;
+  if (w.pouchesMade) { S.pouches = Math.max(0, (S.pouches || 0) - w.pouchesMade); S.pouchYield = Math.max(0, (S.pouchYield || 0) - (w.yieldMade || 0)); }
+  say(why || '정리 요원의 검사기가 당신의 머리를 훑는다. 기억 소거.', 'l-bad');
+  S.warp = null; S.day = w.start; S.turn = w.startTurn; S.seenToday = []; S.flags.travelDay = S.day;
+  if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; }
+  say(`눈을 떠보니 승강장 벤치였다. 표는 손에 있는데 열차를 탄 기억이 없다.${w.pouchesMade ? ' 열차에서 만든 피주머니들도 함께 사라졌다.' : ''}`, 'l-amb');
+  if (S.loc) say(`📍 ${S.loc.label}`, 'l-day');
+}
+const STOW_SUBMIT = { t: '제압을 받아들인다 — 기억 소거 후 도시로', fn() { stowSubdued(); } };
+// 제압을 계속 거부하면 금기 사냥꾼(특색급)이 들어온다
+ENEMIES.warp_taboo = { elite: true, name: '금기 사냥꾼', desc: '제압을 거듭 거부한 승객을 처리하러 투입된 특색급 금기 사냥꾼. 열차 안에서는 그도 죽지 않는다.', hp: 420, stg: 160, slots: 3,
+  res: { 참격: 0.8, 관통: 0.8, 타격: 0.8 }, reward: [0, 0], light: 7, lightRegen: 3, passive: '금기 집행 — 매 막 힘 1·보호 2', onRound: e => { e.st.str += 1; e.st.prot += 2; },
+  pool: [{ name: '금기 집행', dice: [['참격', 14, 22], ['참격', 12, 18]], onHit: { bleed: 3 } }, { name: '사형 선고', dice: [['관통', 18, 28]] },
+    { name: '봉쇄', dice: [['방어', 14, 20]] }, { name: '연속 처단', dice: [['타격', 10, 15], ['타격', 10, 15], ['참격', 10, 15]], onHit: { para: 1 } }] };
+const STOW_TABOO_AT = 3;
+
+EVENTS.push(
+  { id: 'vp_warp_board', fac: ['vampire'], when: [0, 1, 2], w: 1, cond: () => !S.warp && !S.exiled, title: 'W사 워프 열차 승강장',
+    text: '승강장은 사람으로 붐빈다. 모자를 눌러쓰고 송곳니를 숨기면, 혈귀도 승객 중 하나다. 이 열차가 "사고"를 낼 때 안쪽에서 무슨 일이 생기는지, 당신은 알고 있다. 거기서는 아무도 죽지 않는다 — 몇 번을 마셔도.',
+    choices: [
+      { t: '정체를 숨기고 일반석에 탄다 (30만 안) — 사고 열차', cost: 300000, fn() {
+        spend(300000); enterWarp(); S.warp.stow = 'vamp'; S.warp.pouchesMade = 0;
+        say('검표원이 당신의 얼굴을 한 번 보고 지나갔다. 문이 닫힌다.', 'l-bad');
+      } },
+      { t: '타지 않는다', def: true, fn() { say('열차가 떠났다. 다음 기회는 또 온다.'); } },
+    ] },
+  { id: 'col_warp_board', when: [0, 1, 2], w: 1, cond: () => !S.warp && !S.exiled && (faction() === 'color' || S.colorBadge), title: '부정 승차',
+    text: '특색은 일반 열차에 탈 수 없다. 특색 전용 열차는 W사가 미리 준비하고, 정리 요원이 동승한다. 하지만 코트를 바꿔 입고 일반석 표를 사면 — 검표원은 당신의 얼굴까지는 모른다. 이 열차가 "사고"를 내면 그 안에서 얼마든 머물 수 있다.',
+    choices: [
+      { t: '정체를 숨기고 일반석에 탄다 (30만 안) — 사고 열차', cost: 300000, fn() {
+        spend(300000); enterWarp(); S.warp.stow = 'color';
+        say('검표원이 표를 찍고 지나갔다. 문이 닫힌다. 특색이 탄 열차는 반드시 사고가 난다고들 한다.', 'l-bad');
+      } },
+      { t: '타지 않는다', def: true, fn() { say('특색 전용 열차를 기다리기로 했다.'); } },
+    ] },
+  // 열차 안 사냥 — 승객은 죽지 않으니, 피주머니를 무한히 만들 수 있다
+  { id: 'wp_vamp_prey', warp: true, when: [0, 1, 2, 3], w: 3, cond: vampTrain, title: '죽지 않는 승객들',
+    build() {
+      const d = warpInner(), s = warpStage();
+      this.text = s === 0 ? `열차 안 ${dayStr(d)}째. 승객들은 아직 당신이 무엇인지 모른다. 이 안에서는 아무도 죽지 않는다. 피를 아무리 뽑아도.`
+        : s <= 2 ? `열차 안 ${dayStr(d)}째. 혈관이 실처럼 이어진 채 숨을 쉬는 승객들. 마셔도 마셔도 줄지 않는 피.`
+        : `열차 안 ${dayStr(d)}째. 엉겨붙은 살덩어리 사이로 맥박이 뛴다. 이 칸 전체가 피주머니다.`;
+      return [
+        { t: '승객을 붙잡아 피주머니로 만든다 — 매일 피 +1 (열차 안에서는 한도 없음)', fn() {
+          S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + 1; S.warp.pouchesMade++; S.warp.yieldMade = (S.warp.yieldMade || 0) + 1;
+          say(`좌석에 묶인 승객의 목에 송곳니를 박았다. 그는 죽지 않는다. (피주머니 ${S.pouches}, 매일 피 +${S.pouchYield})`);
+        } },
+        { t: '그 자리에서 마신다 — 피 +2, 체력 회복', def: true, fn() { S.blood = (S.blood || 0) + 2; heal(15); say(`목을 물었다. 상처가 금방 아문다. 다시 물었다. (피 ${S.blood})`); } },
+        { t: '저항하는 승객을 사냥한다 — 전투 후 처분', fn() { say('승객 하나가 당신의 송곳니를 보고 달려들었다.', 'l-bad'); S.vpCaptive = CAPTIVES.warp_mad; fightInTrain('warp_mad', { captive: 'warp_mad' }); } },
+      ];
+    }, text: '' },
+  // 추격 — 오래 머물수록 하나 협회 토벌대와 W사 정리 요원이 열차 안으로 들어온다
+  { id: 'wp_vamp_chase', warp: true, when: [0, 1, 2, 3], w: 8, cond: () => stowTrain() && Math.random() < vampChaseChance(), title: '추격자',
+    build() {
+      const d = warpInner(), p = d / WARP_INNER;
+      const n = p < 0.3 ? 1 : p < 0.7 ? 2 : 3;
+      const refuse = () => { S.warp.refusals = (S.warp.refusals || 0) + 1; };
+      if ((S.warp.refusals || 0) >= STOW_TABOO_AT) {
+        this.text = `열차 안 ${dayStr(d)}째. 정리 요원들이 길을 비킨다. 그 사이로 걸어 들어오는 한 사람. 공기가 무거워진다. "제압을 ${S.warp.refusals}번 거부했군. 금기 사냥꾼이다."`;
+        return [
+          { t: '금기 사냥꾼과 싸운다 (특색급 · 패배하면 기억 소거)', fn() { refuse();
+            fight('warp_taboo', { noCow: true, noRob: true, lethal: false, hpMul: 1 + p * 0.5, power: Math.floor(p * 3),
+              win() { merit(6); say('금기 사냥꾼이 무릎을 꿇었다. 죽지는 않는다. 다음엔 더 많은 수가 올 것이다.', 'l-day'); },
+              lose() { stowSubdued('금기 사냥꾼의 칼끝이 이마에 닿았다. 기억 소거.'); } });
+          } },
+          STOW_SUBMIT,
+          { ...VAMP_LEAVE, t: '열차에서 내린다 (바깥에서는 몇 초)', def: true },
+        ];
+      }
+      if (S.warp.stow === 'color') {   // 특색의 부정 승차 — 고등급 CCA 정리 요원
+        const g = p < 0.4 ? 4 : 5, cnt = p < 0.2 ? 1 : p < 0.6 ? 2 : 3;
+        const who = `W사 ${g}등급 CCA 정리 요원${cnt > 1 ? ' ' + cnt + '명' : ''}`;
+        this.text = `열차 안 ${dayStr(d)}째. 객차 문이 열리고 충전식 엑소 슈트 「클리닝 아머」의 구동음이 들린다. ${josa(who, '이', '가')} 들어온다. "부정 승차 확인. 특색 등급 위협. 정리합니다."`;
+        return [
+          { t: `맞선다 — ${who} (패배하면 제압 — 기억 소거)`, fn() {
+            refuse(); fight('w_agent', { count: cnt, name: `W사 ${g}등급 CCA 정리 요원`, desc: '높은 실적의 고등급 정리 요원. 충전식 엑소 슈트 「클리닝 아머」를 입었다.',
+              noCow: true, noRob: true, lethal: false, hpMul: 0.6 + g * 0.3 + p * 0.8, power: g - 2 + Math.floor(p * 3),
+              win() { merit(3); say('정리 요원들이 쓰러졌다. 클리닝 아머의 충전 표시등이 꺼진다.'); }, lose() { stowSubdued(); } });
+          } },
+          STOW_SUBMIT,
+          { ...VAMP_LEAVE, t: '맞서지 않고 열차에서 내린다 (바깥에서는 몇 초)', def: true },
+        ];
+      }
+      const hana = p < 0.3 ? 'hana_low' : p < 0.7 ? 'hana_mid' : 'hana_high';
+      const team = [hana, 'w_agent', hana].slice(0, n);
+      const who = n === 1 ? '하나 협회 해결사 한 명' : n === 2 ? '하나 협회 해결사와 W사 정리 요원' : '하나 협회 토벌대와 W사 정리 요원들';
+      this.text = `열차 안 ${dayStr(d)}째. 객차 문이 바깥에서 열린다 — 이 열차에 "바깥"이 있다면. ${josa(who, '이', '가')} 들어온다. "혈귀 탑승 신고. 열차 안 체류 ${dayStr(d)}. 정리합니다."`;
+      return [
+        { t: `맞선다 — ${who} (패배하면 제압 — 기억 소거)`, fn() {
+          refuse(); fight(team[0], { enemies: team, noCow: true, noRob: true, lethal: false, hpMul: 1 + p * 0.8, power: Math.floor(p * 4),
+            captive: hana, win() { merit(2); say('추격자들이 쓰러졌다. 이 안에서는 그들도 죽지 않는다. 다만 일어나지 못할 뿐.'); },
+            lose() { stowSubdued(); } });
+        } },
+        STOW_SUBMIT,
+          { ...VAMP_LEAVE, t: '맞서지 않고 열차에서 내린다 (바깥에서는 몇 초)', def: true },
+      ];
+    }, text: '' },
+);
+// 열차 안에서는 피주머니 한도가 없고, 실종 소문도 나지 않는다
+(() => {
+  const fate = EV('vp_fate'), ob = fate.build;
+  fate.build = function () {
+    const ch = ob.call(this);
+    if (S.warp) {
+      this.text = this.text.replace(`피주머니 ${S.pouches || 0}/5`, `피주머니 ${S.pouches || 0} · 열차 안에서는 한도 없음`);
+      const i = ch.findIndex(c => c.t.startsWith('피주머니로 만든다'));
+      if (i >= 0) ch[i] = { t: `피주머니로 만든다 — 매일 피 +${(S.vpCaptive || CAPTIVES.citizen).yield} (열차 안: 한도 없음, 악명 없음)`, fn() {
+        const c = S.vpCaptive || CAPTIVES.citizen; S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + c.yield; S.warp.pouchesMade = (S.warp.pouchesMade || 0) + 1; S.warp.yieldMade = (S.warp.yieldMade || 0) + c.yield;
+        say(`${josa(c.label, '을', '를')} 좌석에 묶었다. 죽지 않는 피주머니. (피주머니 ${S.pouches}, 매일 피 +${S.pouchYield})`);
+      } };
+    }
+    return ch;
+  };
+})();
+
+// 열차 이벤트 공통: 열차 안 시간에 맞는 한 줄을 덧붙이고(같은 문장 반복 없음), 혈귀는 언제든 내릴 수 있다
+for (const e of EVENTS.filter(e => e.warp && e.id !== 'wp_arrival')) {
+  const ob = e.build, bt = e.text, bc = e.choices;
+  e.build = function () {
+    let ch;
+    if (ob) ch = ob.call(this); else { this.text = bt; ch = bc; }
+    if (S.warp && warpStage() >= 1) this.text += `<br><span class="l-amb">${warpLine(warpInner())}</span>`;
+    if (stowTrain() && !ch.some(c => c.fn === VAMP_LEAVE.fn)) ch = [...ch, VAMP_LEAVE];
+    return ch;
+  };
 }
 
 const FINGER_DAILY = [
@@ -4115,13 +4404,13 @@ function endTurn() {
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
     if (!S.warp && inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
-    if (!S.warp && faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
+    if ((!S.warp || S.warp.stow) && faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
     print(S.warp ? `열차 안 ${warpInner().toLocaleString()}일째 — 창밖은 여전히 색이 없다.` : S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
       : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
     if (S.warp) {
       if (S.day >= S.warp.end) exitWarp();
-      else { say(`또 ${Math.round(WARP_INNER / WARP_DAYS).toLocaleString()}일이 흘렀다. (열차 안 ${warpInner().toLocaleString()}일째)`, 'l-bad'); stress(5); }
+      else { const now = warpInner(), gone = now - (S.warp.dayMark || 0); S.warp.dayMark = now; say(`또 ${gone.toLocaleString()}일이 흘렀다. (열차 안 ${now.toLocaleString()}일째)`, 'l-bad'); stress(5); }
     }
     // 월급은 30일마다. 날개에 막 들어왔다면 첫 월급날을 정한다
     if (H().monthlyPay && !S.exiled && !S.warp) {
