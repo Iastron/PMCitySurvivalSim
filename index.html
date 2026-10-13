@@ -73,6 +73,11 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
 .char .mini{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px}
 .char .mini span{font-size:11px;background:var(--panel2);border:1px solid var(--line);padding:1px 5px;border-radius:3px}
 
+/* city facilities */
+#modal h4{margin:14px 0 6px;color:var(--cyan);font-size:14px}
+.fac-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.fac-row button{white-space:nowrap;min-width:92px}
+
 /* origin roll */
 .roll-btn{font-size:17px;padding:14px 22px;border-color:var(--gold);color:var(--gold)}
 #rollResult{margin-top:16px}
@@ -147,9 +152,10 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
     <div class="bar-row">
       <span class="stat" id="clock"></span>
       <span class="stat">HP <b id="sHp"></b></span>
-      <span class="stat">안 <b id="sMoney"></b></span>
+      <span class="stat">자금 <b id="sMoney"></b></span>
       <span class="stat"><span id="sRole" class="dim"></span> <b id="sGrade"></b></span>
       <span class="stat">실적 <b id="sMerit"></b></span>
+      <button id="cityBtn" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">도시 시설</button>
       <button id="deckBtn" style="padding:3px 9px;font-size:13px">덱 보기</button>
       <button id="helpBtn" style="padding:3px 9px;font-size:13px">도움말</button>
       <div class="speed">
@@ -179,7 +185,8 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
     <div id="rollArea">
       <button id="rollBtn" class="roll-btn">도시에 태어나기 — 무작위 출신 결정</button>
       <div id="rollResult"></div>
-      <details class="odds"><summary>출신별 확률 보기</summary><div id="oddsTable"></div></details>
+      <details class="odds"><summary>출신별 확률 보기</summary><div id="oddsTable"></div>
+        <p>태어나는 곳도 무작위: 1~25구(A~Y사)의 둥지·뒷골목, 또는 외곽(15%). 머리·날개 소속은 반드시 도시 내부 둥지에서 태어난다.</p></details>
     </div>
   </section>
 
@@ -253,15 +260,15 @@ const CARDS = {
   rt_sand:    { name: '모래 뿌리기', cost: 1, dice: [['타격', 1, 3]], onUse: { enemy: { para: 2 } }, desc: '사용 시 적에게 마비 2' },
   rt_grit:    { name: '악착같이', cost: 1, dice: [['참격', 3, 6]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
   // 공방 / 보상 카드
-  mook_blade: { name: '묵 공방 대검', cost: 2, dice: [['참격', 6, 11]], price: 160 },
-  hammer:     { name: '대장장이 망치', cost: 2, dice: [['타격', 5, 9], ['방어', 3, 5]], price: 150 },
-  train:      { name: '단련', cost: 1, dice: [['방어', 3, 6]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1', price: 90 },
-  firstaid:   { name: '응급 처치', cost: 1, instant: true, fx: { heal: 7, draw: 1 }, desc: '즉시: 체력 7 회복, 카드 1장 뽑기', price: 80 },
-  flow:       { name: '빛의 흐름', cost: 0, instant: true, fx: { light: 1, draw: 1 }, desc: '즉시: 빛 1 회복, 카드 1장 뽑기', price: 110 },
-  bullet:     { name: '강화 탄환', cost: 1, dice: [['관통', 4, 9]], onHit: { burn: 1 }, desc: '적중 시 화상 1', price: 130 },
-  deflect:    { name: '흘려내기', cost: 0, dice: [['회피', 4, 8]], price: 90 },
-  combo:      { name: '연계 공격', cost: 1, dice: [['참격', 2, 5], ['관통', 2, 5]], price: 100 },
-  tremor:     { name: '흐트러뜨리기', cost: 1, dice: [['타격', 3, 7]], onHit: { para: 1 }, desc: '적중 시 마비 1', price: 95 },
+  mook_blade: { name: '묵 공방 대검', cost: 2, dice: [['참격', 6, 11]], price: 12000000 },
+  hammer:     { name: '대장장이 망치', cost: 2, dice: [['타격', 5, 9], ['방어', 3, 5]], price: 3000000 },
+  train:      { name: '단련', cost: 1, dice: [['방어', 3, 6]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1', price: 300000 },
+  firstaid:   { name: '응급 처치', cost: 1, instant: true, fx: { heal: 7, draw: 1 }, desc: '즉시: 체력 7 회복, 카드 1장 뽑기', price: 150000 },
+  flow:       { name: '빛의 흐름', cost: 0, instant: true, fx: { light: 1, draw: 1 }, desc: '즉시: 빛 1 회복, 카드 1장 뽑기', price: 1200000 },
+  bullet:     { name: '강화 탄환', cost: 1, dice: [['관통', 4, 9]], onHit: { burn: 1 }, desc: '적중 시 화상 1', price: 1500000 },
+  deflect:    { name: '흘려내기', cost: 0, dice: [['회피', 4, 8]], price: 300000 },
+  combo:      { name: '연계 공격', cost: 1, dice: [['참격', 2, 5], ['관통', 2, 5]], price: 500000 },
+  tremor:     { name: '흐트러뜨리기', cost: 1, dice: [['타격', 3, 7]], onHit: { para: 1 }, desc: '적중 시 마비 1', price: 400000 },
   // 고아
   or_bite:    { name: '물어뜯기', cost: 0, dice: [['관통', 1, 4]] },
   or_run:     { name: '도망치기', cost: 0, dice: [['회피', 2, 5]] },
@@ -305,19 +312,28 @@ const CARDS = {
   col_mark:   { name: '색의 각인', cost: 1, dice: [['타격', 6, 10]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
   col_guard:  { name: '불패의 수', cost: 1, dice: [['방어', 7, 12], ['회피', 6, 10]] },
   col_flash:  { name: '섬광', cost: 0, dice: [['관통', 5, 9]] },
-  // 발톱
-  cl_serum:   { name: '혈청 주입', cost: 0, instant: true, fx: { light: 1, nextStr: 2 }, desc: '즉시: 빛 1 회복, 다음 막 힘 2' },
-  cl_exec:    { name: '처형 집행', cost: 2, dice: [['관통', 10, 16], ['관통', 10, 16]] },
-  cl_blink:   { name: '순간 강습', cost: 1, dice: [['참격', 7, 12], ['참격', 6, 10]] },
-  cl_guard:   { name: '발톱의 방벽', cost: 1, dice: [['방어', 8, 13]] },
-  // 조율자
-  ar_lock:    { name: '봉인', cost: 1, instant: true, fx: { enemy: { para: 3 }, draw: 1 }, desc: '즉시: 적에게 마비 3, 카드 1장 뽑기' },
-  ar_fix:     { name: '고정', cost: 1, dice: [['방어', 10, 16]] },
-  ar_order:   { name: '조율', cost: 3, dice: [['타격', 15, 25], ['타격', 15, 25]] },
-  ar_still:   { name: '정지된 시간', cost: 2, dice: [['관통', 12, 20]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
+  // 발톱 — 날개들의 특이점을 담은 혈청
+  cl_w:       { name: '혈청 W', cost: 1, dice: [['관통', 8, 13], ['참격', 7, 11]], onUse: { draw: 1 }, desc: 'W사 — 공간을 접어 순간이동 강습. 사용 시 카드 1장 뽑기' },
+  cl_r:       { name: '혈청 R', cost: 1, dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onUse: { nextStr: 1 }, desc: 'R사 — 짐승의 근력으로 연격. 사용 시 다음 막 힘 1' },
+  cl_k:       { name: '혈청 K', cost: 1, instant: true, fx: { heal: 20, cleanse: true }, desc: 'K사 — 즉시 재생. 체력 20 회복, 출혈·화상 제거' },
+  cl_exec:    { name: '처형', cost: 2, dice: [['관통', 10, 16], ['관통', 10, 16]] },
+  cl_guard:   { name: '혈청 경화', cost: 1, dice: [['방어', 8, 13]] },
+  // 조율자 — 도시의 이치를 조율하는 힘
+  ar_pillar:  { name: '기둥', cost: 2, dice: [['타격', 12, 20]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
+  ar_lock:    { name: '자물쇠', cost: 1, instant: true, fx: { enemy: { para: 3 }, draw: 1 }, desc: '즉시: 적을 잠근다. 마비 3, 카드 1장 뽑기' },
+  ar_fairy:   { name: '요정', cost: 1, dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onHit: { bleed: 2 }, desc: '적중 시 출혈 2' },
+  ar_wave:    { name: '충격파', cost: 3, dice: [['타격', 15, 25], ['타격', 12, 20]] },
+  ar_chain:   { name: '사슬', cost: 1, dice: [['방어', 10, 16]], onUse: { enemy: { para: 1 } }, desc: '사용 시 적에게 마비 1' },
+  // 명품 공방 / 특이점 응용 무기 (도시 시설 전용, 전리품으로는 나오지 않음)
+  atl_boots:  { name: '명품 공방 가속 장화', cost: 0, dice: [['회피', 7, 12]], price: 40000000, premium: true },
+  atl_shield: { name: '명품 공방 반격 방패', cost: 1, dice: [['방어', 9, 15], ['타격', 5, 9]], price: 60000000, premium: true },
+  atl_blade:  { name: '명품 공방 장검 「흑단」', cost: 2, dice: [['참격', 9, 15], ['참격', 6, 10]], price: 80000000, premium: true },
+  atl_gun:    { name: '명품 공방 연발총', cost: 2, dice: [['관통', 7, 12], ['관통', 7, 12]], onHit: { burn: 2 }, desc: '적중 시 화상 2', price: 150000000, premium: true },
+  atl_core:   { name: '특이점 응용 무기 「역인과의 칼」', cost: 3, dice: [['참격', 14, 22], ['관통', 10, 16]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기', price: 800000000, premium: true },
   ego:        { name: 'E.G.O 발현의 편린', cost: 3, dice: [['참격', 8, 14], ['관통', 6, 10]], onUse: { heal: 5 }, desc: '사용 시 체력 5 회복', rare: true },
 };
-const SHOP_POOL = Object.keys(CARDS).filter(k => CARDS[k].price);
+const SHOP_POOL = () => Object.keys(CARDS).filter(k => CARDS[k].price);
+const DROP_POOL = () => SHOP_POOL().filter(k => !CARDS[k].premium);
 
 const STATUS_NAME = { bleed: '출혈', burn: '화상', para: '마비', str: '힘', end: '인내', prot: '보호' };
 const STATUS_DESC = {
@@ -336,16 +352,18 @@ const STATUS_DESC = {
      lastStand · emoMul · enemyBleedMul · dailyPay · extraDraw
 ========================================================= */
 Object.assign(CARDS, {
+  // 응시자 — 전투원이 아니다. 보고 기록하고, 필요하면 발톱을 부른다
   wt_gaze:  { name: '응시', cost: 0, instant: true, fx: { enemy: { para: 2 }, draw: 1 }, desc: '즉시: 적에게 마비 2, 카드 1장 뽑기' },
-  wt_judge: { name: '관측된 결말', cost: 2, dice: [['관통', 9, 15], ['타격', 8, 13]] },
-  wt_veil:  { name: '시선의 장막', cost: 1, dice: [['회피', 8, 14], ['방어', 6, 10]] },
-  wt_point: { name: '지목', cost: 1, dice: [['관통', 7, 12]], onHit: { para: 1 }, desc: '적중 시 마비 1' },
+  wt_veil:  { name: '시선 피하기', cost: 0, dice: [['회피', 6, 11]] },
+  wt_record:{ name: '기록', cost: 1, dice: [['방어', 6, 10]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
+  wt_point: { name: '지목', cost: 1, dice: [['관통', 4, 8]], onHit: { para: 1 }, desc: '적중 시 마비 1' },
+  wt_call:  { name: '발톱 호출', cost: 3, dice: [['관통', 12, 18], ['참격', 10, 15]], desc: '응시자의 신호에 발톱이 응답한다' },
 });
 
 const AFFS = {
   street:  { name: '뒷골목 무소속', faction: 'street', passive: '없음 — 아무도 당신을 지켜주지 않는다.' },
   wing:    { name: '날개 소속 깃털', faction: 'wing', home: true, passive: '월급날 — 매일 아침 급여. 둥지의 집에서 밤을 무료로 보낸다.',
-    hooks: { dailyPay: 60 }, cards: ['fe_report'] },
+    hooks: { dailyPay: 100000 }, cards: ['fe_report'] },
   gang:    { name: '뒷골목 조직원', faction: 'gang', passive: '조직의 문신 — 첫 막에 힘 2.',
     hooks: { roundStart(P) { if (C.round === 1) P.st.str += 2; } }, cards: ['gg_knife', 'gg_ink'] },
   fixer:   { name: '무소속 해결사', faction: 'fixer', fixer: true, passive: '자유 계약 — 의뢰 보수 +20%.',
@@ -358,11 +376,11 @@ const AFFS = {
     hooks: { rollBonus(P, d, E) { return OFF(d[0]) && E.st.burn > 0 ? 1 : 0; } }, cards: ['liu_fist', 'liu_blaze'] },
   f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지의 카포'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
     hooks: { roundStart(P) { P.st.str += 1; } }, cards: ['th_load', 'th_manner'] },
-  f_index: { name: '검지', ranks: ['검지 대행자 견습', '검지의 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
+  f_index: { name: '검지', ranks: ['검지의 신도', '검지의 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
     hooks: { roundStart(P) { const k = pick(['str', 'end', 'prot']); P.st[k] += 2; clog(`지령 — ${STATUS_NAME[k]} +2`, 'l-sys'); } }, cards: ['ix_order', 'ix_will'] },
   f_middle:{ name: '중지', ranks: ['중지의 동생', '중지의 형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
     hooks: { rollBonus(P, d) { return OFF(d[0]) && P.hp <= P.maxHp / 2 ? 3 : 0; } }, cards: ['md_hammer', 'md_ledger'] },
-  f_ring:  { name: '약지', ranks: ['약지의 견습 화가', '약지의 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
+  f_ring:  { name: '약지', ranks: ['약지의 도슨트', '약지의 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
     hooks: { enemyBleedMul: 2 }, cards: ['rg_brush', 'rg_master'] },
   f_pinky: { name: '소지', ranks: ['소지의 조직원', '소지의 간부'], faction: 'finger', home: true, passive: '결전의 예 — 공격 주사위끼리 동률이면 승리.',
     hooks: { tieWin: true }, cards: ['pk_draw', 'pk_duel'] },
@@ -370,7 +388,7 @@ const AFFS = {
     hooks: { emoMul: 2, lastStand: true }, cards: ['col_strike', 'col_mark'] },
   claw:    { name: '머리 — 발톱', faction: 'head', locked: true, home: true, passive: '머리의 집행 — 공격 주사위 위력 +2, 감정 획득 2배.',
     hooks: { rollBonus(P, d) { return OFF(d[0]) ? 2 : 0; }, emoMul: 2 } },
-  watcher: { name: '머리 — 응시자', faction: 'head', locked: true, home: true, passive: '응시 — 매 막 적에게 마비 1, 방어·회피 주사위 위력 +3.',
+  watcher: { name: '머리 — 응시자', faction: 'head', locked: true, home: true, passive: '응시 — 매 막 적에게 마비 1, 방어·회피 주사위 위력 +3. (비전투원)',
     hooks: { roundStart(P, E) { E.st.para += 1; }, rollBonus(P, d) { return OFF(d[0]) ? 0 : 3; } } },
   arbiter: { name: '머리 — 조율자', faction: 'head', locked: true, home: true, passive: '조율 — 매 막 적의 힘·인내를 지우고, 내 모든 주사위 위력 +3.',
     hooks: { roundStart(P, E) { E.st.str = 0; E.st.end = 0; }, rollBonus() { return 3; } } },
@@ -386,58 +404,58 @@ const ASSOC_KEYS = ['zwei', 'shi', 'liu'];
 const TIER_NAME = ['흔함', '평범', '드묾', '희귀', '전설', '신화'];
 
 const ORIGINS = [
-  { id: 'orphan', w: 140, tier: 0, name: '뒷골목 고아', aff: 'street', grade: 9, hp: 38, stg: 24, money: 10,
+  { id: 'orphan', w: 140, tier: 0, name: '뒷골목 고아', aff: 'street', grade: 9, hp: 38, stg: 24, money: 3000,
     trait: '살아남은 아이 — 전투마다 1번, 치명상을 체력 1로 버틴다. 도주 성공률 높음.',
     deck: ['or_bite', 'or_bite', 'or_run', 'or_run', 'or_run', 'or_stone', 'or_stone', 'or_hide'],
     intro: '부모의 얼굴은 기억나지 않는다. 기억나는 건 배고픔과, 밤마다 들리던 기계음뿐.',
     hooks: { lastStand: true, flee: 0.85 } },
-  { id: 'rat', w: 160, tier: 0, name: '뒷골목의 쥐', aff: 'street', grade: 9, hp: 48, stg: 28, money: 30,
+  { id: 'rat', w: 160, tier: 0, name: '뒷골목의 쥐', aff: 'street', grade: 9, hp: 48, stg: 28, money: 20000,
     trait: '뒷골목 생존술 — 전투 보상 안 ×1.5, 도주 성공률 높음.',
     deck: ['rt_knife', 'rt_knife', 'rt_flail', 'rt_flail', 'rt_stab', 'rt_stab', 'rt_sand', 'rt_grit'],
     intro: '직업도, 연줄도, 돈도 없다. 자신보다 약한 자의 주머니만이 내일을 보장한다.',
     hooks: { moneyMul: 1.5, flee: 0.85 } },
-  { id: 'feather', w: 120, tier: 1, name: '둥지 출신 깃털', aff: 'wing', grade: 8, hp: 44, stg: 26, money: 300,
+  { id: 'feather', w: 120, tier: 1, name: '둥지 출신 깃털', aff: 'wing', grade: 8, hp: 44, stg: 26, money: 3000000,
     trait: '둥지의 교육 — 시작 자금이 많다.',
     deck: ['fe_bag', 'fe_bag', 'fe_bag', 'fe_spray', 'fe_spray', 'fe_report', 'rt_flail', 'firstaid'],
     intro: '주 70시간 근무. 그래도 둥지 안이다. 창밖의 뒷골목을 내려다보며 캔맥주를 마시는 삶.' },
-  { id: 'grunt', w: 110, tier: 1, name: '뒷골목 조직 출신', aff: 'gang', grade: 9, hp: 54, stg: 30, money: 60,
+  { id: 'grunt', w: 110, tier: 1, name: '뒷골목 조직 출신', aff: 'gang', grade: 9, hp: 54, stg: 30, money: 150000,
     trait: '싸움꾼 — 시작 체력이 높다.',
     deck: ['gg_knife', 'gg_knife', 'gg_rush', 'gg_rush', 'gg_ink', 'rt_flail', 'rt_flail', 'rt_knife'],
     intro: '어깨에 새긴 강화 문신은 조직을 나갈 수 없다는 뜻이기도 하다.' },
-  { id: 'zwei', w: 80, tier: 1, name: '츠바이 협회 견습', aff: 'zwei', grade: 9, hp: 72, stg: 46, money: 80,
+  { id: 'zwei', w: 80, tier: 1, name: '츠바이 협회 견습', aff: 'zwei', grade: 9, hp: 72, stg: 46, money: 400000,
     trait: '협회 교육 — 기초 검술과 방어를 배웠다.',
     deck: ['zw_slash', 'zw_slash', 'zw_guard', 'zw_guard', 'zw_counter', 'zw_protect', 'zw_justice', 'zw_slash'],
     intro: '츠바이 협회의 문양이 새겨진 코트. 견습이지만, 지키는 법은 배웠다.' },
-  { id: 'shi', w: 80, tier: 1, name: '시 협회 견습', aff: 'shi', grade: 9, hp: 56, stg: 34, money: 100,
+  { id: 'shi', w: 80, tier: 1, name: '시 협회 견습', aff: 'shi', grade: 9, hp: 56, stg: 34, money: 500000,
     trait: '협회 교육 — 급소를 노리는 법을 배웠다.',
     deck: ['shi_ambush', 'shi_ambush', 'shi_evade', 'shi_evade', 'shi_vital', 'shi_flurry', 'shi_death', 'shi_vital'],
     intro: '검은 옷, 조용한 발걸음. 시 협회는 의뢰받은 목숨만을 가져간다.' },
-  { id: 'liu', w: 80, tier: 1, name: '리우 협회 견습', aff: 'liu', grade: 9, hp: 62, stg: 40, money: 90,
+  { id: 'liu', w: 80, tier: 1, name: '리우 협회 견습', aff: 'liu', grade: 9, hp: 62, stg: 40, money: 450000,
     trait: '협회 교육 — 불을 다루는 법을 배웠다.',
     deck: ['liu_fist', 'liu_fist', 'liu_block', 'liu_stoke', 'liu_blaze', 'liu_dodge', 'liu_fist', 'liu_block'],
     intro: '동부식 무복 위에 불씨가 튄다. 리우의 불은 꺼지지 않는다.' },
-  { id: 'veteran', w: 60, tier: 2, name: '협회 3과 해결사', aff: 'assoc', grade: 4, hp: 88, stg: 52, money: 400, light: 4,
+  { id: 'veteran', w: 60, tier: 2, name: '협회 3과 해결사', aff: 'assoc', grade: 4, hp: 88, stg: 52, money: 15000000, light: 4,
     trait: '숙련 — 최대 빛 4로 시작한다.',
     deck: ['zw_justice', 'combo', 'combo', 'mook_blade', 'deflect', 'train', 'bullet', 'shi_vital', 'zw_guard'],
     intro: '도시 질병급 의뢰를 몇 번 넘겼다. 이제 뒷골목의 쥐들은 당신을 보면 길을 비킨다.' },
-  { id: 'grade1', w: 15, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 1500, light: 4,
+  { id: 'grade1', w: 15, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 300000000, light: 4,
     trait: '해결사의 정점 — 최대 빛 4, 매 막 카드를 1장 더 뽑는다.',
     deck: ['top_slash', 'top_slash', 'top_guard', 'top_guard', 'top_counter', 'top_pierce', 'top_pierce', 'flow', 'deflect'],
     intro: '날개조차 당신을 함부로 대하지 않는다. 엄지는 당신을 카포와 동등하게 대접한다.',
     hooks: { extraDraw: 1 } },
   { id: 'finger', w: 15, tier: 3, variant: 'finger' },
   { id: 'color', w: 6, tier: 4, variant: 'color' },
-  { id: 'watcher', w: 3, tier: 4, name: '머리의 응시자', aff: 'watcher', grade: 1, hp: 200, stg: 110, money: 3000, light: 5,
-    trait: '모든 것을 보는 눈 — 도시 안에서 숨을 수 있는 것은 없다.',
-    deck: ['wt_gaze', 'wt_gaze', 'wt_judge', 'wt_judge', 'wt_veil', 'wt_veil', 'wt_point', 'wt_point', 'flow'],
+  { id: 'watcher', w: 3, tier: 4, name: '머리의 응시자', aff: 'watcher', grade: 1, hp: 120, stg: 80, money: 800000000, light: 5,
+    trait: '비전투원 — 직접 싸우기보다 관측하고 기록한다. 머리의 행정 업무 대부분이 이 손을 거친다.',
+    deck: ['wt_gaze', 'wt_gaze', 'wt_veil', 'wt_veil', 'wt_record', 'wt_record', 'wt_point', 'wt_point', 'wt_call'],
     intro: '도시의 금기를 어긴 자는 어디로 도망치든 결국 발각된다. 발각시키는 것이 당신이다.' },
-  { id: 'claw', w: 3, tier: 4, name: '머리의 발톱', aff: 'claw', grade: 1, hp: 220, stg: 100, money: 3000, light: 5,
-    trait: '혈청 강화 — 빛 5로 시작한다.',
-    deck: ['cl_serum', 'cl_serum', 'cl_exec', 'cl_exec', 'cl_blink', 'cl_blink', 'cl_blink', 'cl_guard', 'cl_guard'],
+  { id: 'claw', w: 3, tier: 4, name: '머리의 발톱', aff: 'claw', grade: 1, hp: 220, stg: 100, money: 800000000, light: 5,
+    trait: '혈청 투여자 — 날개들의 특이점을 혈청으로 주입받았다. 빛 5로 시작한다.',
+    deck: ['cl_w', 'cl_w', 'cl_r', 'cl_r', 'cl_k', 'cl_k', 'cl_exec', 'cl_exec', 'cl_guard'],
     intro: '도시의 금기를 어긴 자를 지우기 위해 존재한다. 혈청이 혈관을 타고 흐를 때, 대상은 이미 죽어 있다.' },
-  { id: 'arbiter', w: 1, tier: 5, name: '머리의 조율자', aff: 'arbiter', grade: 1, hp: 300, stg: 140, money: 9999, light: 6,
+  { id: 'arbiter', w: 1, tier: 5, name: '머리의 조율자', aff: 'arbiter', grade: 1, hp: 300, stg: 140, money: 9999999999, light: 6,
     trait: '조율자 — 빛 6으로 시작한다.',
-    deck: ['ar_lock', 'ar_lock', 'ar_fix', 'ar_fix', 'ar_order', 'ar_order', 'ar_still', 'ar_still', 'flow'],
+    deck: ['ar_lock', 'ar_lock', 'ar_pillar', 'ar_pillar', 'ar_fairy', 'ar_fairy', 'ar_chain', 'ar_chain', 'ar_wave'],
     intro: '도시는 당신이 정한 대로 존재한다. 날개도, 손가락도, 특색도 당신 앞에서는 불순물일 뿐.' },
 ];
 
@@ -461,12 +479,12 @@ function rollOrigin() {
 function buildOrigin(o, fingerKey) {
   if (o.variant === 'finger') {
     const k = fingerKey || pick(FINGER_KEYS), a = AFFS[k];
-    return { id: 'finger', tier: o.tier, w: o.w, name: `${a.name} 간부 출신`, aff: k, grade: 2, hp: 140, stg: 72, money: 2000, light: 4,
+    return { id: 'finger', tier: o.tier, w: o.w, name: `${a.name} 간부 출신`, aff: k, grade: 2, hp: 140, stg: 72, money: 500000000, light: 4,
       trait: '간부의 무게 — 손가락에서 쌓아온 힘과 재산.', deck: FINGER_DECKS[k],
       intro: `${a.ranks[1]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.` };
   }
   if (o.variant === 'color') {
-    return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${pick(COLORS)}${pick(COLOR_NOUNS)}」`, aff: 'color', grade: 1, hp: 170, stg: 85, money: 5000, light: 5,
+    return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${pick(COLORS)}${pick(COLOR_NOUNS)}」`, aff: 'color', grade: 1, hp: 170, stg: 85, money: 1500000000, light: 5,
       trait: '특색 — 하나 협회가 인정한 최고의 해결사.',
       deck: ['col_strike', 'col_strike', 'col_mark', 'col_mark', 'col_guard', 'col_guard', 'col_flash', 'col_flash', 'flow'],
       intro: '하나 협회가 당신에게 색을 부여했다. 도시의 별을 떨어뜨리는 것이 당신의 일이다.' };
@@ -479,7 +497,7 @@ function buildOrigin(o, fingerKey) {
 const AFF = () => AFFS[S.aff];
 const isFixer = () => !!AFF().fixer;
 const faction = () => AFF().faction;
-const hasHome = () => !!AFF().home;
+const hasHome = () => !!AFF().home || !!S.ownHome;
 function affName(id = S.aff, grade = S ? S.grade : 9) {
   const a = AFFS[id];
   if (a.ranks) return grade <= 2 ? a.ranks[1] : a.ranks[0];
@@ -525,42 +543,42 @@ function changeAff(id, after) {
 ========================================================= */
 const ENEMIES = {
   rat: { name: '뒷골목 쥐', desc: '장기를 노리는 도시의 최하층. 강도로 하루를 연명한다.', hp: 30, stg: 16, slots: 1,
-    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [25, 45],
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [15000, 40000],
     pool: [{ name: '녹슨 칼질', dice: [['참격', 2, 5]] }, { name: '쇠파이프', dice: [['타격', 2, 5]] },
       { name: '장기 적출 시도', dice: [['관통', 1, 6]], onHit: { bleed: 1 } }, { name: '움츠리기', dice: [['방어', 1, 4]] }] },
   kong: { name: '콩콩이파 조직원', desc: '하와이안 셔츠와 단검. 전당포 거리의 수금원.', hp: 44, stg: 22, slots: 2,
-    res: { 참격: 1.2, 관통: 0.8, 타격: 1 }, reward: [50, 80],
+    res: { 참격: 1.2, 관통: 0.8, 타격: 1 }, reward: [80000, 150000],
     pool: [{ name: '단검 찌르기', dice: [['관통', 3, 6]] }, { name: '하와이안 난도질', dice: [['참격', 2, 4], ['참격', 2, 4]] },
       { name: '막아!', dice: [['방어', 2, 5]] }, { name: '빚 독촉', dice: [['타격', 3, 7]], onHit: { para: 1 } }] },
   thumb: { name: '엄지 솔다토', desc: '예법을 어긴 자에게 탄환으로 답한다.', hp: 60, stg: 28, slots: 2,
-    res: { 참격: 0.8, 관통: 1, 타격: 1.2 }, reward: [90, 130],
+    res: { 참격: 0.8, 관통: 1, 타격: 1.2 }, reward: [400000, 800000],
     pool: [{ name: '탄환 장전 사격', dice: [['관통', 4, 8]], onHit: { burn: 2 } }, { name: '총검 돌격', dice: [['관통', 3, 6], ['참격', 2, 4]] },
       { name: '카포에 대한 예', dice: [['방어', 3, 6]], onUse: { nextStr: 1 } }, { name: '개머리판', dice: [['타격', 3, 7]] }] },
   hunter: { name: '금기 사냥꾼', desc: '둥지의 금기를 어긴 자를 처리하는 날개 직속 해결사.', hp: 70, stg: 30, slots: 2,
-    res: { 참격: 0.9, 관통: 0.9, 타격: 1.1 }, reward: [100, 150],
+    res: { 참격: 0.9, 관통: 0.9, 타격: 1.1 }, reward: [600000, 1200000],
     passive: '집행 — 매 막 인내 1', onRound: e => { e.st.end += 1; },
     pool: [{ name: '금기 집행', dice: [['참격', 4, 8]] }, { name: '구속 사슬', dice: [['타격', 2, 5]], onHit: { para: 2 } },
       { name: '판결', dice: [['관통', 5, 9]] }, { name: '날개의 방패', dice: [['방어', 4, 8]] }] },
   sweeper: { name: '청소부', desc: '뒷골목의 밤을 쓸어내는 것들. 남는 것은 아무것도 없다.', hp: 62, stg: 30, slots: 2,
-    res: { 참격: 1, 관통: 0.6, 타격: 1.5 }, reward: [150, 220],
+    res: { 참격: 1, 관통: 0.6, 타격: 1.5 }, reward: [500000, 1000000],
     pool: [{ name: '쓸어담기', dice: [['참격', 3, 7], ['참격', 2, 5]] }, { name: '분쇄', dice: [['타격', 4, 8]] },
       { name: '흡입', dice: [['관통', 3, 6]], onHit: { healSelf: 4 }, desc: '적중 시 체력 4 흡수' }, { name: '외피 경화', dice: [['방어', 3, 7]] }] },
   twisted_small: { name: '뒤틀림 「쪼그라든 회사원」', desc: '야근 끝에 무언가가 부러졌다. 사람이었던 것.', hp: 58, stg: 26, slots: 2,
-    res: { 참격: 1.2, 관통: 1, 타격: 0.8 }, reward: [90, 120],
+    res: { 참격: 1.2, 관통: 1, 타격: 0.8 }, reward: [300000, 600000],
     pool: [{ name: '서류 뭉치 휘두르기', dice: [['타격', 3, 6]] }, { name: '야근의 손톱', dice: [['참격', 2, 5], ['참격', 2, 5]], onHit: { bleed: 1 } },
       { name: '결재 거부', dice: [['방어', 3, 7]] }] },
   twisted: { name: '뒤틀림 「울음을 삼킨 아이」', desc: '도시 괴담급 재해. 울음소리가 들리면 이미 늦었다.', hp: 95, stg: 40, slots: 3,
-    res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [160, 220],
+    res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [2000000, 4000000],
     passive: '커지는 울음 — 체력 절반 이하일 때 매 막 힘 1',
     onRound: (e) => { if (e.hp < e.maxHp / 2) { e.st.str += 1; clog('울음소리가 커진다… (힘 +1)', 'l-bad'); } },
     pool: [{ name: '울음', dice: [['타격', 3, 6]], onHit: { para: 1 } }, { name: '찢어진 요람', dice: [['참격', 4, 8], ['참격', 3, 5]] },
       { name: '눈물의 창', dice: [['관통', 5, 10]], onHit: { bleed: 2 } }, { name: '웅크림', dice: [['회피', 4, 8]] }] },
   smile: { name: '웃는 얼굴들 조직원', desc: '강철 하회탈, 거대한 곰방대. 말이 많고, 식성이 나쁘다.', hp: 75, stg: 32, slots: 2,
-    res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [160, 230],
+    res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [3000000, 6000000],
     pool: [{ name: '곰방대 휘두르기', dice: [['타격', 4, 7]] }, { name: '강화 연기 흡입', dice: [['방어', 3, 6]], onUse: { nextStr: 2 } },
       { name: '얇게 저미기', dice: [['참격', 3, 6], ['참격', 3, 6]], onHit: { bleed: 2 } }, { name: '숨겨진 검', dice: [['관통', 5, 9]] }] },
   librarian: { name: '도서관의 사서', desc: '금빛 초대장의 끝. 패배한 손님은 책이 된다.', hp: 120, stg: 50, slots: 3,
-    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [400, 600],
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [30000000, 60000000],
     passive: '접대 — 막이 지날수록 강해진다', onRound: (e) => { e.st.str += Math.floor(C.round / 3); },
     pool: [{ name: '책장 넘기기', dice: [['참격', 4, 8], ['관통', 4, 8]] }, { name: '접대', dice: [['방어', 5, 9]] },
       { name: '빛의 회수', dice: [['타격', 6, 10]] }, { name: '환상의 파편', dice: [['관통', 5, 11]], onHit: { burn: 2 } }] },
@@ -585,12 +603,16 @@ let C = null;   // 전투 상태
 
 function newGame(ch) {
   S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff,
-    deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0 };
+    deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0,
+    loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [] };
+  if (S.loc.area === 'outskirts') { S.maxHp += 8; S.hp += 8; }
+  restockShop();
   $('#title').classList.add('hidden');
   $('#topbar').classList.remove('hidden');
   $('#day').classList.remove('hidden');
   $('#log').innerHTML = '';
   print(`출신: ${ch.name} · 소속: ${affName(ch.aff, ch.grade)}. ${ch.intro}`, 'l-sys');
+  print(`태어난 곳: ${S.loc.label}${S.loc.note ? ' — ' + S.loc.note : ''}${S.loc.area === 'outskirts' ? '. 괴물들 사이에서 자란 몸은 질기다 (최대 체력 +8).' : ''}`, 'l-sys');
   print(`1일차 — 오늘도 도시는 굴러간다.`, 'l-day');
   startTurn();
 }
@@ -610,17 +632,23 @@ function say(text, cls = '') { T.queue.push([text, cls]); }
 
 // 해결사는 'N급', 그 외 출신은 위상 단계(1~9)로 표시
 function rankText() { return isFixer() ? `${S.grade}급` : `${10 - S.grade}단계`; }
-function payMul() { return (1 + (9 - S.grade) * 0.25) * (1 + (H().payBonus || 0)); }
+function payMul() { return (1 + (9 - S.grade) * 0.5) * (1 + (H().payBonus || 0)); }
 function pay(n) { return Math.round(n * payMul()); }
-function gain(n) { S.money += n; say(`+${n} 안 (보유 ${S.money})`, 'l-good'); }
-function spend(n) { S.money = Math.max(0, S.money - n); say(`-${n} 안 (보유 ${S.money})`, 'l-bad'); }
+// 안(眼): 원화와 비슷한 가치. 1만 이상은 '만', 1억 이상은 '억' 단위로 표시
+function won(n) {
+  if (n >= 1e8) { const v = n / 1e8; return `${+v.toFixed(v < 10 ? 2 : 1)}억 안`; }
+  if (n >= 1e4) { const v = n / 1e4; return `${+v.toFixed(v < 10 ? 1 : 0)}만 안`; }
+  return `${n}안`;
+}
+function gain(n) { S.money += n; say(`+${won(n)} (보유 ${won(S.money)})`, 'l-good'); }
+function spend(n) { S.money = Math.max(0, S.money - n); say(`-${won(n)} (보유 ${won(S.money)})`, 'l-bad'); }
 function heal(n) { const v = Math.min(n, S.maxHp - S.hp); S.hp += v; if (v > 0) say(`체력 +${v}`, 'l-good'); }
 function hurt(n, lethal = false) {
   S.hp -= n; say(`체력 -${n}`, 'l-bad');
   if (S.hp <= 0) { if (lethal) { gameOver('뒷골목에서 숨이 끊어졌다.'); return; } S.hp = 1; say('간신히 의식을 붙잡았다.', 'l-bad'); }
 }
 function merit(n) {
-  S.merit += n; say(`실적 +${n} (총 ${S.merit})`, 'l-sys');
+  S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
   while (S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
     S.grade--; S.maxHp += 5; S.hp += 5; S.maxStg += 2;
     if (isFixer()) {
@@ -637,7 +665,7 @@ function renderTop() {
   $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${t.name} ${t.time}</span>`;
   const hp = S.phase === 'combat' && C ? C.P.hp : S.hp;
   $('#sHp').textContent = `${hp}/${S.maxHp}`;
-  $('#sMoney').textContent = S.money;
+  $('#sMoney').textContent = won(S.money);
   $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}` + (isFixer() ? '' : ' · 위상');
   $('#sGrade').textContent = rankText();
   $('#sMerit').textContent = S.grade > 1 ? `${S.merit}/${GRADE_REQ[S.grade - 1]}` : S.merit;
@@ -666,8 +694,8 @@ const EVENTS = [
     text: '사무소 문틈에 쪽지가 끼워져 있다. "우리 나비를 찾아주세요. 사례하겠습니다." 9급 해결사다운 일감이다.',
     choices: [
       { t: '의뢰를 받는다', fn() {
-        if (Math.random() < 0.75) { say('세 시간 동안 골목을 뒤진 끝에, 쓰레기통 위에서 졸던 나비를 찾아냈다.'); gain(pay(30)); merit(1); }
-        else { say('찾긴 찾았다. 이미 누군가 "가공"한 뒤였지만. 사실대로 전하자 의뢰인은 말없이 돈을 내밀었다.'); gain(pay(10)); merit(1); }
+        if (Math.random() < 0.75) { say('세 시간 동안 골목을 뒤진 끝에, 쓰레기통 위에서 졸던 나비를 찾아냈다.'); gain(pay(50000)); merit(1); }
+        else { say('찾긴 찾았다. 이미 누군가 "가공"한 뒤였지만. 사실대로 전하자 의뢰인은 말없이 돈을 내밀었다.'); gain(pay(20000)); merit(1); }
       } },
       { t: '넘긴다. 고양이 한 마리쯤이야', def: true, fn() { say('쪽지를 구겨 버렸다.'); } },
     ] },
@@ -675,7 +703,7 @@ const EVENTS = [
     text: '좁은 골목, 앞뒤로 그림자가 막아선다. "가진 거 다 내놔. 아니면 콩팥이라도." 뒷골목의 쥐들이다.',
     choices: [
       { t: '싸운다', fn() { fight('rat', { lethal: false, win() { say('쥐들이 흩어졌다. 주머니에서 쓸 만한 것을 챙겼다.'); merit(1); } }); } },
-      { t: '20안을 던져주고 지나간다', req: () => S.money >= 20, reqText: '안 부족', fn() { spend(20); say('쥐들은 돈을 줍느라 길을 비켰다.'); } },
+      { t: '1만 안을 던져주고 지나간다', req: () => S.money >= 10000, reqText: '안 부족', fn() { spend(10000); say('쥐들은 돈을 줍느라 길을 비켰다.'); } },
       { t: '도망친다', def: true, fn() {
         const ok = Math.random() < (H().flee || (S.grade <= 3 ? 0.95 : 0.55));
         if (ok) say('익숙한 지름길로 빠져나왔다.'); else { say('등 뒤로 쇠파이프가 날아왔다.'); hurt(8); }
@@ -684,11 +712,11 @@ const EVENTS = [
   { id: 'workshop', when: [0, 1], w: 2, title: '공방',
     text: '해결사들의 피를 먹고 자라는 곳, 공방. 진열대에 무기들이 놓여 있다. "구경은 공짜야. 만지는 건 유료고."',
     build() {
-      const items = shuffle([...SHOP_POOL]).slice(0, 3);
+      const items = shuffle(DROP_POOL()).slice(0, 3);
       return [
         ...items.map(id => {
           const c = CARDS[id];
-          return { t: `「${c.name}」 구매 — ${c.price}안 <span class="dim">(${diceText(c)})</span>`, req: () => S.money >= c.price, reqText: '안 부족',
+          return { t: `「${c.name}」 구매 — ${won(c.price)} <span class="dim">(${diceText(c)})</span>`, req: () => S.money >= c.price, reqText: '안 부족',
             fn() { spend(c.price); addCard(id); } };
         }),
         { t: '구경만 하고 나간다', def: true, fn() { say('공방 주인이 혀를 찼다.'); } },
@@ -697,45 +725,45 @@ const EVENTS = [
   { id: 'clinic', when: [0, 1], w: 1.5, title: '강화시술 클리닉',
     text: '"전봇대를 뽑는 팔, 오늘만 특가!" 간판이 반쯤 떨어진 시술소. 안쪽에서 드릴 소리가 난다.',
     choices: [
-      { t: '싸구려 시술 (80안) — 최대 체력 +8', req: () => S.money >= 80, reqText: '안 부족', fn() {
-        spend(80); S.maxHp += 8; S.hp += 8; say('몸이 가벼워졌다.', 'l-good');
+      { t: '싸구려 시술 (50만 안) — 최대 체력 +8', req: () => S.money >= 500000, reqText: '안 부족', fn() {
+        spend(500000); S.maxHp += 8; S.hp += 8; say('몸이 가벼워졌다.', 'l-good');
         if (Math.random() < 0.25) { say('…시술 부위가 살짝 녹아내린다. 싼 게 비지떡이다.'); hurt(10); }
       } },
-      { t: '정품 시술 (200안) — 최대 체력 +15, 흐트러짐 저항 +5', req: () => S.money >= 200, reqText: '안 부족', fn() {
-        spend(200); S.maxHp += 15; S.hp += 15; S.maxStg += 5; say('제대로 된 시술은 확실히 다르다.', 'l-good');
+      { t: '정품 시술 (500만 안) — 최대 체력 +15, 흐트러짐 저항 +5', req: () => S.money >= 5000000, reqText: '안 부족', fn() {
+        spend(5000000); S.maxHp += 15; S.hp += 15; S.maxStg += 5; say('제대로 된 시술은 확실히 다르다.', 'l-good');
       } },
       { t: '지나친다', def: true, fn() { say('드릴 소리가 멀어졌다.'); } },
     ] },
   { id: 'hamham', when: [0, 1, 2], w: 2, title: '햄햄팡팡',
     text: '뒷골목 어디에나 있는 샌드위치 가게. 기간 한정 스페셜 메뉴 냄새가 골목까지 퍼진다.',
     choices: [
-      { t: '스페셜 샌드위치 (15안) — 체력 15 회복', req: () => S.money >= 15, reqText: '안 부족', fn() { spend(15); say('도시에서 몇 안 되는, 확실한 행복.'); heal(15); } },
+      { t: '스페셜 샌드위치 (8천 안) — 체력 15 회복', req: () => S.money >= 8000, reqText: '안 부족', fn() { spend(8000); say('도시에서 몇 안 되는, 확실한 행복.'); heal(15); } },
       { t: '지나친다', def: true, fn() { say('배가 꼬르륵거렸다.'); } },
     ] },
   { id: 'zwei', when: [1, 2], w: 1.5, cond: () => !S.flags.zweiTonight, title: '츠바이 협회 보호 계약',
-    text: '방패 문양의 해결사가 전단을 내민다. "오늘 밤, 츠바이가 지켜드립니다. 거주구역 보호 계약 60안."',
+    text: '방패 문양의 해결사가 전단을 내민다. "오늘 밤, 츠바이가 지켜드립니다. 거주구역 보호 계약 30만 안."',
     choices: [
-      { t: '계약한다 (60안) — 오늘 밤 안전 확보', req: () => S.money >= 60, reqText: '안 부족', fn() { spend(60); S.flags.zweiTonight = true; say('계약서에 서명했다. 오늘 밤은 조금 덜 무섭다.'); } },
+      { t: '계약한다 (30만 안) — 오늘 밤 안전 확보', req: () => S.money >= 300000, reqText: '안 부족', fn() { spend(300000); S.flags.zweiTonight = true; say('계약서에 서명했다. 오늘 밤은 조금 덜 무섭다.'); } },
       { t: '거절한다', def: true, fn() { say('"후회하실 텐데요." 그는 다음 사람에게 갔다.'); } },
     ] },
   { id: 'kong', when: [1, 2], w: 2, title: '전당포 앞의 소란',
     text: '10구식 하와이안 셔츠를 입은 남자들이 전당포 주인의 멱살을 잡고 있다. "이번 달 상납금, 어디 갔어?"',
     choices: [
-      { t: '끼어든다', fn() { fight('kong', { lethal: false, win() { say('전당포 주인이 떨리는 손으로 사례금을 건넸다.'); gain(pay(40)); merit(2); } }); } },
+      { t: '끼어든다', fn() { fight('kong', { lethal: false, win() { say('전당포 주인이 떨리는 손으로 사례금을 건넸다.'); gain(pay(150000)); merit(2); } }); } },
       { t: '못 본 척한다', def: true, fn() { say('뒷골목에서는 남의 일에 끼지 않는 것이 미덕이다.'); } },
     ] },
   { id: 'hana', when: [1, 2], w: 1.5, cond: () => S.day >= 2, title: '하나 협회 공개 의뢰',
     text: '하나 협회 게시판. [도시 괴담] "밤마다 아이 울음소리가 들리는 폐건물 조사 및 원인 제거". 보수가 높다. 생존자 기록은 없다.',
     choices: [
-      { t: '의뢰를 받는다 (위험)', fn() { fight('twisted', { lethal: true, rare: true, win() { say('울음이 멎었다. 하나 협회에 보고서를 제출했다.'); gain(pay(150)); merit(4); } }); } },
+      { t: '의뢰를 받는다 (위험)', fn() { fight('twisted', { lethal: true, rare: true, win() { say('울음이 멎었다. 하나 협회에 보고서를 제출했다.'); gain(pay(3000000)); merit(4); } }); } },
       { t: '아직은 무리다', def: true, fn() { say('게시판 앞을 떠났다. 다른 사무소가 가져가겠지.'); } },
     ] },
   { id: 'thumb', when: [1, 2], w: 1.2, title: '엄지의 제안',
     text: '정장을 갖춰 입은 남자가 다가온다. 손목의 문신 — 엄지다. "카포께서 배달꾼을 찾으신다. 예의 바른 사람으로."',
     choices: [
       { t: '정중히 수락한다', fn() {
-        if (Math.random() < 0.7) { say('상자 하나를 지정된 곳에 옮겼다. 내용물은 묻지 않았다.'); gain(pay(110)); S.flags.thumb = (S.flags.thumb || 0) + 1; }
-        else { say('배달 도중, 경쟁 조직이 길을 막았다!', 'l-bad'); fight('kong', { lethal: true, win() { say('상자를 무사히 전달했다. 엄지는 보답을 잊지 않는다.'); gain(pay(160)); merit(1); } }); }
+        if (Math.random() < 0.7) { say('상자 하나를 지정된 곳에 옮겼다. 내용물은 묻지 않았다.'); gain(pay(500000)); S.flags.thumb = (S.flags.thumb || 0) + 1; }
+        else { say('배달 도중, 경쟁 조직이 길을 막았다!', 'l-bad'); fight('kong', { lethal: true, win() { say('상자를 무사히 전달했다. 엄지는 보답을 잊지 않는다.'); gain(pay(1000000)); merit(1); } }); }
       } },
       { t: '정중히 거절한다', def: true, fn() { say('"아쉽군." 남자는 모자를 살짝 들어 보이고 사라졌다.'); } },
       { t: '"조직 심부름은 안 해."', fn() { say('공기가 얼어붙었다. "…예의가 없군."', 'l-bad'); fight('thumb', { lethal: true, win() { say('엄지의 솔다토를 쓰러뜨렸다. 이 일은 언젠가 돌아올 것이다.'); merit(3); S.flags.thumbHate = true; } }); } },
@@ -743,9 +771,9 @@ const EVENTS = [
   { id: 'taboo', when: [0, 1], w: 1.2, title: '둥지 검문소',
     text: '의뢰 때문에 둥지에 들어가야 한다. 검문소 벽에 이 둥지의 금기가 빼곡히 적힌 책자가 걸려 있다. 줄은 길다.',
     choices: [
-      { t: '금기를 꼼꼼히 읽는다', fn() { say('"이 둥지에서는 오른손으로 문을 열면 안 된다." …읽어두길 잘했다. 의뢰를 무사히 마쳤다.'); gain(pay(50)); merit(1); } },
+      { t: '금기를 꼼꼼히 읽는다', fn() { say('"이 둥지에서는 오른손으로 문을 열면 안 된다." …읽어두길 잘했다. 의뢰를 무사히 마쳤다.'); gain(pay(200000)); merit(1); } },
       { t: '대충 훑고 들어간다', def: true, fn() {
-        if (Math.random() < 0.5) { say('운 좋게 아무 일도 없었다. 의뢰 완료.'); gain(pay(50)); merit(1); }
+        if (Math.random() < 0.5) { say('운 좋게 아무 일도 없었다. 의뢰 완료.'); gain(pay(200000)); merit(1); }
         else { say('어딘가에서 경보가 울린다. 금기를 어겼다.', 'l-bad'); fight('hunter', { lethal: true, win() { say('금기 사냥꾼을 물리쳤다… 당분간 이 둥지 근처엔 오지 말아야겠다.'); merit(2); } }); }
       } },
     ] },
@@ -753,7 +781,7 @@ const EVENTS = [
     text: '발밑에 봉인된 편지 한 통. "오늘 세 번째로 마주치는 사람의 왼쪽 신발끈을 풀어라." 검지의 지령이다. 받은 자는 따라야 한다… 고들 한다.',
     choices: [
       { t: '지령을 따른다', fn() {
-        if (Math.random() < 0.6) { say('세 번째 사람은 검지의 대리인이었다. 그는 만족스럽게 고개를 끄덕이고 봉투를 건넸다.'); gain(pay(70)); }
+        if (Math.random() < 0.6) { say('세 번째 사람은 검지의 대리인이었다. 그는 만족스럽게 고개를 끄덕이고 봉투를 건넸다.'); gain(pay(300000)); }
         else { say('세 번째 사람은 성질 급한 해결사였다. 주먹이 먼저 날아왔다.', 'l-bad'); hurt(10); }
       } },
       { t: '무시한다', def: true, fn() { say('편지를 태웠다. 어딘가에서 누군가 지켜보는 느낌이 든다.'); } },
@@ -761,14 +789,14 @@ const EVENTS = [
   { id: 'distortion', when: [2], w: 2, title: '뒤틀림',
     text: '퇴근길 인파 속, 서류 가방을 든 남자가 비명을 지르며 무릎을 꿇는다. 등에서 무언가가 찢고 나온다 — 뒤틀림이다.',
     choices: [
-      { t: '맞서 싸운다', fn() { fight('twisted_small', { lethal: true, win() { say('사람이었던 것이 쓰러졌다. 협회에 보고하자 포상금이 나왔다.'); gain(pay(80)); merit(3); } }); } },
+      { t: '맞서 싸운다', fn() { fight('twisted_small', { lethal: true, win() { say('사람이었던 것이 쓰러졌다. 협회에 보고하자 포상금이 나왔다.'); gain(pay(1000000)); merit(3); } }); } },
       { t: '협회에 신고한다', fn() { say('신고는 했지만 협회가 도착했을 땐 이미 늦었다. 그래도 기록은 남았다.'); merit(1); } },
       { t: '도망친다', def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다.'); } },
     ] },
   { id: 'library', when: [1, 2], w: 0.6, cond: () => S.day >= 3 && !S.flags.library, title: '금빛 초대장',
     text: '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 들어간 사람 중 돌아온 이는 드물다.',
     choices: [
-      { t: '초대에 응한다 (극도로 위험)', fn() { S.flags.library = true; fight('librarian', { lethal: true, rare: true, win() { say('접대를 이겨냈다. 손에는 빛나는 책 한 권이 쥐어져 있었다.'); gain(pay(300)); merit(8); addCard('ego'); } }); } },
+      { t: '초대에 응한다 (극도로 위험)', fn() { S.flags.library = true; fight('librarian', { lethal: true, rare: true, win() { say('접대를 이겨냈다. 손에는 빛나는 책 한 권이 쥐어져 있었다.'); gain(30000000); merit(8); addCard('ego'); } }); } },
       { t: '초대장을 버린다', def: true, fn() { say('초대장은 쓰레기통 속에서도 은은하게 빛났다.'); } },
     ] },
   { id: 'rest', when: [0, 1, 2], w: 2, title: '한산한 시간',
@@ -785,7 +813,7 @@ const EVENTS = [
     text: '03:13. 기계음이 다가오다가, 당신을 감지하고 멈춘다. 청소부들은 고개를 숙이듯 몸을 낮추고 길을 비킨다. 그들에게 당신은 사냥감이 아니라 윗선이다.',
     choices: [
       { t: '밤거리를 순시한다 — 금기 위반의 흔적을 찾는다', fn() {
-        if (Math.random() < 0.4) { say('녹취 장치를 숨긴 남자를 발견했다. 녹취 금지는 밤의 몇 안 되는 규칙이다. 그는 아침을 보지 못할 것이다.'); merit(2); gain(pay(40)); }
+        if (Math.random() < 0.4) { say('녹취 장치를 숨긴 남자를 발견했다. 녹취 금지는 밤의 몇 안 되는 규칙이다. 그는 아침을 보지 못할 것이다.'); merit(2); gain(pay(1000000)); }
         else say('청소부들이 일하는 소리만 들린다. 오늘 밤의 도시는 규칙을 지켰다.');
       } },
       { t: '청소부들에게 구역 정리를 지시한다', fn() { say('청소부들이 명령대로 움직였다. 아침이면 이 구역에는 아무 흔적도 남지 않을 것이다.'); merit(1); } },
@@ -802,31 +830,31 @@ const EVENTS = [
     text: '가로등은 꺼졌고, 모든 규칙이 잠들었다. 청소부의 기계음, 짧은 비명, 그리고 하회탈 너머의 웃음소리.',
     choices: [
       { t: '청소부를 사냥한다', fn() {
-        fight('sweeper', { lethal: true, win() { say('청소부의 잔해에서 쓸 만한 부품을 회수했다. 아침이 되면 비싸게 팔릴 것이다.'); gain(pay(60)); merit(3); } });
+        fight('sweeper', { lethal: true, win() { say('청소부의 잔해에서 쓸 만한 부품을 회수했다. 아침이 되면 비싸게 팔릴 것이다.'); gain(pay(500000)); merit(3); } });
       } },
       { t: '비명이 들린 쪽으로 간다 — 누군가를 구한다', fn() {
         say('쥐들이 퇴근길 회사원을 둘러싸고 있다. 밤에는 무엇이든 허용된다. 당신이 끼어드는 것도.');
-        fight('kong', { lethal: true, win() { say('회사원은 떨리는 손으로 지갑을 통째로 내밀었다. "은혜는 잊지 않겠습니다."'); gain(pay(70)); merit(2); } });
+        fight('kong', { lethal: true, win() { say('회사원은 떨리는 손으로 지갑을 통째로 내밀었다. "은혜는 잊지 않겠습니다."'); gain(pay(300000)); merit(2); } });
       } },
       { t: '웃는 얼굴들을 추적한다 (도시 악몽급, 고수익)', req: () => S.day >= 2, reqText: '2일차부터', fn() {
         say('강철 하회탈들의 수다가 골목 끝에서 들려온다. 오늘 밤의 사냥감은 저쪽이다.', 'l-bad');
-        fight('smile', { lethal: true, win() { say('하회탈 하나가 바닥을 굴렀다. 현상금이 걸린 얼굴이다.'); gain(pay(150)); merit(4); } });
+        fight('smile', { lethal: true, win() { say('하회탈 하나가 바닥을 굴렀다. 현상금이 걸린 얼굴이다.'); gain(pay(5000000)); merit(4); } });
       } },
       { t: '역시 안 되겠다. 주택 쪽으로 물러난다', def: true, fn() { say('기계음이 등 뒤로 바짝 따라붙는다. 서둘러야 한다.'); return 'night_in'; } },
     ] },
   { id: 'night_in', chainOnly: true, title: '주택',
     text: '밤의 규칙: 뒷골목의 밤에 남의 거주구역에 무단침입하거나 거주구역을 파괴하지 말 것. 이것은 도시의 금기다. 안에만 들어가면 청소부도 손대지 못한다.',
     choices: [
-      { t: '자신의 거처로 들어간다 — 체력 35% 회복', req: () => hasHome(), reqText: '거처 없음', fn() {
+      { t: '자신의 거처로 들어간다 — 체력 35% 회복 (둥지의 집이면 50%)', req: () => hasHome(), reqText: '거처 없음', fn() {
         say(S.grade <= 2 ? '뒷골목의 밤은 당신 같은 존재를 두려워한다. 오늘 밤도 조용히 지나갔다.' : '문을 잠갔다. 창밖으로 뒷골목의 밤을 내려다보며 잠들었다.');
-        heal(Math.round(S.maxHp * 0.35));
+        heal(Math.round(S.maxHp * (S.ownHome === 'nest' ? 0.5 : 0.35)));
         if (Math.random() < 0.25) return 'knock';
       } },
-      { t: '츠바이 보호 하에 밤을 보낸다 — 체력 25% 회복', req: () => S.flags.zweiTonight, reqText: '계약 없음', fn() {
-        say('츠바이 해결사가 문 앞을 지켰다. 밤새 몇 번인가 금속음이 들렸다.'); heal(Math.round(S.maxHp * 0.25));
+      { t: '보호 계약·경호 하에 밤을 보낸다 — 체력 25% 회복', req: () => S.flags.zweiTonight || S.flags.guardTonight, reqText: '계약·경호 없음', fn() {
+        say(S.flags.zweiTonight ? '츠바이 해결사가 문 앞을 지켰다. 밤새 몇 번인가 금속음이 들렸다.' : '고용한 3급 해결사가 밤새 문 앞을 지켰다. 값을 한다.'); heal(Math.round(S.maxHp * 0.25));
       } },
-      { t: '거주구역을 빌린다 (40안) — 체력 30% 회복', req: () => S.money >= 40, reqText: '안 부족', fn() {
-        spend(40); say('집주인이 돈을 세고 문을 열어주었다. 이 안은 누구도 침범할 수 없다.'); heal(Math.round(S.maxHp * 0.3));
+      { t: '거주구역을 빌린다 (5만 안) — 체력 30% 회복', req: () => S.money >= 50000, reqText: '안 부족', fn() {
+        spend(50000); say('집주인이 돈을 세고 문을 열어주었다. 이 안은 누구도 침범할 수 없다.'); heal(Math.round(S.maxHp * 0.3));
         if (Math.random() < 0.35) return 'knock';
       } },
       { t: '남의 집 창문을 넘는다 — 도시의 금기 위반', fn() {
@@ -841,8 +869,8 @@ const EVENTS = [
     text: '똑, 똑. "제발… 문 좀 열어주세요. 쫓기고 있어요." 거주구역 문 너머로 떨리는 목소리가 들린다.',
     choices: [
       { t: '문을 연다', fn() {
-        if (Math.random() < 0.5) { say('피투성이 청년이 굴러들어왔다. 아침이 되자 그는 가진 돈을 전부 내밀었다.'); gain(pay(40)); merit(1); }
-        else { say('문틈으로 강철 하회탈이 웃는다. "고맙네잉~ 문 열어줘서."', 'l-bad'); fight('smile', { lethal: true, win() { say('웃는 얼굴이 쓰러졌다. 도시 악몽급 조직원을 처치했다는 소문이 퍼질 것이다.'); gain(pay(80)); merit(4); } }); }
+        if (Math.random() < 0.5) { say('피투성이 청년이 굴러들어왔다. 아침이 되자 그는 가진 돈을 전부 내밀었다.'); gain(pay(100000)); merit(1); }
+        else { say('문틈으로 강철 하회탈이 웃는다. "고맙네잉~ 문 열어줘서."', 'l-bad'); fight('smile', { lethal: true, win() { say('웃는 얼굴이 쓰러졌다. 도시 악몽급 조직원을 처치했다는 소문이 퍼질 것이다.'); gain(pay(3000000)); merit(4); } }); }
       } },
       { t: '열지 않는다', def: true, fn() { say('목소리는 몇 번 더 애원하다가… 짧은 비명과 함께 끊겼다.'); } },
     ] },
@@ -867,29 +895,35 @@ const AMBIENT = [
    상위 출신 전용 강적 (elite: 위상 보정 없음)
 ========================================================= */
 Object.assign(ENEMIES, {
+  wing_force: { elite: true, name: '날개 전투 요원 부대', desc: '금기를 어긴 날개가 내보낸 사병. 특이점 응용 장비로 무장했다.', hp: 160, stg: 70, slots: 3,
+    res: { 참격: 0.9, 관통: 1.1, 타격: 1 }, reward: [80000000, 150000000],
+    passive: '증원 — 체력 절반 이하일 때 매 막 보호 2', onRound: e => { if (e.hp < e.maxHp / 2) e.st.prot += 2; },
+    pool: [{ name: '특이점 소총', dice: [['관통', 8, 13]], onHit: { burn: 2 } }, { name: '진압봉', dice: [['타격', 7, 12]], onHit: { para: 1 } },
+      { name: '방호 대열', dice: [['방어', 8, 13]] }, { name: '포위 사격', dice: [['관통', 5, 9], ['관통', 5, 9]] }] },
   claw_enemy: { elite: true, name: '머리의 발톱', desc: '도시의 금기를 어긴 자를 지우러 온 머리의 집행자. 도망칠 곳은 없다.', hp: 200, stg: 80, slots: 3,
-    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [800, 1200],
+    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [100000000, 200000000],
     passive: '혈청 가속 — 매 막 힘 2', onRound: e => { e.st.str += 2; },
-    pool: [{ name: '순간 강습', dice: [['참격', 8, 13], ['참격', 7, 11]] }, { name: '처형 집행', dice: [['관통', 11, 17]] },
-      { name: '발톱의 방벽', dice: [['방어', 9, 14]] }, { name: '혈청 폭주', dice: [['타격', 10, 16]], onHit: { para: 2 } }] },
+    pool: [{ name: '혈청 W', dice: [['관통', 8, 13], ['참격', 7, 11]] }, { name: '처형', dice: [['관통', 11, 17]] },
+      { name: '혈청 경화', dice: [['방어', 9, 14]] }, { name: '혈청 R', dice: [['참격', 5, 8], ['참격', 5, 8], ['참격', 5, 8]] },
+      { name: '혈청 K', dice: [['방어', 6, 10]], onUse: { heal: 15 } }] },
   finger_exec: { elite: true, name: '적대 손가락의 간부', desc: '다른 손가락의 간부. 도시 악몽에서 도시의 별 사이 어딘가.', hp: 150, stg: 60, slots: 3,
-    res: { 참격: 0.9, 관통: 1, 타격: 1.1 }, reward: [400, 600],
+    res: { 참격: 0.9, 관통: 1, 타격: 1.1 }, reward: [50000000, 100000000],
     passive: '간부의 위엄 — 매 막 힘 1', onRound: e => { e.st.str += 1; },
     pool: [{ name: '숙청', dice: [['참격', 7, 12], ['참격', 5, 9]] }, { name: '조직의 탄환', dice: [['관통', 8, 13]], onHit: { burn: 2 } },
       { name: '간부의 방어', dice: [['방어', 7, 12]] }, { name: '처형 예고', dice: [['타격', 9, 14]], onHit: { para: 1 } }] },
   color_rival: { elite: true, name: '특색 「녹슨종」', desc: '하나 협회가 색을 부여한 해결사. 당신을 "정리"하라는 의뢰를 받았다.', hp: 190, stg: 75, slots: 3,
-    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [700, 1000],
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [100000000, 200000000],
     passive: '울리는 종 — 막마다 인내 1, 체력 절반 이하면 힘 2', onRound: e => { e.st.end += 1; if (e.hp < e.maxHp / 2) e.st.str += 2; },
     pool: [{ name: '타종', dice: [['타격', 9, 15]], onHit: { para: 2 } }, { name: '녹의 칼날', dice: [['참격', 8, 13], ['관통', 6, 10]], onHit: { bleed: 2 } },
       { name: '종의 장막', dice: [['방어', 9, 14], ['회피', 7, 11]] }, { name: '마지막 종소리', dice: [['타격', 12, 18]] }] },
   star: { elite: true, name: '도시의 별 「밤을 먹는 정원」', desc: '하나 협회 지정 도시의 별. 들어간 구역의 밤이 끝나지 않는다.', hp: 280, stg: 100, slots: 4,
-    res: { 참격: 0.8, 관통: 1.2, 타격: 1 }, reward: [1500, 2200],
+    res: { 참격: 0.8, 관통: 1.2, 타격: 1 }, reward: [300000000, 500000000],
     passive: '피어나는 밤 — 막이 지날수록 힘 증가, 매 막 체력 5 회복',
     onRound: e => { e.st.str += Math.floor(C.round / 2); e.hp = Math.min(e.maxHp, e.hp + 5); },
     pool: [{ name: '덩굴 포식', dice: [['관통', 8, 14]], onHit: { bleed: 3, healSelf: 6 } }, { name: '꽃잎 폭풍', dice: [['참격', 6, 10], ['참격', 6, 10], ['참격', 6, 10]] },
       { name: '뿌리 방벽', dice: [['방어', 10, 16]] }, { name: '만개', dice: [['타격', 12, 20]], onHit: { para: 2 } }, { name: '가시 회피', dice: [['회피', 9, 14]] }] },
   impurity: { elite: true, name: '불순물 「사람의 말을 하는 것」', desc: '머리가 지정한 불순물. 인간이 아니면서 인간의 지성을 가졌다.', hp: 170, stg: 70, slots: 3,
-    res: { 참격: 1, 관통: 0.8, 타격: 1.2 }, reward: [500, 800],
+    res: { 참격: 1, 관통: 0.8, 타격: 1.2 }, reward: [50000000, 100000000],
     passive: '흉내 — 체력 절반 이하일 때 매 막 힘 2', onRound: e => { if (e.hp < e.maxHp / 2) e.st.str += 2; },
     pool: [{ name: '인간의 목소리', dice: [['타격', 6, 11]], onHit: { para: 2 } }, { name: '찢어지는 껍질', dice: [['참격', 8, 13], ['참격', 6, 9]] },
       { name: '흉내 낸 방어', dice: [['방어', 8, 12]] }, { name: '도시 밖의 이빨', dice: [['관통', 9, 15]], onHit: { bleed: 2 } }] },
@@ -920,7 +954,7 @@ EVENTS.push(
         S.flags.adopted = true;
         if (Math.random() < 0.5) {
           say('그는 은퇴한 외곽 사냥꾼이었다. 따뜻한 밥, 그리고 살아남는 법을 가르쳐 주었다.', 'l-good');
-          heal(S.maxHp); S.maxHp += 6; S.hp += 6; gain(80); addCard('deflect'); addCard('combo');
+          heal(S.maxHp); S.maxHp += 6; S.hp += 6; gain(100000); addCard('deflect'); addCard('combo');
         } else {
           say('도착한 곳은 집이 아니라 수술대였다. 장기 밀매업자다!', 'l-bad');
           fight('kong', { lethal: false, win() { say('수술대를 박차고 도망쳤다. 다시는 친절을 믿지 않는다.'); merit(1); } });
@@ -932,13 +966,13 @@ EVENTS.push(
     text: '어느 해결사가 후원한다는 보육원 앞에서 따뜻한 국을 나눠주고 있다. 줄 끝에 선 아이들이 서로를 밀친다.',
     choices: [
       { t: '줄을 선다 — 체력 15 회복', def: true, fn() { say('국물이 뜨거웠다. 오랜만이었다.'); heal(15); } },
-      { t: '어린 아이에게 자리를 양보한다', fn() { say('아이가 고맙다며 주머니에서 무언가를 꺼내 주었다. 구겨진 지폐 몇 장.'); gain(20); merit(1); } },
+      { t: '어린 아이에게 자리를 양보한다', fn() { say('아이가 고맙다며 주머니에서 무언가를 꺼내 주었다. 구겨진 지폐 몇 장.'); gain(5000); merit(1); } },
     ] },
   { id: 'rat_pack', origin: ['orphan', 'rat'], fac: ['street'], when: [1, 2], w: 2, title: '쥐떼의 권유',
     text: '골목 구석의 쥐 무리가 손짓한다. "오늘 밤 전에 한 탕 할 건데, 머릿수가 모자라. 몫은 나눠줄게."',
     choices: [
       { t: '함께 턴다', fn() {
-        if (Math.random() < 0.65) { say('취객 하나를 털었다. 손이 떨렸지만, 배는 부르다.'); gain(pay(45)); }
+        if (Math.random() < 0.65) { say('취객 하나를 털었다. 손이 떨렸지만, 배는 부르다.'); gain(pay(30000)); }
         else { say('하필 상대가 해결사였다. 쥐들은 흩어지고 당신만 남았다.', 'l-bad'); hurt(14); }
       } },
       { t: '거절한다', def: true, fn() { say('"겁쟁이." 쥐들이 침을 뱉고 사라졌다.'); } },
@@ -948,32 +982,32 @@ EVENTS.push(
   { id: 'overtime', fac: ['wing'], when: [1, 2], w: 2.5, title: '야근',
     text: '퇴근 10분 전, 상사가 서류 더미를 책상에 내려놓는다. "내일 아침까지. 날개는 기다려주지 않네."',
     choices: [
-      { t: '야근한다 — 수당을 받지만 몸이 상한다', fn() { say('창밖의 가로등이 하나둘 꺼질 때까지 일했다.'); gain(pay(50)); hurt(6); merit(1); } },
-      { t: '칼퇴한다', def: true, fn() { if (Math.random() < 0.3) { say('다음 날 인사고과에 빨간 줄이 그어졌다.', 'l-bad'); spend(30); } else say('상사의 시선이 등에 꽂혔지만, 무사히 퇴근했다.'); } },
+      { t: '야근한다 — 수당을 받지만 몸이 상한다', fn() { say('창밖의 가로등이 하나둘 꺼질 때까지 일했다.'); gain(pay(100000)); hurt(6); merit(1); } },
+      { t: '칼퇴한다', def: true, fn() { if (Math.random() < 0.3) { say('다음 날 인사고과에 빨간 줄이 그어졌다.', 'l-bad'); spend(50000); } else say('상사의 시선이 등에 꽂혔지만, 무사히 퇴근했다.'); } },
     ] },
   { id: 'singularity', fac: ['wing'], when: [0, 1], w: 1, title: '특이점 연구 협조 공지',
     text: '사내 공지: "특이점 연구 협조자 모집. 협조금 지급." 계약서 맨 아래, 아주 작은 글씨로 무언가가 적혀 있다.',
     choices: [
-      { t: '서명한다 — 협조금 200안, 최대 체력 -6', fn() { say('무엇을 가져갔는지는 모른다. 다만 무언가가 비었다.'); gain(200); S.maxHp -= 6; S.hp = Math.min(S.hp, S.maxHp); } },
+      { t: '서명한다 — 협조금 500만 안, 최대 체력 -6', fn() { say('무엇을 가져갔는지는 모른다. 다만 무언가가 비었다.'); gain(5000000); S.maxHp -= 6; S.hp = Math.min(S.hp, S.maxHp); } },
       { t: '작은 글씨를 끝까지 읽는다', def: true, fn() { say('"…필요 시 협조자의 신체를 회사 자산으로 간주한다." 조용히 공지를 닫았다.'); } },
     ] },
   { id: 'gang_tribute', fac: ['gang'], when: [0, 1, 2], w: 2, title: '상납금',
-    text: '조직의 선배가 손바닥을 내민다. "이번 주 상납금. 70안. 모자라면 몸으로 때우든가."',
+    text: '조직의 선배가 손바닥을 내민다. "이번 주 상납금. 10만 안. 모자라면 몸으로 때우든가."',
     choices: [
-      { t: '70안을 낸다', req: () => S.money >= 70, reqText: '안 부족', fn() { spend(70); say('선배가 만족스럽게 어깨를 두드렸다.'); merit(1); } },
+      { t: '10만 안을 낸다', req: () => S.money >= 100000, reqText: '안 부족', fn() { spend(100000); say('선배가 만족스럽게 어깨를 두드렸다.'); merit(1); } },
       { t: '몸으로 때운다', def: true, fn() { say('구석에서 한참을 맞았다. 이것도 조직의 규칙이다.', 'l-bad'); hurt(12); } },
     ] },
   { id: 'finger_duty', fac: ['finger'], when: [0, 1, 2], w: 2.5, title: '상부의 명령',
     text: '봉투 하나가 전달된다. 다른 손가락의 간부가 우리 구역을 넘봤다. "처리하라."',
     choices: [
       { t: '명령을 수행한다 (강적)', fn() { fight('finger_exec', { lethal: true, win() { say('구역은 지켜졌다. 상부는 당신의 이름을 기억할 것이다.'); merit(4); } }); } },
-      { t: '돈으로 무마한다 (300안)', req: () => S.money >= 300, reqText: '안 부족', fn() { spend(300); say('돈이 오갔고, 문제는 조용히 사라졌다. 상부는 마뜩잖아한다.'); } },
+      { t: '돈으로 무마한다 (5천만 안)', req: () => S.money >= 50000000, reqText: '안 부족', fn() { spend(50000000); say('돈이 오갔고, 문제는 조용히 사라졌다. 상부는 마뜩잖아한다.'); } },
       { t: '미룬다', def: true, fn() { say('명령을 미룬 대가로 손가락 하나가… 아니, 경고로 끝났다.', 'l-bad'); hurt(15); } },
     ] },
   { id: 'finger_tribute', fac: ['finger'], when: [1, 2], w: 1.5, cond: () => S.grade > 2, title: '손가락의 상납',
     text: '"윗선에 올릴 몫이 모자라." 조직 서열은 절대적이다. 아래는 위를 먹여 살린다.',
     choices: [
-      { t: '150안을 바친다', req: () => S.money >= 150, reqText: '안 부족', fn() { spend(150); merit(2); say('윗선이 고개를 끄덕였다. 서열이 조금 올라갔다.'); } },
+      { t: '300만 안을 바친다', req: () => S.money >= 3000000, reqText: '안 부족', fn() { spend(3000000); merit(2); say('윗선이 고개를 끄덕였다. 서열이 조금 올라갔다.'); } },
       { t: '바치지 못한다', def: true, fn() { say('간부의 주먹은 무거웠다.', 'l-bad'); hurt(18); } },
     ] },
   { id: 'head_order', fac: ['head'], when: [0, 1, 2], w: 4, title: '머리의 지령 — 금기 위반자 처단',
@@ -985,7 +1019,7 @@ EVENTS.push(
   { id: 'head_wing', fac: ['head'], when: [1, 2], w: 2, title: '날개의 금기 위반 의혹',
     text: '한 날개가 특이점 연구에서 선을 넘었다는 정황. 날개는 머리 앞에서 공손하지만, 그들의 사병은 그렇지 않다.',
     choices: [
-      { t: '직접 경고하러 간다', fn() { say('날개의 사병들이 길을 막았다. 머리의 이름을 듣고도.', 'l-bad'); fight('hunter', { lethal: true, win() { say('날개는 사과문과 함께 막대한 "협조금"을 보내왔다.'); gain(pay(200)); merit(2); } }); } },
+      { t: '직접 경고하러 간다', fn() { say('날개가 전투 요원 부대를 내보냈다. 머리의 이름을 듣고도. 금기를 어긴 자들의 마지막 발악이다.', 'l-bad'); fight('wing_force', { lethal: true, win() { say('전투 요원들이 쓰러졌다. 날개는 사과문과 함께 막대한 "협조금"을 보내왔다.'); gain(100000000); merit(2); } }); } },
       { t: '서면 경고로 끝낸다', def: true, fn() { say('경고장 한 장으로 날개 하나가 떨었다. 그것이 머리다.'); merit(1); } },
     ] },
   { id: 'star_hunt', when: [1, 2], w: 2, cond: () => faction() === 'color' || (isFixer() && S.grade <= 2), title: '하나 협회 — 도시의 별 토벌',
@@ -998,15 +1032,15 @@ EVENTS.push(
     text: '사무소 문이 소리 없이 열린다. 종 모양 장식을 단 해결사. "당신을 정리해 달라는 의뢰가 들어와서요. 개인적인 감정은 없습니다."',
     choices: [
       { t: '맞선다 (강적)', def: true, fn() { fight('color_rival', { lethal: true, win() { say('종소리가 멎었다. 특색을 쓰러뜨렸다는 소문이 하나 협회까지 닿았다.'); merit(6); } }); } },
-      { t: '의뢰비의 두 배를 제시한다 (1500안)', req: () => S.money >= 1500, reqText: '안 부족', fn() { spend(1500); say('"…합리적이군요." 그는 정중히 고개를 숙이고 떠났다.'); } },
+      { t: '의뢰비의 두 배를 제시한다 (5억 안)', req: () => S.money >= 500000000, reqText: '안 부족', fn() { spend(500000000); say('"…합리적이군요." 그는 정중히 고개를 숙이고 떠났다.'); } },
     ] },
 
   /* ---------- 소속 변경 ---------- */
   { id: 'license', when: [0, 1], w: 1.6, cond: () => !AFF().locked && !isFixer() && !['finger', 'head'].includes(faction()), title: '하나 협회 해결사 면허 시험',
     text: '하나 협회 지부 앞에 응시자들이 줄지어 있다. 면허 한 장이면 쥐도 해결사가 된다. 물론 살아서 시험을 통과한다면.',
     choices: [
-      { t: '응시한다 (응시료 50안)', req: () => S.money >= 50, reqText: '안 부족', fn() {
-        spend(50);
+      { t: '응시한다 (응시료 5만 안)', req: () => S.money >= 50000, reqText: '안 부족', fn() {
+        spend(50000);
         const p = Math.min(0.9, 0.45 + (9 - S.grade) * 0.07 + S.kills * 0.03);
         if (Math.random() < p) { say('실기 시험관의 목검을 받아냈다. 합격.', 'l-good'); changeAff('fixer'); }
         else say('필기에서 떨어졌다. "도시의 금기 제7조를 서술하시오"… 그런 게 있었나.', 'l-bad');
@@ -1042,8 +1076,8 @@ EVENTS.push(
   { id: 'wing_exam', when: [0], w: 1, cond: () => !AFF().locked && ['street', 'fixer', 'gang'].includes(faction()), title: '날개 입사 시험',
     text: '둥지의 입사 시험 공고. 합격하면 깃털이 된다. 매달 월급, 둥지의 집. 대신 날개의 소모품이 된다.',
     choices: [
-      { t: '응시한다 (응시료 150안)', req: () => S.money >= 150, reqText: '안 부족', fn() {
-        spend(150);
+      { t: '응시한다 (응시료 20만 안)', req: () => S.money >= 200000, reqText: '안 부족', fn() {
+        spend(200000);
         if (Math.random() < 0.35 + (9 - S.grade) * 0.05) { say('합격 통지서가 도착했다. 둥지의 문이 열린다.', 'l-good'); changeAff('wing'); }
         else say('불합격. 입시촌의 수많은 사람들처럼, 내년을 기약한다.', 'l-bad');
       } },
@@ -1071,6 +1105,163 @@ EVENTS.push(
 
 
 /* =========================================================
+   출생지 — 1~25구(A~Y사)의 둥지/뒷골목, 또는 외곽
+   머리·날개 소속은 반드시 도시 내부(둥지)에서 태어난다
+========================================================= */
+const WING_NOTE = {
+  A: '머리의 둥지', B: '머리의 둥지', C: '머리의 둥지', D: '빈민가가 펼쳐진 4구', H: '동부풍의 홍원', I: '피아니스트가 휩쓸고 간 음악의 골목',
+  J: '카지노의 둥지', K: 'HP 앰플의 둥지', L: '몰락한 로보토미의 둥지', N: '망치와 못의 둥지', R: '사육제의 둥지',
+  T: '색을 잃은 공장의 둥지', U: '대호수의 항구', V: '우는 아이가 지나간 22구', W: '워프 열차의 둥지', Y: '가장 북쪽, 추운 25구',
+};
+function rollBirthplace(ch) {
+  const f = AFFS[ch.aff].faction;
+  const inside = f === 'head' || f === 'wing';
+  if (!inside && Math.random() < 0.15) return { area: 'outskirts', label: '외곽', note: '괴물과 버려진 것들이 득실거리는 도시 바깥' };
+  const n = rnd(1, 25), L = String.fromCharCode(64 + n);
+  let area;
+  if (inside) area = '둥지';
+  else if (['street', 'gang'].includes(f)) area = '뒷골목';
+  else area = Math.random() < 0.5 ? '둥지' : '뒷골목';
+  return { area, n, letter: L, label: `${n}구 ${L}사 ${area}`, note: WING_NOTE[L] || '' };
+}
+
+/* =========================================================
+   도시 시설 — 낮 시간대에 언제든 이용 (뒷골목의 밤에는 닫힘)
+========================================================= */
+const AUG = [
+  { id: 'basic', name: '기본 강화시술', base: 500000, mul: 1.6, hp: 8, stg: 0 },
+  { id: 'adv', name: '고급 강화시술', base: 5000000, mul: 1.6, hp: 15, stg: 5 },
+  { id: 'body', name: '고급 의체 이식', base: 100000000, mul: 1.8, hp: 35, stg: 12 },
+];
+const ARMOR_PRICE = [1000000, 10000000, 50000000, 200000000, 1000000000];
+const ampPrice = () => (S.loc && S.loc.letter === 'K') ? 1000000 : 2000000;
+
+function restockShop() {
+  const prem = shuffle(SHOP_POOL().filter(k => CARDS[k].premium)).slice(0, 2);
+  S.stock = [...shuffle(DROP_POOL()).slice(0, 4), ...prem];
+}
+function buy(cost, text) {
+  if (S.money < cost) return false;
+  S.money -= cost; print(`🛒 ${text} (-${won(cost)}, 보유 ${won(S.money)})`, 'l-choice');
+  return true;
+}
+function cityOpen() {
+  if (!S || S.phase !== 'day') return;
+  S.cityPaused = !S.paused; if (!S.paused) setSpeed(0);
+  cityRender();
+}
+function cityClose() { closeModal(); if (S.cityPaused) setSpeed(0); S.cityPaused = false; }
+function cityRender() {
+  const night = S.turn === 3;
+  const row = (label, desc, cost, act, ok = true) =>
+    `<div class="fac-row"><div><b>${label}</b><div class="dim">${desc}</div></div>
+     <button data-act="${act}" ${(!ok || S.money < cost) ? 'disabled' : ''}>${won(cost)}</button></div>`;
+  let h = `<h3>도시 시설 <span class="dim" style="font-size:13px">보유 ${won(S.money)} · ${S.loc ? S.loc.label : ''}</span></h3>`;
+  if (night) {
+    h += '<p class="l-bad">뒷골목의 밤(03:13~04:34)에는 모든 시설이 문을 닫는다.</p>';
+  } else {
+    h += '<h4>공방 — 오늘의 진열대</h4>';
+    h += S.stock.length ? S.stock.map((id, i) => row(CARDS[id].name + (CARDS[id].premium ? ' ★' : ''), diceText(CARDS[id]) + (CARDS[id].desc && CARDS[id].dice ? ' · ' + CARDS[id].desc : ''), CARDS[id].price, `card:${i}`)).join('') : '<p class="dim">다 팔렸다. 내일 다시 오자.</p>';
+    h += '<h4>강화시술 클리닉</h4>';
+    h += AUG.map(a => { const n = (S.aug[a.id] || 0), c = Math.round(a.base * Math.pow(a.mul, n));
+      return row(`${a.name} (${n}회 받음)`, `최대 체력 +${a.hp}${a.stg ? `, 흐트러짐 저항 +${a.stg}` : ''}`, c, `aug:${a.id}`); }).join('');
+    h += '<h4>재단사</h4>';
+    h += S.armor < ARMOR_PRICE.length ? row(`특수 원단 ${S.armor + 1}단계`, `매 막 시작 시 보호 +1 (현재 ${S.armor}단계)`, ARMOR_PRICE[S.armor], 'armor') : '<p class="dim">최고급 원단을 입고 있다.</p>';
+    h += '<h4>거처</h4>';
+    if (AFF().home) h += '<p class="dim">소속이 거처를 제공한다.</p>';
+    if (!S.ownHome) h += row('뒷골목 주택 구입', '밤을 무료로 보낼 내 집. 체력 35% 회복', 30000000, 'home:alley');
+    if (S.ownHome !== 'nest') h += row('둥지 이주권', '둥지의 집. 밤에 체력 50% 회복. 날개의 허가 필요 (위상 5 이상 또는 날개·머리 소속)', 300000000, 'home:nest',
+      S.grade <= 5 || ['wing', 'head'].includes(faction()));
+    h += '<h4>기타</h4>';
+    h += row('3급 해결사 경호 고용 (오늘 밤)', '뒷골목의 밤을 안전하게 보내려면 최소 3급은 고용해야 한다', 3000000, 'guard', !S.flags.guardTonight);
+    h += row(`HP 앰플${S.loc && S.loc.letter === 'K' ? ' (K사 둥지 할인)' : ''}`, 'K사 특이점. 체력을 전부 회복한다', ampPrice(), 'amp', S.hp < S.maxHp);
+    h += '<h4>기억 파쇄 — 덱에서 카드 제거</h4><div class="dim" style="font-size:12px;margin-bottom:6px">싸구려 기술이라 뒷골목 거주민이 자주 쓴다. 장당 10만 안, 덱은 최소 6장 유지.</div>';
+    const uniq = [...new Set(S.deck)];
+    h += `<div class="mini" style="display:flex;flex-wrap:wrap;gap:4px">${uniq.map(id => `<button data-act="forget:${id}" style="font-size:12px;padding:3px 8px" ${S.deck.length <= 6 || S.money < 100000 ? 'disabled' : ''}>${CARDS[id].name} ×${S.deck.filter(x => x === id).length}</button>`).join('')}</div>`;
+  }
+  h += '<br><button id="cityCloseBtn">닫기</button>';
+  openModal(h);
+  $('#cityCloseBtn').onclick = cityClose;
+  document.querySelectorAll('#modalBox button[data-act]').forEach(b => b.onclick = () => cityAct(b.dataset.act));
+}
+function cityAct(act) {
+  const [k, v] = act.split(':');
+  if (k === 'card') { const id = S.stock[+v]; if (buy(CARDS[id].price, `「${CARDS[id].name}」 구매`)) { S.deck.push(id); S.stock.splice(+v, 1); } }
+  else if (k === 'aug') {
+    const a = AUG.find(x => x.id === v), n = S.aug[v] || 0, c = Math.round(a.base * Math.pow(a.mul, n));
+    if (buy(c, `${a.name}`)) { S.aug[v] = n + 1; S.maxHp += a.hp; S.hp += a.hp; S.maxStg += a.stg; }
+  }
+  else if (k === 'armor') { if (buy(ARMOR_PRICE[S.armor], `재단사 특수 원단 ${S.armor + 1}단계`)) S.armor++; }
+  else if (k === 'home') { if (buy(v === 'nest' ? 300000000 : 30000000, v === 'nest' ? '둥지 이주권 취득' : '뒷골목 주택 구입')) S.ownHome = v; }
+  else if (k === 'guard') { if (buy(3000000, '오늘 밤 3급 해결사 경호 고용')) S.flags.guardTonight = true; }
+  else if (k === 'amp') { if (buy(ampPrice(), 'HP 앰플 투여')) S.hp = S.maxHp; }
+  else if (k === 'forget') { if (S.deck.length > 6 && buy(100000, `기억 파쇄 — 「${CARDS[v].name}」을(를) 잊었다`)) S.deck.splice(S.deck.indexOf(v), 1); }
+  renderTop(); cityRender();
+}
+
+/* =========================================================
+   응시자 전용 — 비전투원의 행정 업무
+========================================================= */
+const TABOO_CASES = [
+  '한 날개의 연구소에서 자의식을 가진 인공지능의 흔적이 관측됨',
+  '뒷골목의 밤 중 녹취 장치를 사용한 정황',
+  '인간이 아닌 지성체를 둥지 안에 은닉하고 있다는 의혹',
+  '뒷골목의 밤에 타인의 거주구역을 무단 침입한 기록',
+  '특이점 연구 과정에서 금지된 수준의 인체 개조가 의심됨',
+];
+const restrictAff = (id, aff) => Object.assign(EVENTS.find(e => e.id === id), { aff });
+restrictAff('head_order', ['claw', 'arbiter']);
+restrictAff('head_wing', ['claw', 'arbiter']);
+EVENTS.push(
+  { id: 'wt_report', aff: ['watcher'], when: [0, 1, 2], w: 3, title: '관측 보고서 작성',
+    text: '어젯밤 관측한 구역의 기록이 책상에 쌓여 있다. 머리에 올라갈 보고서는 한 글자도 틀려서는 안 된다.',
+    choices: [
+      { t: '원본 기록과 하나하나 대조하며 작성한다', fn() { say('세 시간 동안 대조했다. 완벽한 보고서다.'); merit(2); } },
+      { t: '요약본만 올린다', def: true, fn() {
+        if (Math.random() < 0.25) { say('보고서가 반려되었다. "누락된 항목이 있습니다." 조율자의 서명이 차갑다.', 'l-bad'); }
+        else { say('요약본이 무사히 통과되었다.'); merit(1); }
+      } },
+    ] },
+  { id: 'wt_judge', aff: ['watcher'], when: [0, 1, 2], w: 3, title: '금기 위반 심의',
+    build() {
+      this.text = `심의 안건: ${pick(TABOO_CASES)}. 응시자의 판단에 따라 대상의 운명이 정해진다.`;
+      return [
+        { t: '불순물로 지정하고 발톱 파견을 요청한다', fn() {
+          if (Math.random() < 0.7) { say('발톱이 파견되었다. 다음 날 아침, 대상은 존재하지 않았다. 판단은 옳았다.'); merit(3); }
+          else { say('…재조사 결과 오판이었다. 이미 발톱은 다녀간 뒤였다. 기록에 정정 표기가 남는다.', 'l-bad'); merit(-1); }
+        } },
+        { t: '경고 처분으로 끝낸다', fn() { say('경고장이 발송되었다. 대상은 다시는 같은 실수를 하지 않을 것이다.'); merit(1); } },
+        { t: '증거 보강을 요청하고 보류한다', def: true, fn() { say('안건이 다음 심의로 넘어갔다.'); } },
+      ];
+    }, text: '' },
+  { id: 'wt_audit', aff: ['watcher'], when: [0, 1], w: 2, title: '날개 정기 감사',
+    text: '한 날개가 제출한 특이점 연구 일지 수천 장. 금기에 닿는 내용이 있는지 확인해야 한다.',
+    choices: [
+      { t: '서류를 한 장씩 대조한다', fn() {
+        if (Math.random() < 0.4) { say('숫자 하나가 맞지 않았다. 추궁하자 날개는 즉시 "협조금"을 보내왔다.'); merit(3); gain(50000000); }
+        else { say('이상 없음. 지루하지만, 이것이 도시를 유지하는 일이다.'); merit(1); }
+      } },
+      { t: '형식적으로 승인한다', def: true, fn() { say('도장을 찍었다.'); if (Math.random() < 0.2) { say('…훗날 그 날개의 이름이 불순물 목록에 오른다. 당신의 도장과 함께.', 'l-bad'); merit(-2); } } },
+    ] },
+  { id: 'wt_schedule', aff: ['watcher'], when: [1, 2], w: 2, title: '발톱 배치 조율',
+    text: '오늘 밤 처리해야 할 안건이 셋, 가용 발톱은 둘. 우선순위를 정해야 한다.',
+    choices: [
+      { t: '위험도 순으로 배치한다', fn() { say('합리적인 배치였다. 세 번째 안건은 내일로 미뤄졌다.'); merit(1); } },
+      { t: '하나는 직접 현장을 확인하러 간다', fn() {
+        say('현장에서 대상과 마주쳤다. 응시자는 전투원이 아니다.', 'l-bad');
+        fight('impurity', { lethal: true, win() { say('발톱이 도착했을 때, 상황은 이미 끝나 있었다.'); merit(4); } });
+      } },
+      { t: '조율자에게 판단을 올린다', def: true, fn() { say('"알겠습니다." 짧은 답이 돌아왔다. 판단은 위로 넘어갔다.'); } },
+    ] },
+  { id: 'wt_watch', aff: ['watcher'], when: [0, 1, 2], w: 2, title: '응시',
+    text: '도시의 한 구역을 지켜본다. 아무 일도 일어나지 않는 것을 확인하는 것도 일이다.',
+    choices: [
+      { t: '끝까지 지켜본다', def: true, fn() { if (Math.random() < 0.3) { say('누군가 금기의 경계선 근처를 서성인다. 기록해 두었다.'); merit(2); } else { say('오늘의 도시는 평온했다.'); merit(1); } } },
+      { t: '관측 일지를 정리하며 쉰다 — 체력 10 회복', fn() { heal(10); } },
+    ] },
+);
+
+/* =========================================================
    턴 진행 (자동 진행 + 제한시간)
 ========================================================= */
 function startTurn() {
@@ -1089,6 +1280,7 @@ function chooseEvent() {
   const f = faction();
   let pool = EVENTS.filter(e => !e.chainOnly && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
     && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.origin || e.origin.includes(S.ch.id))
+    && (!e.aff || e.aff.includes(S.aff))
     && (!e.cond || e.cond()));
   if (!pool.length) pool = EVENTS.filter(e => e.id === 'rest');
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total;
@@ -1146,7 +1338,7 @@ function choose(i, auto = false) {
 function endTurn() {
   S.turn++;
   if (S.turn > 3) {
-    S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false;
+    S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
     print(`${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
     if (H().dailyPay) { say('월급날이다. 세금과 관리비가 빠져나간 뒤의 숫자를 확인한다.'); gain(pay(H().dailyPay)); }
@@ -1243,7 +1435,8 @@ function startRound() {
   for (const u of [P, E]) { u.st.str = u.next.str; u.st.end = u.next.end; u.st.prot = u.next.prot; u.next = mkSt(); }
   if (E.d.onRound) E.d.onRound(E, P);
   if (H().roundStart) H().roundStart(P, E);
-  P.light = P.maxLight;
+  if (S.armor) P.st.prot += S.armor;   // 재단사 원단
+  if (C.round > 1) P.light = Math.min(P.maxLight, P.light + 1);   // 빛은 매 막 1씩만 회복
   if (C.round > 1) drawCards((P.emoLv > 0 ? 3 : 2) + (H().extraDraw || 0));
   // 적의 행동 예고
   C.intents = [];
@@ -1290,8 +1483,9 @@ function unplay(pi) {
 
 function applyFx(fx, self, foe) {
   if (!fx) return;
-  if (fx.light) { self.light = (self.light || 0) + fx.light; }
+  if (fx.light && self === C.P) self.light = Math.min(self.maxLight, self.light + fx.light);
   if (fx.draw && self === C.P) drawCards(fx.draw);
+  if (fx.cleanse) { self.st.bleed = 0; self.st.burn = 0; clog(`${self.name}의 출혈·화상이 사라졌다`, 'l-good'); }
   if (fx.heal) { const v = Math.min(fx.heal, self.maxHp - self.hp); self.hp += v; clog(`${self.name} 체력 +${v}`, 'l-good'); }
   if (fx.nextStr) self.next.str += fx.nextStr;
   if (fx.nextEnd) self.next.end += fx.nextEnd;
@@ -1351,7 +1545,8 @@ function gainEmo(n) {
   const th = [3, 7, 12, 18];
   while (P.emoLv < th.length && P.emo >= th[P.emoLv]) {
     P.emoLv++; P.maxLight = Math.min(Math.max(6, S.ch.light || 0), P.maxLight + 1);
-    clog(`감정 단계 ${P.emoLv} — 최대 빛 +1`, 'l-sys');
+    P.light = P.maxLight;
+    clog(`감정 단계 ${P.emoLv} — 최대 빛 +1, 빛 전부 회복`, 'l-sys');
   }
 }
 
@@ -1470,7 +1665,8 @@ function endCombat(win) {
     S.kills++;
     print(`⚔ 승리 — ${C.E.name}을(를) 쓰러뜨렸다.`, 'l-good');
     const [a, b] = C.E.d.reward;
-    let money = pay(rnd(a, b)); money = Math.round(money * (H().moneyMul || 1));
+    // 강적(elite)의 보상은 고정, 일반 적은 위상에 따라 증가
+    let money = Math.round(rnd(a, b) * (C.E.d.elite ? 1 : payMul()) * (H().moneyMul || 1));
     gain(money);
     S.hp = Math.max(S.hp, 1);
     opts.win && opts.win();
@@ -1491,7 +1687,7 @@ function endCombat(win) {
 }
 
 function rewardModal(rare) {
-  const opts = shuffle([...SHOP_POOL]).slice(0, 3);
+  const opts = shuffle(DROP_POOL()).slice(0, 3);
   if (rare && Math.random() < 0.5) opts[0] = 'ego';
   S.pausedByModal = !S.paused; if (!S.paused) setSpeed(0);
   openModal(`<h3>전리품 — 카드 1장을 선택하세요</h3>
@@ -1571,8 +1767,11 @@ function showHelp() {
   · 공격 vs 회피: 회피가 같거나 높으면 피해 없음 + 흐트러짐 회복<br>
   · 막지 못한 예고는 <b>일방 공격</b>, 예고보다 많이 낸 카드는 적에게 일방 공격<br>
   · <b>흐트러짐</b> 게이지가 0이 되면 다음 막 행동 불가 + 받는 피해 2배. 타격은 흐트러짐 피해 1.5배<br>
-  · 합에서 이기면 <b>감정</b>이 쌓이고, 감정 단계가 오르면 최대 빛 +1<br><br>
+  · <b>빛</b>은 첫 막에 가득 차 있고, 이후 매 막 <b>1씩만</b> 회복됩니다<br>
+  · 합에서 이기면 <b>감정</b>이 쌓이고, 감정 단계가 오르면 최대 빛 +1 + 빛 전부 회복<br><br>
   <b>성장</b> — 의뢰와 전투로 실적을 쌓으면 하나 협회 승급 심사로 등급이 오릅니다. 등급이 오를수록 보수가 늘어납니다.<br>
+  <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
+  <b>안(眼)</b> — 원화와 비슷한 가치입니다. 둥지 중상위층의 월급이 400만 안 정도입니다.<br>
   <b>출신과 소속</b> — 출신은 바뀌지 않지만, 소속(협회·손가락·조직·날개 등)은 이벤트로 옮길 수 있습니다. 출신 특성과 소속 패시브가 함께 적용됩니다.<br>
   · 예) 쥐·고아 → 면허 시험 → 해결사 → 협회 스카우트 / 손가락의 손짓 → 손가락 → … 1급이 되면 특색 지정<br>
   · 조직·손가락을 떠나면 추격자가 따라옵니다. <b>머리(발톱·응시자·조율자)는 소속을 옮길 수 없습니다.</b><br>
@@ -1588,13 +1787,14 @@ function gameOver(reason) {
   $('#over').classList.remove('hidden');
   $('#over').innerHTML = `<h1 style="color:var(--red)">사망</h1>
     <div class="sub">${reason}<br>도시는 당신이 사라진 것을 알아차리지 못했다. 아침이 되면 청소부가 흔적을 지울 것이다.<br><br>
-    생존: <b>${S.day}일차 ${TURNS[S.turn].name}</b> · 출신: <b>${S.ch.name}</b> · 마지막 소속: <b>${affName()}</b> · 최종 위상: <b>${rankText()}</b> · 실적: <b>${S.merit}</b> · 처치: <b>${S.kills}</b> · 남긴 돈: <b>${S.money}안</b></div>
+    생존: <b>${S.day}일차 ${TURNS[S.turn].name}</b> · 출신: <b>${S.ch.name}</b> · 마지막 소속: <b>${affName()}</b> · 최종 위상: <b>${rankText()}</b> · 실적: <b>${S.merit}</b> · 처치: <b>${S.kills}</b> · 남긴 돈: <b>${won(S.money)}</b></div>
     <button onclick="location.reload()">다시 시작</button>`;
 }
 
 /* ---------- 입력 ---------- */
 document.querySelectorAll('.speed button').forEach(b => b.onclick = () => setSpeed(+b.dataset.sp));
 $('#deckBtn').onclick = showDeck;
+$('#cityBtn').onclick = cityOpen;
 $('#helpBtn').onclick = showHelp;
 $('#nextBtn').onclick = () => { if (T && T.resolved) { T.timeLeft = 0; $('#nextBtn').classList.add('hidden'); } };
 document.addEventListener('keydown', e => {
@@ -1622,15 +1822,17 @@ $('#rollBtn').onclick = async () => {
     await sleep(60 + i * 8);
   }
   const ch = rollOrigin(), a = AFFS[ch.aff];
+  ch.loc = rollBirthplace(ch);
   const p = (ch.w / totalW * 100);
   box.innerHTML = `<div class="origin t${ch.tier}">
     <span class="tier tier-${ch.tier}">${TIER_NAME[ch.tier]}</span> <span class="dim" style="font-size:12px">확률 ${p.toFixed(p < 1 ? 2 : 1)}%</span>
     <h2>${ch.name}</h2>
     <div class="dim">소속: <b style="color:var(--text)">${affName(ch.aff, ch.grade)}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
       ${a.locked ? '<br><span class="l-bad">🔒 머리 소속 — 소속을 옮길 수 없다</span>' : '<br><span class="l-good">소속은 이벤트로 옮길 수 있다</span>'}</div>
+    <div class="dim" style="margin-top:4px">태어난 곳: <b style="color:var(--gold)">${ch.loc.label}</b>${ch.loc.note ? ' — ' + ch.loc.note : ''}${ch.loc.area === 'outskirts' ? ' (최대 체력 +8)' : ''}</div>
     <div style="margin-top:10px;line-height:1.7">${ch.intro}</div>
     <div class="pas">[출신] ${ch.trait}<br>[소속] ${a.passive}</div>
-    <div class="dim" style="font-size:13px">체력 ${ch.hp} · 흐트러짐 ${ch.stg} · 빛 ${Math.max(ch.light || 3, a.light || 0)} · 자금 ${ch.money}안${a.home ? ' · 거처 있음' : ''}</div>
+    <div class="dim" style="font-size:13px">체력 ${ch.hp} · 흐트러짐 ${ch.stg} · 빛 ${Math.max(ch.light || 3, a.light || 0)} · 자금 ${won(ch.money)}${a.home ? ' · 거처 있음' : ''}</div>
     <div class="mini">${[...new Set(ch.deck)].map(id => `<span>${CARDS[id].name}</span>`).join('')}</div>
     <button id="startBtn" style="margin-top:10px;border-color:var(--gold)">이 삶으로 시작한다</button></div>`;
   $('#startBtn').onclick = () => newGame(ch);
