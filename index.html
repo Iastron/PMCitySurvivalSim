@@ -524,7 +524,7 @@ const ORIGINS = [
     trait: '괴물 사냥꾼 — 외곽의 괴물에게 공격 위력 +3. 외곽에서 태어났다.',
     deck: ['bullet', 'shi_vital', 'shi_vital', 'deflect', 'combo', 'st_smoke', 'zw_guard', 'rt_flail'],
     intro: '정착지의 울타리를 지키며 자랐다. 노움과 이빨태엽의 습성은 사람보다 잘 안다. 도시는 아직 낯설다.',
-    hooks: { rollBonus(P, d) { return OFF(d[0]) && ['gnome', 'toothgear', 'giant'].includes(C.key) ? 3 : 0; } } },
+    hooks: { rollBonus(P, d) { return OFF(d[0]) && C.E.d.monster ? 3 : 0; } } },
   /* ---------- 드묾 ---------- */
   { id: 'fixer_mid', w: 45, tier: 2, variant: 'fixer', grades: [6, 5], label: '해결사 (6~5급)' },
   { id: 'fixer_high', w: 22, tier: 2, variant: 'fixer', grades: [4, 3], label: '해결사 (4~3급)' },
@@ -888,7 +888,7 @@ function newGame(ch) {
     deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0,
     loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [], debt: 0, debtDue: 0, press: 0, ego: null, payDay: 0 };
   if (H().monthlyPay) S.payDay = 1 + rnd(1, 30);   // 입사 시점은 제각각이라 첫 월급날도 무작위
-  if (S.loc.area === 'outskirts') { S.maxHp += 8; S.hp += 8; }
+  if (S.loc.area === 'outskirts') { S.maxHp += 8; S.hp += 8; S.exiled = true; S.flags.exileDay = S.day; }
   restockShop();
   $('#title').classList.add('hidden');
   $('#topbar').classList.remove('hidden');
@@ -999,6 +999,7 @@ function merit(n) {
 function addCard(id) { S.deck.push(id); say(`덱에 「${CARDS[id].name}」 추가`, 'l-good'); }
 
 function renderTop() {
+  if (S) $('#cityBtn').textContent = S.exiled ? '외곽 정착지' : '도시 시설';
   saveHistory();
   if (!S) return;
   const t = TURNS[S.turn];
@@ -1537,9 +1538,9 @@ function cityRender() {
   const row = (label, desc, cost, act, ok = true) =>
     `<div class="fac-row"><div><b>${label}</b><div class="dim">${desc}</div></div>
      <button data-act="${act}" ${(!ok || S.money < cost) ? 'disabled' : ''}>${won(cost)}</button></div>`;
-  let h = `<h3>도시 시설 <span class="dim" style="font-size:13px">보유 ${won(S.money)} · ${S.loc ? S.loc.label : ''}</span></h3>`;
+  let h = `<h3>${S.exiled ? '외곽 정착지' : '도시 시설'} <span class="dim" style="font-size:13px">보유 ${won(S.money)} · ${S.loc ? S.loc.label : ''}</span></h3>`;
   if (S.exiled) {
-    h += '<p class="l-bad">외곽에는 도시의 시설이 없다. 공방도, 병원도, 법도.</p>';
+    h += outskirtsMarketRows(row);
   } else if (faction() === 'vampire') {
     h += '<p class="l-bad">혈귀에게 도시의 가게는 문을 열지 않는다. 필요한 것은 피로 얻는다.</p>';
   } else if (faction() === 'twisted') {
@@ -1577,7 +1578,10 @@ function cityRender() {
   document.querySelectorAll('#modalBox button[data-act]').forEach(b => b.onclick = () => cityAct(b.dataset.act));
 }
 function cityAct(act) {
+  if (!S || S.phase !== 'day') return;
   const [k, v] = act.split(':');
+  if (S.exiled) { if (k === 'os') outskirtsBuy(v); renderTop(); cityRender(); return; }
+  if (k === 'os') return;
   if (k === 'card') { const id = S.stock[+v]; if (buy(priceOf(id), `「${CARDS[id].name}」 구매`)) { S.deck.push(id); S.stock.splice(+v, 1); } }
   else if (k === 'aug') {
     const a = AUG.find(x => x.id === v), n = S.aug[v] || 0, c = Math.round(a.base * Math.pow(a.mul, n));
@@ -2027,12 +2031,12 @@ const OUTSKIRTS = { area: 'outskirts', label: '외곽', note: '괴물과 버려�
 function leaveCity(line) {
   S.exiled = true; S.cityLoc = S.loc; S.loc = OUTSKIRTS; S.flags.exileDay = S.day;
   say(line, 'l-sys');
-  say('외곽에서는 도시의 시설도 월급도 닿지 않는다. 외곽 열차를 타면 다음 날부터 돌아갈 수 있다.', 'l-sys');
+  say('외곽에서는 도시의 월급이 닿지 않는다. 정착지에서 치료와 보급을 받을 수 있고, 외곽 열차로 다음 날부터 돌아갈 수 있다.', 'l-sys');
 }
 function expel() {
   S.exiled = true; S.cityLoc = S.loc; S.loc = OUTSKIRTS; S.flags.exileDay = S.day;
   say('조율자가 손을 들었다. 세계가 접히는 감각. 눈을 떠보니 도시의 불빛이 지평선 너머에 있다. — 외곽으로 축출되었다.', 'l-bad');
-  say('외곽에는 도시의 시설도, 월급도, 법도 없다. 대신 괴물이 있다.', 'l-sys');
+  say('외곽에는 도시의 월급도 법도 없다. 정착지에서 보급하며 괴물과 환상체에 대비해야 한다.', 'l-sys');
 }
 
 Object.assign(ENEMIES, {
@@ -2138,10 +2142,94 @@ EVENTS.push(
   { id: 'os_night', exile: true, notFac: ['library'], when: [3], w: 1, title: '외곽의 밤',
     text: '도시의 밤처럼 정해진 규칙은 없다. 대신 어둠 속에서 무언가가 끝없이 움직인다.',
     choices: [
+      { t: '정착지 숙소에서 쉰다 — 체력 50% 회복', req: () => !!S.osShelter, reqText: '정착지에서 숙소 마련 필요', fn() { say('튼튼한 문을 걸어 잠그고 잠들었다.'); heal(Math.round(S.maxHp * 0.5)); } },
       { t: '모닥불을 지키며 밤을 새운다 — 체력 15 회복', def: true, fn() { say('불빛 너머로 눈들이 반짝였지만, 다가오지는 않았다.'); heal(15); } },
       { t: '어둠 속으로 사냥을 나간다', fn() { fight(pick(['gnome', 'toothgear']), { lethal: true, win() { say('외곽의 밤에서 살아남았다.'); merit(2); } }); } },
     ] },
 );
+
+// 외곽 전용 창작 괴물·환상체와 사냥 장비
+Object.assign(CARDS, {
+  os_spear: {name:'사냥꾼의 장창',cost:1,dice:[['관통',4,8]],onHit:{bleed:1},desc:'적중 시 출혈 1'},
+  os_hide: {name:'가죽 방패',cost:1,dice:[['방어',5,9],['타격',2,5]],onUse:{nextProt:1},desc:'다음 막 보호 1'},
+  os_trap: {name:'괴수용 덫',cost:2,dice:[['관통',7,12],['참격',4,8]],onHit:{para:1},desc:'적중 시 마비 1'},
+  os_zayin: {name:'남겨진 온기',cost:1,dice:[['방어',4,8]],onUse:{heal:5},desc:'사용 시 체력 5 회복 · ZAYIN 전리품'},
+  os_teth: {name:'빗속의 발자국',cost:1,dice:[['회피',4,9],['관통',4,8]],onHit:{para:1},desc:'적중 시 마비 1 · TETH 전리품'},
+  os_he: {name:'공복의 종소리',cost:2,dice:[['타격',7,12],['관통',5,9]],onHit:{bleed:2},desc:'적중 시 출혈 2 · HE 전리품'},
+  os_waw: {name:'잿빛 행렬',cost:3,dice:[['방어',7,12],['참격',8,14],['타격',6,11]],onHit:{burn:2},desc:'적중 시 화상 2 · WAW 전리품'},
+  os_aleph: {name:'이름 없는 새벽',cost:4,dice:[['참격',11,18],['관통',10,17],['타격',9,16]],onUse:{nextProt:2},onHit:{erosion:1},desc:'다음 막 보호 2, 적중 시 침식 1 · ALEPH 전리품'}
+});
+Object.assign(ENEMIES, {
+  os_hound: {monster:true,name:'폐허 들개 무리',desc:'철골과 살점이 뒤엉킨 외곽의 창작 괴물. 상처 냄새를 좇는다.',hp:65,stg:32,slots:2,res:{참격:1.2,관통:1,타격:0.9},reward:[40000,90000],
+    pool:[{name:'고철 송곳니',dice:[['관통',3,7],['참격',2,5]],onHit:{bleed:1}},{name:'잔해 사이로',dice:[['회피',3,7]]}]},
+  os_carapace: {monster:true,elite:true,name:'암반 등딱지',desc:'바위처럼 웅크린 외곽의 창작 괴물. 단단한 껍질 아래가 약점이다.',hp:210,stg:85,slots:3,light:5,lightRegen:2,res:{참격:0.7,관통:1.3,타격:0.8},reward:[500000,900000],
+    passive:'암반 껍질 — 매 막 보호 2',onRound:e=>{e.st.prot+=2;},
+    pool:[{name:'암반 충돌',dice:[['타격',9,15],['타격',5,9]]},{name:'가시 껍질',dice:[['방어',8,13],['관통',5,10]]},{name:'땅 뒤집기',dice:[['타격',12,19]],onHit:{para:2}}]},
+});
+for (const key of ['gnome','toothgear','giant']) ENEMIES[key].monster = true;
+const OS_ABNORMALITIES = [
+  {key:'ab_zayin',risk:'ZAYIN',name:'잠들지 않는 등불',hp:42,stg:24,slots:1,light:2,lightRegen:1,weight:2,reward:[20000,50000],merit:1,card:'os_zayin',res:{참격:1,관통:1,타격:1.2},
+    desc:'폐허의 창문에 매달린 등불. 다가오는 손을 작은 불꽃으로 밀어낸다.',passive:'잔불 — 매 막 보호 1',onRound:e=>{e.st.prot+=1;},
+    pool:[{name:'작은 불씨',dice:[['타격',2,5]],onHit:{burn:1}},{name:'흔들리는 불빛',dice:[['방어',2,5]]}]},
+  {key:'ab_teth',risk:'TETH',name:'비를 기다리는 우산',hp:82,stg:40,slots:2,light:3,lightRegen:2,weight:1.6,reward:[80000,150000],merit:2,card:'os_teth',res:{참격:1.2,관통:0.9,타격:1},
+    desc:'비가 없는 황무지에 검은 우산이 떠 있다. 그 아래에서만 발자국 소리가 들린다.',passive:'젖은 손잡이 — 매 막 인내 1',onRound:e=>{e.st.end+=1;},
+    pool:[{name:'우산살 찌르기',dice:[['관통',4,8],['관통',3,6]]},{name:'젖은 발자국',dice:[['회피',4,8],['타격',3,7]],onHit:{para:1}}]},
+  {key:'ab_he',risk:'HE',name:'공복의 종탑',hp:155,stg:70,slots:2,light:4,lightRegen:2,weight:1,reward:[300000,600000],merit:3,card:'os_he',res:{참격:1,관통:0.8,타격:1.2},
+    desc:'종 대신 이빨이 매달린 작은 탑. 울릴 때마다 가까운 생명의 살이 떨린다.',passive:'허기 — 체력이 절반 이하일 때 매 막 힘 2',onRound:e=>{if(e.hp<=e.maxHp/2)e.st.str+=2;},
+    pool:[{name:'식사 종',dice:[['타격',7,12],['타격',5,9]]},{name:'흔들리는 이빨',dice:[['관통',6,11],['참격',4,8]],onHit:{bleed:2}},{name:'닫힌 문',dice:[['방어',7,12]]}]},
+  {key:'ab_waw',risk:'WAW',name:'재로 된 순례자',hp:285,stg:115,slots:3,light:6,lightRegen:3,weight:0.5,reward:[1500000,3000000],merit:5,card:'os_waw',res:{참격:0.8,관통:1.1,타격:0.8},
+    desc:'발을 디딜 때마다 재가 쌓인다. 얼굴 없는 순례자가 손짓하면 꺼진 불이 다시 붙는다.',passive:'재의 옷 — 매 막 보호 2, 세 번째 막마다 힘 2',onRound:e=>{e.st.prot+=2;if(C.round%3===0)e.st.str+=2;},
+    pool:[{name:'잿빛 발걸음',dice:[['참격',8,14],['타격',7,12]],onHit:{burn:2}},{name:'화장 행렬',dice:[['타격',12,20]],onHit:{burn:4}},{name:'재의 장막',dice:[['방어',9,15],['참격',6,10]]}]},
+  {key:'ab_aleph',risk:'ALEPH',name:'새벽을 삼킨 하늘',hp:520,stg:190,slots:4,light:8,lightRegen:4,weight:0.18,reward:[8000000,15000000],merit:8,card:'os_aleph',res:{참격:0.7,관통:0.9,타격:0.7},
+    desc:'황무지 위 하늘이 접히고, 이름 없는 입이 열린다. 경고 표지조차 검게 지워진다.',passive:'영원한 미명 — 매 막 보호 2, 매 세 번째 막 힘 3',onRound:e=>{e.st.prot+=2;if(C.round%3===0)e.st.str+=3;},
+    pool:[{name:'새벽 포식',dice:[['참격',13,21],['관통',10,17]],onHit:{erosion:2}},{name:'지워진 지평선',dice:[['타격',17,27]],onHit:{para:2}},{name:'검은 천막',dice:[['방어',12,19],['참격',10,16]]},{name:'별 없는 밤',dice:[['관통',11,18],['타격',9,16],['참격',8,14]]}]}
+];
+for (const a of OS_ABNORMALITIES) {
+  ENEMIES[a.key] = {...a,elite:true,abnormality:true,name:`[${a.risk}] ${a.name}`,desc:a.desc+' (이 게임의 창작 환상체)'};
+  EVENTS.push({id:'os_'+a.key,exile:true,when:[0,1,2,3],w:a.weight,title:`환상체 조우 — ${a.risk}`,
+    text:`${a.desc} 위험 등급: ${a.risk}. 제압에 실패하면 사망합니다.`,
+    choices:[{t:`${ENEMIES[a.key].name} 제압에 도전한다`,fn(){huntOutskirts(a.key);}},
+      {t:'흔적을 남기지 않고 물러난다',def:true,fn(){say('경고 표지를 남기고 안전한 길로 돌아갔다.');}}]});
+}
+function huntOutskirts(key) {
+  if (!S.exiled) return;
+  const a=OS_ABNORMALITIES.find(x=>x.key===key);
+  fight(key,{lethal:true,win(){merit(a?a.merit:2);say(a?`${a.risk} 환상체를 제압했다. 정착지에서 회수품 대금을 받았다.`:'괴물의 부산물을 정착지 거래처에 넘겼다.','l-good');}});
+}
+EVENTS.push(
+  {id:'os_monster_tracks',exile:true,when:[0,1,2],w:1.8,title:'황무지의 새로운 발자국',text:'고철 냄새를 남긴 들개와 바위처럼 거대한 괴물의 흔적이 갈라진다.',choices:[
+    {t:'폐허 들개를 추적한다 — 보통 위험',fn(){huntOutskirts('os_hound');}},
+    {t:'암반 등딱지를 추적한다 — 높은 위험',fn(){huntOutskirts('os_carapace');}},
+    {t:'흔적에서 멀어진다',def:true,fn(){say('오늘은 사냥 대신 돌아갈 길을 익혔다.');}}]},
+  {id:'os_hunt_board',exile:true,when:[0,1,2],w:2,title:'정착지의 제압 의뢰',text:'사냥꾼들이 환상체의 흔적을 등급별로 표시해 두었다. ZAYIN에서 ALEPH로 갈수록 강해진다. 모든 도전은 패배 시 사망한다.',
+    build(){return [...OS_ABNORMALITIES.map(a=>({t:`[${a.risk}] ${a.name} — 제압 대금 ${won(a.reward[0])}~${won(a.reward[1])}`,fn(){huntOutskirts(a.key);}})),{t:'이번에는 의뢰를 받지 않는다',def:true,fn(){say('장비를 정비한 뒤 돌아오기로 했다.');}}];}}
+);
+const OS_GOODS = [
+  {id:'meal',name:'따뜻한 보급식',cost:10000,limit:1,desc:'체력 15 회복 · 하루 1회',ok:()=>S.hp<S.maxHp,apply:()=>heal(15)},
+  {id:'treatment',name:'정착지 치료사의 처치',cost:30000,limit:2,desc:'최대 체력의 40% 회복 · 하루 2회',ok:()=>S.hp<S.maxHp,apply:()=>heal(Math.round(S.maxHp*0.4))},
+  {id:'spear',name:'사냥꾼의 장창',cost:80000,limit:1,desc:'1빛 · 관통 4~8, 적중 시 출혈 1 · 하루 1장',apply:()=>addCard('os_spear')},
+  {id:'hide',name:'가죽 방패',cost:160000,limit:1,desc:'1빛 · 방어 5~9 / 타격 2~5, 다음 막 보호 1 · 하루 1장',apply:()=>addCard('os_hide')},
+  {id:'trap',name:'괴수용 덫',cost:400000,limit:1,desc:'2빛 · 관통 7~12 / 참격 4~8, 적중 시 마비 1 · 하루 1장',apply:()=>addCard('os_trap')}
+];
+function outskirtsMarketState() {
+  if (!S.osMarket || S.osMarket.day!==S.day) S.osMarket={day:S.day,used:{}};
+  return S.osMarket.used;
+}
+function outskirtsMarketRows(row) {
+  const used=outskirtsMarketState();
+  let h='<p class="dim">정착지의 거래처는 소속을 묻지 않고 안을 받는다. 보급품은 다음 날 다시 들어온다. 보유금으로만 거래한다.</p><h4>치료·보급·사냥 장비</h4>';
+  h+=OS_GOODS.map(g=>row(g.name,g.desc+` (오늘 ${used[g.id]||0}/${g.limit})`,g.cost,'os:'+g.id,(used[g.id]||0)<g.limit&&(!g.ok||g.ok()))).join('');
+  if(S.armor<3) h+=row('괴물 가죽 보호구 '+(S.armor+1)+'단계','매 막 보호 +1 · 기존 보호구와 같은 단계, 외곽에서는 3단계까지',[200000,1000000,5000000][S.armor],'os:armor');
+  h+=S.osShelter?'<p class="dim">정착지의 숙소가 있다. 「외곽의 밤」에 무료로 쉬며 체력 50%를 회복할 수 있다.</p>':row('정착지 숙소 마련','「외곽의 밤」에 무료 휴식 · 체력 50% 회복',500000,'os:shelter');
+  return h;
+}
+function outskirtsBuy(id) {
+  if(!S || !S.exiled || S.phase!=='day')return;
+  const used=outskirtsMarketState(),g=OS_GOODS.find(x=>x.id===id);
+  if(g){if((used[id]||0)>=g.limit||(g.ok&&!g.ok()))return;if(buy(g.cost,g.name)){used[id]=(used[id]||0)+1;g.apply();}}
+  else if(id==='armor'&&S.armor<3){if(buy([200000,1000000,5000000][S.armor],'괴물 가죽 보호구'))S.armor++;}
+  else if(id==='shelter'&&!S.osShelter){if(buy(500000,'정착지 숙소 마련'))S.osShelter=true;}
+}
 
 const AMBIENT_OS = [
   ['황무지 위로 해가 뜬다. 도시보다 하늘이 넓다.', '멀리 외곽 열차가 도시의 경계를 따라 달린다.', '버려진 건물 잔해 사이로 바람이 분다.', '어딘가에서 노움들의 노랫소리가 들린다. 좋은 징조는 아니다.'],
@@ -3309,7 +3397,8 @@ function endCombat(win) {
       S.vpCaptive = CAPTIVES[capKey]; T.pendingChain = 'vp_fate'; T.timeLeft = Math.max(T.timeLeft, 20);
     }
     const libraryCards = libraryRewardCards(C.key);
-    rewardModal(opts.rare, libraryCards, libraryCards ? '사서의 책장 — 1장을 선택하세요 (퓨리오소 제외)' : undefined);
+    const abnormality = OS_ABNORMALITIES.find(a => a.key === C.key);
+    rewardModal(opts.rare, libraryCards || (abnormality ? [abnormality.card] : null), libraryCards ? '사서의 책장 — 1장을 선택하세요 (퓨리오소 제외)' : abnormality ? abnormality.risk + ' 제압 전리품 — 환상체의 흔적' : undefined);
   } else {
     if (opts.lethal === false) {
       print(opts.noRob ? '⚔ 패배 — 정신을 잃었다.' : '⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
@@ -3448,7 +3537,7 @@ function showHelp() {
   <b>정신 압박</b> — 부상·패배·공포로 쌓이고 회복·휴식으로 줄어듭니다. 100%가 되면 자신과 마주하게 됩니다.<br>
   · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 두 번 외면해도 뒤틀립니다. E.G.O 개화는 어렵고, 뒤틀림은 쉽습니다.<br>
   · 뒤틀리면 소속을 잃고 하나 협회 토벌대에게 사냥당합니다. Limbus Company에게 "지면" 해소됩니다. 머리 소속은 흔들리지 않습니다.<br>
-  <b>외곽</b> — 「외곽으로」 이벤트로 직접 갈 수 있고, 외곽 열차로 다음 날부터 돌아올 수 있습니다. 외곽에서는 황무지의 도서관에 합류하거나 도전할 수 있습니다.<br>
+  <b>외곽</b> — 「외곽으로」 이벤트로 직접 갈 수 있고, 외곽 열차로 다음 날부터 돌아올 수 있습니다. 외곽에서는 괴물 및 ZAYIN~ALEPH 환상체를 사냥하거나 황무지의 도서관에 도전할 수 있습니다. 상단의 「외곽 정착지」에서 안으로 치료·보급·장비·숙소를 구매할 수 있습니다.<br>
   <b>금기와 조율자</b> — 날개의 금기를 4번 어기거나(금기 사냥꾼 처치 포함) 발톱을 죽이면 불순물로 지정되어 조율자가 찾아옵니다.
   조율자는 죽지 않습니다. 체력을 다 깎으면 외곽으로 축출되고, 지면 죽습니다. 외곽 열차로 도시에 돌아갈 수 있지만 조율자가 다시 기다립니다.<br>
   <b>혈귀</b> — 도시의 평범한 활동(일반 이벤트·시설)은 불가능합니다. 흡혈·피주머니로 피를 모으고 권속을 만들어 강해지지만,
@@ -3550,9 +3639,16 @@ $('#rollBtn').onclick = async () => {
       if (chosen) return;
       chosen = true;
       box.querySelectorAll('[data-candidate]').forEach(b => b.disabled = true);
+      $('#rollBtn').disabled = true;
+      $('#rollCountBtn').disabled = true;
+      $('#rollCount').disabled = true;
       newGame(candidates[Number(button.dataset.candidate)]);
     };
   });
+  $('#rollBtn').disabled = false;
+  $('#rollBtn').textContent = '다시 뽑기 — 도시에 태어나기';
+  $('#rollCountBtn').disabled = false;
+  $('#rollCount').disabled = false;
 };
 </script>
 </body>
