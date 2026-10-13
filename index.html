@@ -2270,7 +2270,7 @@ function fightCityAnomaly(key) {
 }
 const CITY_ANOMALY_FACTIONS = [...new Set(Object.values(AFFS).map(a=>a.faction))];
 for(const type of CITY_ANOMALY_TYPES) EVENTS.push({
-  id:'city_sighting_'+type.id,fac:CITY_ANOMALY_FACTIONS,when:[0,1,2,3],w:[1.1,0.9,0.7,0.45,0.2][CITY_RISK_TIERS.indexOf(type.risk)],cond:()=>!S.exiled,
+  id:'city_sighting_'+type.id,fac:CITY_ANOMALY_FACTIONS,when:[0,1,2],w:[1.1,0.9,0.7,0.45,0.2][CITY_RISK_TIERS.indexOf(type.risk)],cond:()=>!S.exiled,
   title:'',text:'',build(){
     const level=rollCityThreat(),key='city_'+type.id+'_'+level,d=ENEMIES[key];
     this.title='도시 이상현상 — '+type.risk+'-'+level+' '+type.kind;
@@ -2362,7 +2362,7 @@ for(const a of CANON_ANOMALIES){
   ENEMIES[a.key]={...a,elite:true,abnormality:a.kind==='환상체',distortion:a.kind==='뒤틀림',name:'['+a.label+'] '+a.name,
     desc:a.desc+' (원작 개체 · 재등장과 전투 수치는 게임 각색'+(a.kind==='뒤틀림'?' · 문자 등급도 게임 자체 분류':'')+')',
     hp:b.hp,stg:b.stg,slots:b.slots,light:b.light,lightRegen:b.regen,res:{참격:1,관통:1,타격:1},reward:[b.reward,Math.round(b.reward*1.5)]};
-  for(const outside of [false,true])EVENTS.push({id:(outside?'os_':'city_')+a.key,exile:outside,fac:CITY_ANOMALY_FACTIONS,when:[0,1,2,3],w:a.w,
+  for(const outside of [false,true])EVENTS.push({id:(outside?'os_':'city_')+a.key,exile:outside,fac:CITY_ANOMALY_FACTIONS,when:outside?[0,1,2,3]:[0,1,2],w:a.w,
     cond:()=>!!S.exiled===outside,title:'원작 '+a.kind+' 조우 — '+a.label+' '+a.name,
     text:a.desc+'<br>위험도 '+a.label+'. 전투에 실패하면 사망한다. '+(a.kind==='뒤틀림'?'문자·숫자 위험도는 이 게임의 자체 분류다.':'숫자 위험도는 이 게임의 자체 분류다.'),
     choices:[{t:a.name+'에 맞선다',fn(){fight(a.key,{lethal:true,win(){merit(a.merit);say(a.name+'을(를) 제압하고 흔적을 회수했다.','l-good');}});}},
