@@ -259,7 +259,7 @@ const CARDS = {
   th_check: { name: '탄창 점검', cost: 0, dice: [['방어', 3, 5]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
   ix_trace: { name: '지령의 자취', cost: 1, dice: [['관통', 4, 8]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
   ix_patience: { name: '묵묵한 대기', cost: 0, dice: [['방어', 3, 6]], onUse: { nextEnd: 1 }, desc: '사용 시 다음 막 인내 1' },
-  md_shoulder: { name: '동생의 어깨치기', cost: 1, dice: [['타격', 4, 7], ['방어', 3, 6]] },
+  md_shoulder: { name: '작은 아우의 어깨치기', cost: 1, dice: [['타격', 4, 7], ['방어', 3, 6]] },
   md_remember: { name: '잊지 않을 얼굴', cost: 0, dice: [['방어', 2, 5]], onUse: { nextStr: 1 }, desc: '사용 시 다음 막 힘 1' },
   rg_sketch: { name: '밑그림 긋기', cost: 1, dice: [['참격', 4, 7], ['관통', 2, 4]], onHit: { bleed: 1 }, desc: '공격 주사위 적중마다 출혈 1' },
   rg_observe: { name: '구도 관찰', cost: 0, dice: [['회피', 3, 5]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
@@ -439,15 +439,15 @@ const AFFS = {
     hooks: { onClashWin(P, E) { E.st.bleed += 1; clog('일격필살 — 출혈 +1', 'l-sys'); } }, cards: ['shi_ambush', 'shi_death'] },
   liu:     { name: '리우 협회', faction: 'assoc', fixer: true, passive: '리우의 불길 — 화상 상태인 적에게 공격 위력 +1.',
     hooks: { rollBonus(P, d, E) { return OFF(d[0]) && E.st.burn > 0 ? 1 : 0; } }, cards: ['liu_fist', 'liu_blaze'] },
-  f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지의 카포', '엄지의 소토카포'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
+  f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지 카포', '엄지 소토카포'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
     hooks: { roundStart(P) { P.st.str += 1; } }, cards: ['th_load', 'th_manner'] },
   f_index: { name: '검지', ranks: ['검지 수행자', '검지 전령', '검지 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
     hooks: { roundStart(P) { const k = pick(['str', 'end', 'prot']); P.st[k] += 2; clog(`지령 — ${STATUS_NAME[k]} +2`, 'l-sys'); } }, cards: ['ix_order', 'ix_will'] },
-  f_middle:{ name: '중지', ranks: ['중지의 동생', '중지의 작은 형님', '중지의 큰 형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
+  f_middle:{ name: '중지', ranks: ['중지 작은 아우', '중지 작은 형님', '중지 큰 형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
     hooks: { rollBonus(P, d) { return OFF(d[0]) && P.hp <= P.maxHp / 2 ? 3 : 0; } }, cards: ['md_hammer', 'md_ledger'] },
-  f_ring:  { name: '약지', ranks: ['약지의 견습 화가', '약지의 도슨트', '약지의 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
+  f_ring:  { name: '약지', ranks: ['약지 스튜던트', '약지 도슨트', '약지 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
     hooks: { enemyBleedMul: 2 }, cards: ['rg_brush', 'rg_master'] },
-  f_pinky: { name: '소지', ranks: ['소지의 조직원', '소지의 간부', '소지의 상위 간부'], faction: 'finger', home: true, passive: '결전의 예 — 공격 주사위끼리 동률이면 승리.',
+  f_pinky: { name: '소지', ranks: ['소지 조직원', '소지 간부', '소지 상위 간부'], faction: 'finger', home: true, passive: '결전의 예 — 공격 주사위끼리 동률이면 승리.',
     hooks: { tieWin: true }, cards: ['pk_draw', 'pk_duel'] },
   color:   { name: '특색', faction: 'color', fixer: true, home: true, light: 5, passive: '색을 받은 자 — 최대 빛 5, 감정 획득 2배, 전투마다 1번 치명상을 체력 1로 버팀.',
     hooks: { emoMul: 2, lastStand: true }, cards: ['col_strike', 'col_mark'] },
@@ -735,6 +735,8 @@ function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
     if (S && S.aff === 'wing' && S.ch.affTitle) return S.ch.affTitle;
     return grade <= 2 ? '날개의 임원' : grade <= 5 ? '날개의 중간 관리자' : '날개 소속 깃털';
   }
+  // 중지는 조직원 구간 안에서도 작은 아우(위상 1~3)와 큰 아우(위상 4)를 구분한다.
+  if (id === 'f_middle' && grade === 6) return '중지 큰 아우';
   if (a.ranks) return a.ranks[fingerTier(grade)];
   if (a.faction === 'assoc') return `${a.name} 해결사`;
   return a.name;
@@ -927,16 +929,17 @@ function merit(n) {
   if (n > 0) n = Math.round(n * meritMul());
   S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
   while (faction() !== 'vampire' && S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
-    const tierBefore = fingerTier(S.grade);
+    const tierBefore = fingerTier(S.grade), titleBefore = faction() === 'finger' ? affName() : null;
     S.grade--; S.maxHp += 12; S.maxStg += 5; S.hp = S.maxHp;
     S.promoCards = (S.promoCards || 0) + 1;
     if (S.grade === 6 || S.grade === 3) { S.lightBonus = (S.lightBonus || 0) + 1; say('✦ 전투 감각이 한 단계 깊어졌다 — 최대 빛 +1', 'l-day'); }
+    if (S.aff === 'f_middle' && S.grade === 6) say('★ 승진 — 중지 작은 아우 → 중지 큰 아우. 상급 조직원으로서 아우들을 이끈다.', 'l-day');
     if (faction() === 'finger' && fingerTier(S.grade) > tierBefore) {
       const a = AFF(), t = fingerTier(S.grade);
       addCard(OFFICER_CARDS[S.aff]);
       if (t === 2) addCard('top_guard');
-      if (S.aff === 'f_index') say(`★ 직책 변경 — ${a.ranks[t - 1]} → ${a.ranks[t]}. ${t === 1 ? '이제 지령을 수신자에게 정확하게 전달하는 임무를 맡는다.' : '이제 상위 집행자로서 지령을 수행한다.'}`, 'l-day');
-      else say(`★ 승진 — ${a.ranks[t - 1]} → <b>${a.ranks[t]}</b> (${FINGER_TIER_NAME[t]}). ${t === 2 ? '이제 손가락의 간부석에 앉는다. 아랫사람들이 당신의 눈을 피한다.' : '아랫사람이 생겼다. 상납금은 이제 당신에게도 올라온다.'}`, 'l-day');
+      if (S.aff === 'f_index') say(`★ 직책 변경 — ${titleBefore} → ${a.ranks[t]}. ${t === 1 ? '이제 지령을 수신자에게 정확하게 전달하는 임무를 맡는다.' : '이제 상위 집행자로서 지령을 수행한다.'}`, 'l-day');
+      else say(`★ 승진 — ${titleBefore} → <b>${a.ranks[t]}</b> (${FINGER_TIER_NAME[t]}). ${t === 2 ? '이제 손가락의 간부석에 앉는다. 아랫사람들이 당신의 눈을 피한다.' : '아랫사람이 생겼다. 상납금은 이제 당신에게도 올라온다.'}`, 'l-day');
       S.money += pay(t === 2 ? 50000000 : 5000000);
       say(`승진 축하금 +${won(pay(t === 2 ? 50000000 : 5000000))}`, 'l-good');
     }
@@ -2592,17 +2595,17 @@ const FINGER_DAILY = [
     text: '지정된 벤치에서 빈 봉투를 받을 때까지 기다리라는 지령. 옆에 앉은 수행자도 같은 종이를 들고 있다. 둘은 서로 자리를 조금 비켜준다.',
     options: [ ['지령의 시간과 장소를 함께 대조한다', '해가 기울 무렵 전달자가 왔다. 봉투는 정말 비어 있었다.', { merit: 1 }], ['조용히 함께 기다린다', '많은 말은 하지 않았다. 기다리는 사람이 둘이라는 사실만으로 덜 지루했다.', { stress: -4 }, true] ] },
   { id: 'fg_middle_ledger', aff: 'f_middle', when: [0, 1], title: '중지 — 원한 장부의 오자',
-    text: '장부의 이름 한 글자가 번졌다. 동생 둘의 기억도 서로 다르다. 잘못된 이름을 남기는 것은 형제에게도 수치다.',
-    options: [ ['당시 함께 있던 형제에게 확인한다', '기록을 바로잡았다. 장부는 기억을 대신하기에 더 정확해야 한다.', { merit: 1 }], ['확인 전까지 표시를 남겨둔다', '추측으로 채우지는 않았다. 옆의 동생도 그 편이 낫겠다고 했다.', { stress: -2 }, true] ] },
-  { id: 'fg_middle_visit', aff: 'f_middle', when: [1, 2], title: '중지 — 다친 동생의 병문안',
-    text: '붕대를 감은 동생이 괜찮다며 자리에서 일어나려 한다. 식탁에서는 큰소리치던 녀석이 약 냄새 앞에서는 말수가 줄었다.',
-    options: [ ['먹을 것을 사서 함께 앉는다', '회복하면 같이 먹으러 가자는 약속을 했다. 그제야 동생이 다시 농담했다.', { cost: 8000, stress: -8 }], ['물과 붕대를 갈아준다', '고맙다는 말 대신 어깨를 툭 쳤다. 중지에서는 그것도 충분한 말이다.', { stress: -4 }, true] ] },
+    text: '장부의 이름 한 글자가 번졌다. 작은 아우 둘의 기억도 서로 다르다. 잘못된 이름을 남기는 것은 형제에게도 수치다.',
+    options: [ ['당시 함께 있던 형제에게 확인한다', '기록을 바로잡았다. 장부는 기억을 대신하기에 더 정확해야 한다.', { merit: 1 }], ['확인 전까지 표시를 남겨둔다', '추측으로 채우지는 않았다. 옆의 작은 아우도 그 편이 낫겠다고 했다.', { stress: -2 }, true] ] },
+  { id: 'fg_middle_visit', aff: 'f_middle', when: [1, 2], title: '중지 — 다친 작은 아우의 병문안',
+    text: '붕대를 감은 작은 아우가 괜찮다며 자리에서 일어나려 한다. 식탁에서는 큰소리치던 녀석이 약 냄새 앞에서는 말수가 줄었다.',
+    options: [ ['먹을 것을 사서 함께 앉는다', '회복하면 같이 먹으러 가자는 약속을 했다. 그제야 작은 아우가 다시 농담했다.', { cost: 8000, stress: -8 }], ['물과 붕대를 갈아준다', '고맙다는 말 대신 어깨를 툭 쳤다. 중지에서는 그것도 충분한 말이다.', { stress: -4 }, true] ] },
   { id: 'fg_ring_frame', aff: 'f_ring', when: [0, 1], title: '약지 — 전시 준비',
     text: '작품보다 액자를 수평으로 맞추는 일이 더 오래 걸린다. 도슨트가 한 걸음 물러서더니 다시 손가락 한 마디만큼 옮기라고 한다.',
     options: [ ['조명과 간격까지 맞춘다', '마침내 고개를 끄덕였다. 작품 옆의 빈 공간도 전시의 일부라고 했다.', { money: 20000, merit: 1, stress: 3 }], ['담당 구역의 표찰을 정리한다', '제목과 위치가 맞았다. 오늘의 일은 여기까지다.', { money: 8000 }, true] ] },
   { id: 'fg_ring_critique', aff: 'f_ring', when: [1, 2], title: '약지 — 습작 합평',
-    text: '종이 위의 선 하나를 두고 방 안의 의견이 갈린다. 자신의 습작을 내놓은 견습은 아무렇지 않은 척 손끝을 만지작거린다.',
-    options: [ ['구도에 대한 의견을 내놓는다', '반박도 있었지만 다음 습작에 써볼 방법이 생겼다.', { merit: 1, stress: 2 }], ['다른 이들의 설명을 듣는다', '침묵도 관찰의 시간이 됐다. 나올 때 견습이 작게 인사했다.', { stress: -3 }, true] ] },
+    text: '종이 위의 선 하나를 두고 방 안의 의견이 갈린다. 자신의 습작을 내놓은 스튜던트는 아무렇지 않은 척 손끝을 만지작거린다.',
+    options: [ ['구도에 대한 의견을 내놓는다', '반박도 있었지만 다음 습작에 써볼 방법이 생겼다.', { merit: 1, stress: 2 }], ['다른 이들의 설명을 듣는다', '침묵도 관찰의 시간이 됐다. 나올 때 스튜던트가 작게 인사했다.', { stress: -3 }, true] ] },
   { id: 'fg_pinky_practice', aff: 'f_pinky', when: [0, 1], title: '소지 — 결전 전의 준비',
     text: '조직의 연습장에서는 발을 디디는 소리만 반복된다. 맞은편 동료가 오늘은 승패 대신 거리를 맞춰보자고 한다.',
     options: [ ['같은 동작을 서로 교정한다', '한 발을 아끼는 법을 배웠다. 끝나자 둘 다 먼저 물통을 찾았다.', { merit: 1, stress: 2 }], ['호흡과 준비 자세를 가다듬는다', '조급함이 가라앉았다. 오늘은 기본부터 돌아봤다.', { heal: 4, stress: -3 }, true] ] },
