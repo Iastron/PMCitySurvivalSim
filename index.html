@@ -1635,15 +1635,13 @@ const WING_NAME = {
 };
 // 업종 · 특이점 (같은 문서 기준, 불명이면 불명)
 const WING_NOTE = {
-  A: '머리 · 조율자 — 조세·입법·행정·사법', B: '머리 · 눈 — 감시, 특이점 응시(추정)', C: '머리 · 발톱 — 군사·세무, 특이점 혈청(추정)',
-  D: '업종·특이점 불명', E: '업종·특이점 불명', F: '제조업 · 특이점: 요정', G: '제조업 · 특이점: 구(중력)',
-  H: '제약업·보험업 · 특이점: 환', I: '업종·특이점 불명', J: '제조업·유흥업 · 특이점: 자물쇠',
+  A: '머리 · 조율자 — 조세·입법·행정·사법', B: '머리 · 눈 — 감시, 특이점 응시(추정)', C: '머리 · 발톱 — 군사·세무, 특이점 혈청(추정)', F: '제조업 · 특이점: 요정', G: '제조업 · 특이점: 구(중력)',
+  H: '제약업·보험업 · 특이점: 환', J: '제조업·유흥업 · 특이점: 자물쇠',
   K: '제약업·축산업 · 특이점: 세포 자생 나노머신', L: '에너지 기업 · 엔케팔린 — 몰락 후 L사 자리는 공석',
-  M: '원자재 유통업·의료업(정신과) · 특이점: 월광석', N: '제조업(추정)·관광업 · 특이점: 기억 추출 및 주입',
-  O: '업종·특이점 불명', P: '가공식품·건설업 · 특이점: 공간 확장 왜곡', Q: '제조업(추정) · 특이점: 괴문자',
-  R: '민간군사기업 · 특이점: 복제인간 생산', S: '농업·축산업 · 특이점 불명', T: '제조업 · 특이점: 시간 조작',
-  U: '수산업·관광업·제조업 · 특이점: 현상 보존 포장, 공명 굽쇠', V: '업종·특이점 불명',
-  W: '운송업 · 특이점: 공간이동', X: '중공업·광업 · 특이점: 특수 합금(추정)', Y: '도시 최북단의 추운 둥지 · 업종·특이점 불명',
+  M: '원자재 유통업·의료업(정신과) · 특이점: 월광석', N: '제조업(추정)·관광업 · 특이점: 기억 추출 및 주입', P: '가공식품·건설업 · 특이점: 공간 확장 왜곡', Q: '제조업(추정) · 특이점: 괴문자',
+  R: '민간군사기업 · 특이점: 복제인간 생산', S: '농업·축산업', T: '제조업 · 특이점: 시간 조작',
+  U: '수산업·관광업·제조업 · 특이점: 현상 보존 포장, 공명 굽쇠',
+  W: '운송업 · 특이점: 공간이동', X: '중공업·광업 · 특이점: 특수 합금(추정)', Y: '도시 최북단의 추운 둥지',
 };
 const wingName = L => `${L}사${WING_NAME[L] ? '(' + WING_NAME[L] + ')' : ''}`;
 const cityLabel = (n, area) => { const L = String.fromCharCode(64 + n); return `${n}구 ${wingName(L)} ${area}`; };
@@ -4214,6 +4212,53 @@ for (const e of EVENTS.filter(e => e.warp && e.id !== 'wp_arrival')) {
   };
 }
 
+/* ---------- 필살기 — 협회 1급 해결사 / 손가락 위상 9단계 이상만 쓰는 각 조직의 기술.
+   기술명·주사위는 Library of Ruina 전투 책장(하나·츠바이·시·리우·세븐·엄지·검지), 중지는 Limbus Company 「중지 작은 형님」 기준.
+   이 게임에 없는 효과(감정 단계, 무장 해제, 취약 등)는 가까운 효과로 옮겼다 ---------- */
+Object.assign(CARDS, {
+  // 하나 협회
+  sp_hana_jin:   { name: '진-괘', cost: 4, dice: [['관통', 7, 10], ['참격', 8, 11], ['방어', 6, 9]], onHit: { flat: 5 }, desc: '필살기 · 적중 시 대상에게 피해 5' },
+  sp_hana_last:  { name: '최후의 공격', cost: 4, dice: [['참격', 7, 11], ['관통', 7, 11], ['타격', 7, 10]], desc: '필살기 · 모든 것을 쏟아붓는 일격 (모든 주사위 위력 +2 반영)' },
+  // 츠바이 협회
+  sp_zwei_rev:   { name: '역습', cost: 3, dice: [['회피', 1, 10], ['관통', 7, 8], ['관통', 3, 4]], desc: '필살기 · 회피에 성공하면 다음 주사위가 강해진다 (최대값 +3 반영)' },
+  sp_zwei_sub:   { name: '제압', cost: 2, dice: [['타격', 5, 7], ['관통', 2, 4]], onUse: { nextProt: 2 }, desc: '필살기 · 사용 시 다음 막 보호 2' },
+  // 시 협회
+  sp_shi_edge:   { name: '사의 경계', cost: 4, dice: [['참격', 1, 4, { maxBonus: 45 }]], desc: '필살기 · 원래 주사위 값이 4(최대)면 위력 +45. 마비 상태면 절대 성공하지 않는다' },
+  sp_shi_geuk:   { name: '극검', cost: 2, dice: [['참격', 6, 12]], onHit: { para: 1 }, desc: '필살기 · 적중 시 마비 1 (무장 해제)' },
+  // 리우 협회
+  sp_liu_geumye: { name: '금예', cost: 4, dice: [['관통', 15, 28]], onHit: { burnAll: 2 }, desc: '필살기 · 적중 시 모든 적에게 화상 2' },
+  sp_liu_blaze:  { name: '타오르는 감정', cost: 4, dice: [['참격', 7, 11], ['타격', 6, 11], ['방어', 3, 8]], onHit: { burn: 2 }, desc: "필살기 · 적중 시 '화상 1 부여'를 2번 발동" },
+  // 세븐 협회
+  sp_seven_mou:  { name: '물리네', cost: 3, dice: [['참격', 5, 9], ['타격', 5, 9], ['참격', 3, 10]], desc: '필살기 · 3연타 폭딜 (합 승리 시 최대값 +2 반영)' },
+  sp_seven_fle:  { name: '플레쉬', cost: 2, dice: [['관통', 5, 13]], onHit: { stg: 4 }, desc: '필살기 · 적중 시 흐트러짐 피해 4' },
+  // 엄지
+  sp_thumb_fire: { name: '화력 집중', cost: 3, dice: [['관통', 9, 21], ['관통', 4, 8]], desc: '필살기 · 탄환을 모두 쏟아붓는다 (탄환 위력 반영)' },
+  sp_thumb_rule: { name: '규율', cost: 3, dice: [['관통', 5, 11], ['참격', 5, 10], ['방어', 3, 8]], onUse: { nextStr: 2 }, desc: '필살기 · 사용 시 다음 막 힘 2 (다음 막 공격 피해 증가)' },
+  // 검지
+  sp_index_head: { name: '참수', cost: 4, dice: [['참격', 13, 25]], onHit: { bleed: 8 }, desc: '필살기 · 적중 시 출혈 8' },
+  sp_index_ann:  { name: '섬멸', cost: 3, dice: [['참격', 6, 11], ['참격', 6, 11]], desc: '필살기 · 체력이 절반 이하인 적을 노린다 (위력 +1 반영)' },
+  // 중지
+  sp_mid_exec:   { name: '전원, 처형이다!!', cost: 4, dice: [['타격', 16, 26], ['타격', 16, 26]], onHit: { bleed: 5, burn: 5 }, desc: '필살기 · 적중 시 출혈 5, 화상 5' },
+  sp_mid_hair:   { name: '내 헤어쿠포오오오온!!!!', cost: 3, dice: [['타격', 10, 22]], onHit: { bleed: 5, burn: 5 }, desc: '필살기 · 적중 시 출혈 5, 화상 5' },
+});
+const SPECIALS = {
+  hana: ['sp_hana_jin', 'sp_hana_last'], zwei: ['sp_zwei_rev', 'sp_zwei_sub'], shi: ['sp_shi_edge', 'sp_shi_geuk'], liu: ['sp_liu_geumye', 'sp_liu_blaze'],
+  seven: ['sp_seven_mou', 'sp_seven_fle'], f_thumb: ['sp_thumb_fire', 'sp_thumb_rule'], f_index: ['sp_index_head', 'sp_index_ann'], f_middle: ['sp_mid_exec', 'sp_mid_hair'],
+};
+const SPECIAL_IDS = new Set(Object.values(SPECIALS).flat());
+// 협회 해결사는 1급 이상, 손가락은 위상 9단계 이상
+const specialsUnlocked = () => !!SPECIALS[S.aff] && S.grade <= 1 && (faction() === 'assoc' || faction() === 'finger');
+function syncSpecials() {
+  if (!S || S.phase === 'combat' || S.phase === 'over') return;
+  const want = specialsUnlocked() ? SPECIALS[S.aff] : [];
+  const stale = S.deck.filter(id => SPECIAL_IDS.has(id) && !want.includes(id));
+  if (stale.length) { S.deck = S.deck.filter(id => !stale.includes(id)); say(`조직을 떠나 필살기를 더 이상 쓸 수 없다 — ${[...new Set(stale)].map(id => CARDS[id].name).join(', ')}`, 'l-sys'); }
+  const add = want.filter(id => !S.deck.includes(id));
+  if (add.length) { S.deck.push(...add); say(`★ 필살기 습득 — ${add.map(id => `「${CARDS[id].name}」`).join(' ')} (${AFFS[S.aff].name})`, 'l-day'); }
+}
+const _renderTopSp = renderTop;
+renderTop = function () { _renderTopSp(); syncSpecials(); };
+
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
     text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
@@ -4736,6 +4781,9 @@ function applyHit(card, atk, def) {
   }
   if (def.st.rupture > 0) { const r = def.st.rupture; def.hp -= r; lastStand(def); def.st.rupture--; clog(`→ 파열 — ${def.name} ${r} 추가 피해`, def === C.P ? 'l-bad' : 'l-good'); }
   for (const k of ['bleed', 'burn', 'para', 'erosion', 'tremor', 'scar', 'curse', 'rupture']) if (h[k]) { def.st[k] = (def.st[k] || 0) + h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
+  if (h.flat) { def.hp -= h.flat; lastStand(def); clog(`→ ${def.name}에게 피해 ${h.flat}`, def === C.P ? 'l-bad' : 'l-good'); }
+  if (h.stg) { stgDmg(def, h.stg); clog(`→ ${def.name}에게 흐트러짐 피해 ${h.stg}`, def === C.P ? 'l-bad' : 'l-good'); }
+  if (h.burnAll) { const foes = def === C.P ? [C.P] : (C.enemies || [def]).filter(e => e.hp > 0); foes.forEach(e => { e.st.burn = (e.st.burn || 0) + h.burnAll; }); clog(`→ 모든 적에게 화상 ${h.burnAll}`, 'l-sys'); }
   if (h.healSelf) {
     if (atk.st.scar > 0) clog(`→ 검흔이 ${atk.name}의 회복을 막는다`, 'l-good');
     else { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
@@ -4764,6 +4812,7 @@ function roll(u, die, foe) {
   else if (u === C.P && u.maxRoll) v = max;
   else if (u === C.P && H().foresight && !u.overheat) v = Math.max(rnd(min, max), rnd(min, max));
   else v = rnd(min, max);
+  if (die[3] && die[3].maxBonus && v === max && max >= 4 && !(u.st.para > 0)) { v += die[3].maxBonus; clog(`✦ 사의 경계 — 최대값! 위력 +${die[3].maxBonus}`, u === C.P ? 'l-good' : 'l-bad'); }
   if (u === C.P && H().laevateinn) v += !u.laev ? (OFF(type) ? 0 : 3) : (OFF(type) ? (u.laev === 2 ? 6 : 3) : 0);
   if (OFF(type)) {
     v += u.st.str;
