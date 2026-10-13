@@ -1029,7 +1029,7 @@ const EVENTS = [
       { t: '협회에 신고한다', fn() { say('하나 협회에 신고했다. 협회가 도착했을 땐 이미 늦었지만, 목격자 진술로 사례금이 나왔다.'); gain(pay(50000)); } },
       { t: '도망친다', def: true, fn() { say('뒤에서 들려오는 비명은 듣지 않기로 했다. …들려왔지만.'); stress(15); } },
     ] },
-  { id: 'library', when: [1, 2], w: 0.6, cond: () => S.day >= 3 && !S.flags.library, title: '금빛 초대장',
+  { id: 'library', when: [0, 1, 2], get w() { return S && faction() === 'vampire' ? 0.6 : 1.8; }, cond: () => S.day >= 3 && (!S.flags.libDay || S.day >= S.flags.libDay + 5), title: '금빛 초대장',
     text: '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 들어간 사람 중 돌아온 이는 드물다.',
     choices: [
       { t: '초대에 응한다 (극도로 위험)', fn() { S.flags.library = true; fight('librarian', { lethal: true, rare: true, win() { say('접대를 이겨냈다. 손에는 빛나는 책 한 권이 쥐어져 있었다.'); gain(30000000); merit(8); addCard('ego'); } }); } },
@@ -1835,7 +1835,7 @@ const RIFT_FIGURES = [
   { id: 'chefs', enemy: 'rift_chefs', card: 'rf_chef', title: '8인의 셰프', hint: '균열에서 견딜 수 없이 맛있는 냄새가 흘러나온다. 무엇으로 만든 요리인지는 생각하지 않기로 한다.' },
 ];
 EVENTS.push(
-  { id: 'rift', when: [1, 2], w: 0.7, cond: () => S.day >= 2 && RIFT_FIGURES.some(f => !(S.flags.rift || {})[f.id]), title: '도시의 균열',
+  { id: 'rift', when: [0, 1, 2], get w() { return S && faction() === 'vampire' ? 0.7 : 2; }, cond: () => S.day >= 2 && RIFT_FIGURES.some(f => !(S.flags.rift || {})[f.id]), title: '도시의 균열',
     build() {
       const f = pick(RIFT_FIGURES.filter(x => !(S.flags.rift || {})[x.id]));
       this.text = `골목 한가운데 공간이 갈라져 있다. 사람들은 그것을 피해 돌아간다. ${f.hint} 지금은 존재하지 않는 자 — 「${f.title}」의 잔영이다.`;
@@ -1858,7 +1858,7 @@ Object.assign(EVENTS.find(e => e.id === 'library'), { vampOK: true,
   build() {
     this.text = '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 초대장 뒷면에 접대를 맡을 사서들의 이름이 적혀 있다. 패배한 손님은 책이 된다.';
     const go = (enemy, card, line) => () => {
-      S.flags.library = true; stress(10);
+      S.flags.library = true; S.flags.libDay = S.day; stress(10);   // 다음 초대장은 5일 뒤부터
       fight(enemy, { lethal: true, rare: true, win() { say(line, 'l-day'); gain(30000000); merit(8); addCard(card); } });
     };
     return [
