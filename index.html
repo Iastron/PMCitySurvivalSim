@@ -889,7 +889,7 @@ function renderTop() {
   $('#sMoney').textContent = won(S.money);
   $('#sPay').innerHTML = H().monthlyPay && S.payDay ? `월급까지 <b>${Math.max(0, S.payDay - S.day)}일</b>` : '';
   $('#sPay').innerHTML += S.exiled ? ` <span class="l-bad">[${S.flags.impurity ? '외곽 축출' : '외곽'}]</span>` : S.flags.impurity ? ' <span class="l-bad">[불순물]</span>' : S.flags.taboo ? ` <span class="l-bad">금기 위반 ${S.flags.taboo}/${TABOO_LIMIT}</span>` : '';
-  if (faction() === 'vampire') $('#sPay').innerHTML += ` <span class="l-bad">피 ${S.blood || 0} · 권속 ${S.thralls || 0}/5</span>`;
+  if (faction() === 'vampire') $('#sPay').innerHTML += ` <span class="l-bad">피 ${S.blood || 0} · 권속 ${S.thralls || 0}/5(힘 +${S.thrallPow || 0}) · 피주머니 ${S.pouches || 0}(매일 +${S.pouchYield || 0}) · 재해 등급 「${VDIS[vLevel()]}」(${S.notoriety || 0})</span>`;
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
   $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
@@ -1420,6 +1420,8 @@ function cityRender() {
   let h = `<h3>도시 시설 <span class="dim" style="font-size:13px">보유 ${won(S.money)} · ${S.loc ? S.loc.label : ''}</span></h3>`;
   if (S.exiled) {
     h += '<p class="l-bad">외곽에는 도시의 시설이 없다. 공방도, 병원도, 법도.</p>';
+  } else if (faction() === 'vampire') {
+    h += '<p class="l-bad">혈귀에게 도시의 가게는 문을 열지 않는다. 필요한 것은 피로 얻는다.</p>';
   } else if (faction() === 'twisted') {
     h += '<p class="l-bad">문을 두드리자 비명이 돌아왔다. 괴물에게 팔 물건은 없다.</p>';
   } else if (night) {
@@ -2164,9 +2166,9 @@ EVENTS.push(
   { id: 'vp_feed', fac: ['vampire'], when: [0, 1, 2, 3], w: 3, title: '갈증',
     text: '목이 마르다. 사람이었던 때와는 다른 갈증. 혈귀는 피를 마실수록 강해진다.',
     choices: [
-      { t: '뒷골목의 쥐를 노린다 — 피 +1, 체력 15 회복', fn() { say('골목 구석에서 짧은 비명이 끊겼다.'); S.blood = (S.blood || 0) + 1; heal(15); say(`모은 피: ${S.blood}`, 'l-sys'); } },
+      { t: '뒷골목의 쥐를 노린다 — 피 +1, 체력 15 회복', fn() { say('골목 구석에서 짧은 비명이 끊겼다.'); S.blood = (S.blood || 0) + 1; heal(15); say(`모은 피: ${S.blood}`, 'l-sys'); infamy(1, '쥐 실종'); } },
       { t: '둥지의 깃털을 노린다 — 피 +2, 체력 25 회복 (금기 사냥꾼 주의)', fn() {
-        S.blood = (S.blood || 0) + 2; heal(25); say(`둥지의 피는 달다. 모은 피: ${S.blood}`, 'l-sys');
+        S.blood = (S.blood || 0) + 2; heal(25); say(`둥지의 피는 달다. 모은 피: ${S.blood}`, 'l-sys'); infamy(2, '둥지 주민 습격');
         if (Math.random() < 0.3) { say('…경보가 울린다. 둥지의 금기를 어겼다.', 'l-bad'); tabooHit('둥지 주민 습격'); fight('hunter', { lethal: true, win() { say('금기 사냥꾼의 피까지 마셨다.'); S.blood += 1; } }); }
       } },
       { t: '참는다', def: true, fn() { say('갈증이 몸을 갉아먹는다.', 'l-bad'); hurt(8); } },
@@ -2175,11 +2177,132 @@ EVENTS.push(
     build() {
       this.text = `피를 나누면 권속을 만들 수 있다. 당신은 제${S.vampRank}권속 — 당신이 만드는 혈귀는 그보다 아래 서열이 된다. (모은 피 ${S.blood}, 권속 ${S.thralls || 0}/5)`;
       return [
-        { t: '피 3을 나눠 권속을 만든다 — 공격 위력 +1', fn() { S.blood -= 3; S.thralls = (S.thralls || 0) + 1; say(`새 권속이 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. 당신을 주인이라 부른다. (권속 ${S.thralls}/5)`, 'l-day'); } },
+        { t: '피 3을 나눠 권속을 만든다 — 공격 위력 +1', fn() { S.blood -= 3; S.thralls = (S.thralls || 0) + 1; infamy(3, '새 혈귀 출현'); say(`새 권속이 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. 당신을 주인이라 부른다. (권속 ${S.thralls}/5)`, 'l-day'); } },
         { t: '아직은 피를 아낀다', def: true, fn() { say('피를 삼켰다.'); } },
       ];
     }, text: '' },
 );
+
+/* =========================================================
+   혈귀의 삶 — 도시의 평범한 활동은 불가능하다.
+   흡혈·권속·피주머니로 강해지지만, 그럴수록 악명이 쌓여 재해 등급이 오르고
+   하나 협회가 해결사를 보낸다.
+========================================================= */
+const VDIS = ['뜬소문', '도시 괴담', '도시 전설', '도시 질병', '도시 악몽', '도시의 별'];
+const VDIS_AT = [0, 3, 7, 12, 18, 26];
+const vLevel = () => { let l = 0; VDIS_AT.forEach((v, i) => { if ((S.notoriety || 0) >= v) l = i; }); return l; };
+function infamy(n, why) {
+  const before = vLevel();
+  S.notoriety = Math.max(0, (S.notoriety || 0) + n);
+  if (n > 0) say(`${why ? why + ' — ' : ''}악명 +${n} (${S.notoriety})`, 'l-bad');
+  const after = vLevel();
+  if (after > before) { say(`✦ 하나 협회가 당신을 재해 등급 「${VDIS[after]}」로 지정했다. 해결사들이 움직이기 시작한다.`, 'l-bad'); S.flags.vHunt = true; }
+}
+
+Object.assign(ENEMIES, {
+  hana_low: { name: '하청 해결사 사무소', desc: '하나 협회의 공개 의뢰를 받고 온 해결사들. 혈귀 토벌은 처음인 듯하다.', hp: 90, stg: 40, slots: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [1000000, 2000000],
+    pool: [{ name: '연계 공격', dice: [['참격', 4, 8], ['관통', 4, 8]] }, { name: '방패 들기', dice: [['방어', 5, 9]] },
+      { name: '말뚝 박기', dice: [['관통', 6, 11]] }, { name: '협공', dice: [['타격', 5, 9], ['참격', 3, 6]] }] },
+  hana_mid: { elite: true, name: '하나 협회 3과', desc: '재해 토벌을 위해 파견된 협회 정예. 혈귀를 상대하는 법을 안다.', hp: 160, stg: 70, slots: 3,
+    res: { 참격: 1, 관통: 0.9, 타격: 1 }, reward: [5000000, 10000000],
+    passive: '토벌 교본 — 매 막 인내 1', onRound: e => { e.st.end += 1; },
+    pool: [{ name: '협회식 검격', dice: [['참격', 7, 12], ['참격', 5, 9]] }, { name: '은 말뚝', dice: [['관통', 9, 14]], onHit: { para: 1 } },
+      { name: '방진', dice: [['방어', 8, 13]] }, { name: '제압', dice: [['타격', 8, 13]] }] },
+  hana_high: { elite: true, name: '하나 협회 1과', desc: '도시 악몽급 재해를 처리하는 협회의 최정예. 1급 해결사들이다.', hp: 230, stg: 95, slots: 3,
+    res: { 참격: 0.9, 관통: 0.9, 타격: 0.9 }, reward: [30000000, 50000000], light: 6, lightRegen: 3,
+    passive: '1과 — 매 막 힘 1, 인내 1', onRound: e => { e.st.str += 1; e.st.end += 1; },
+    pool: [{ name: '정점의 검격', dice: [['참격', 9, 15], ['참격', 7, 11]] }, { name: '심판의 말뚝', dice: [['관통', 12, 18]], onHit: { para: 2 } },
+      { name: '완벽한 방어', dice: [['방어', 10, 15]] }, { name: '연계 처형', dice: [['관통', 7, 11], ['참격', 7, 11], ['타격', 7, 11]] }] },
+});
+
+EVENTS.push(
+  { id: 'vp_hunters', fac: ['vampire'], when: [0, 1, 2, 3], w: 0, cond: () => false, title: '토벌대',
+    build() {
+      const l = vLevel(), enemy = l >= 5 ? 'color_rival' : l === 4 ? 'hana_high' : l === 3 ? 'hana_mid' : 'hana_low';
+      this.text = `하나 협회의 의뢰서에 당신의 얼굴이 실렸다. 재해 등급 「${VDIS[l]}」. ${josa(ENEMIES[enemy].name, '이', '가')} 당신의 은신처를 찾아냈다.`;
+      return [
+        { t: '맞선다', def: true, fn() {
+          S.flags.vHunt = false;
+          fight(enemy, { lethal: true, win() { say('해결사들의 피를 마셨다. 도시는 더 강한 자를 보낼 것이다.'); S.blood = (S.blood || 0) + 2; infamy(2, '토벌대 전멸'); } });
+        } },
+        { t: '피 2를 써서 안개처럼 흩어진다', req: () => (S.blood || 0) >= 2, reqText: '피 부족', fn() {
+          S.flags.vHunt = false; S.blood -= 2; say('몸이 붉은 안개가 되어 하수구로 스며들었다. 해결사들은 빈 방만 발견했다.');
+        } },
+      ];
+    }, text: '' },
+  { id: 'vp_pouch', fac: ['vampire'], when: [1, 2, 3], w: 1.5, cond: () => (S.pouches || 0) < 5, title: '피주머니',
+    text: '혼자 귀가하는 시민. 죽이지 않고 데려가면, 매일 조금씩 피를 얻을 수 있다. 사라진 사람이 늘어날수록 소문도 늘어난다.',
+    choices: [
+      { t: '납치해 피주머니로 만든다 — 매일 피 +1', fn() { S.pouches = (S.pouches || 0) + 1; say(`은신처의 지하에 피주머니가 하나 늘었다. (피주머니 ${S.pouches}/5)`); infamy(2, '실종 사건'); } },
+      { t: '보내준다', def: true, fn() { say('그는 뒤를 돌아보지도 않고 뛰어갔다.'); } },
+    ] },
+  { id: 'vp_elder', fac: ['vampire'], when: [0, 1, 2], w: 1, cond: () => (S.notoriety || 0) >= 3, title: '장로의 호텔',
+    text: '둥지의 4성급 호텔. 혈귀 장로가 운영하는 곳이다. 투숙객의 안전을 대가로 돈뿐 아니라 피도 받는다. 장로라면 소문을 덮어줄 수도 있다.',
+    choices: [
+      { t: '피 3을 바치고 소문을 덮어달라 한다 — 악명 -4', req: () => (S.blood || 0) >= 3, reqText: '피 부족', fn() { S.blood -= 3; S.notoriety = Math.max(0, S.notoriety - 4); say(`장로가 미소 지었다. "아이들의 실수는 어른이 덮어주는 법이지." (악명 ${S.notoriety})`); } },
+      { t: '하룻밤 묵는다 (피 1) — 체력 40% 회복', req: () => (S.blood || 0) >= 1, reqText: '피 부족', fn() { S.blood -= 1; heal(Math.round(S.maxHp * 0.4)); } },
+      { t: '지나간다', def: true, fn() { say('장로와 엮이는 건 피보다 비싸다.'); } },
+    ] },
+  { id: 'vp_lurk', fac: ['vampire'], when: [0, 1, 2], w: 1.5, title: '낮의 은신',
+    text: '해가 높다. 혈귀가 사람 사이를 돌아다니기엔 위험한 시간. 은신처의 어둠 속에서 시간을 보낸다.',
+    choices: [
+      { t: '잠든다 — 체력 15 회복', def: true, fn() { heal(15); } },
+      { t: '피주머니에서 피를 짠다 — 피 +1', req: () => (S.pouches || 0) > 0, reqText: '피주머니 없음', fn() { S.blood = (S.blood || 0) + 1; say('피주머니가 신음했다.'); } },
+    ] },
+  { id: 'vp_night', fac: ['vampire'], when: [3], w: 2, title: '혈귀의 밤',
+    text: '뒷골목의 밤. 어떤 규칙도 지켜지지 않는 80분은 혈귀에게 사냥의 시간이다.',
+    choices: [
+      { t: '밤 사냥에 나선다 — 피 +2', fn() { S.blood = (S.blood || 0) + 2; heal(20); infamy(1, '밤의 실종자'); if (Math.random() < 0.3) { say('청소부가 같은 먹잇감을 노리고 있었다.', 'l-bad'); fight('sweeper', { lethal: true }); } } },
+      { t: '은신처에서 밤을 보낸다 — 체력 30% 회복', def: true, fn() { heal(Math.round(S.maxHp * 0.3)); } },
+    ] },
+);
+// 기존 흡혈·권속도 악명을 쌓는다
+Object.assign(EVENTS.find(e => e.id === 'vp_feed'), { when: [0, 1, 2] });
+
+// 받침에 따라 을/를, 이/가
+const josa = (w, a, b) => { const c = w.charCodeAt(w.length - 1); return w + ((c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28) ? a : b); };
+// 권속·피주머니 대상 선택: 도시민 / 둥지의 깃털 / 해결사 / 손가락 조직원
+const VP_TARGETS = [
+  { id: 'citizen', label: '뒷골목 주민', pow: 1, yield: 1, inf: 2, fight: null, line: '골목 끝 셔터 아래, 혼자 담배를 피우던 사람.' },
+  { id: 'feather', label: '둥지의 깃털', pow: 1, yield: 2, inf: 4, fight: null, line: '야근을 마치고 나온 회사원. 둥지 사람의 실종은 소문이 빠르다.' },
+  { id: 'fixer', label: '해결사', pow: 2, yield: 2, inf: 3, fight: 'hana_low', line: '혼자 의뢰를 마치고 돌아가는 해결사. 순순히 따라오진 않을 것이다.' },
+  { id: 'finger', label: '손가락 조직원', pow: 2, yield: 2, inf: 3, fight: 'thumb', line: '엄지의 문신을 한 조직원. 강화된 몸의 피는 진하다.' },
+];
+function vpTake(t, kind) {
+  const done = () => {
+    if (kind === 'thrall') {
+      S.thralls = (S.thralls || 0) + 1; S.thrallPow = (S.thrallPow || 0) + t.pow;
+      say(`${josa(t.label, '이', '가')} 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. 당신을 주인이라 부른다. (권속 ${S.thralls}/5, 권속의 힘 +${S.thrallPow})`, 'l-day');
+    } else {
+      S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + t.yield;
+      say(`은신처 지하에 피주머니가 하나 늘었다 — ${t.label}. (피주머니 ${S.pouches}/5, 매일 피 +${S.pouchYield})`);
+    }
+    infamy(t.inf, kind === 'thrall' ? '새 혈귀 출현' : '실종 사건');
+  };
+  if (t.fight) { say(t.line); fight(t.fight, { lethal: true, noCow: true, name: t.fight === 'thumb' ? '저항하는 손가락 조직원' : '저항하는 해결사', win: done }); }
+  else { say(t.line); done(); }
+}
+Object.assign(EVENTS.find(e => e.id === 'vp_thrall'), {
+  build() {
+    this.text = `피를 나눠 권속을 만든다. 당신은 제${S.vampRank}권속 — 만들어지는 혈귀는 그보다 아래 서열이 된다. 누구를 고를 것인가. (피 ${S.blood}, 권속 ${S.thralls || 0}/5)`;
+    return [
+      ...VP_TARGETS.map(t => ({ t: `${josa(t.label, '을', '를')} 권속으로 (피 3) — 권속의 힘 +${t.pow}${t.fight ? ', 전투' : ''}, 악명 +${t.inf}`,
+        fn() { S.blood -= 3; vpTake(t, 'thrall'); } })),
+      { t: '아직은 피를 아낀다', def: true, fn() { say('피를 삼켰다.'); } },
+    ];
+  } });
+Object.assign(EVENTS.find(e => e.id === 'vp_pouch'), {
+  build() {
+    this.text = `죽이지 않고 데려가면, 매일 조금씩 피를 얻을 수 있다. 사라진 사람이 늘어날수록 소문도 늘어난다. (피주머니 ${S.pouches || 0}/5)`;
+    return [
+      ...VP_TARGETS.map(t => ({ t: `${josa(t.label, '을', '를')} 피주머니로 — 매일 피 +${t.yield}${t.fight ? ', 전투' : ''}, 악명 +${t.inf}`, fn() { vpTake(t, 'pouch'); } })),
+      { t: '보내준다', def: true, fn() { say('먹잇감은 뒤를 돌아보지도 않고 뛰어갔다.'); } },
+    ];
+  } });
+// 권속의 힘은 권속 수가 아니라 권속이 된 자의 강함으로 (최대 8)
+AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 2. 모은 피 3마다 +1, 거느린 권속의 힘만큼 공격 위력 상승(최대 +8). 권속 서열은 바뀌지 않는다.';
+AFFS.bloodkin.hooks.rollBonus = (P, d) => OFF(d[0]) ? Math.min(8, S.thrallPow || 0) + Math.floor((S.blood || 0) / 3) : 0;
 
 /* =========================================================
    턴 진행 (자동 진행 + 제한시간)
@@ -2199,6 +2322,8 @@ function startTurn() {
 function chooseEvent() {
   if (S.flags.crisis && !S.seenToday.includes('crisis')) return EVENTS.find(e => e.id === 'crisis');
   if (S.flags.impurity && !S.exiled && !S.seenToday.includes('arbiter_come')) return EVENTS.find(e => e.id === 'arbiter_come');
+  if (faction() === 'vampire' && S.flags.vHunt && !S.seenToday.includes('vp_hunters')) return EVENTS.find(e => e.id === 'vp_hunters');
+  if (faction() === 'vampire' && !S.seenToday.includes('vp_hunters') && Math.random() < vLevel() * 0.06) return EVENTS.find(e => e.id === 'vp_hunters');
   if (S.debt > 0 && !S.exiled && S.day > S.debtDue && S.turn < 3 && !S.seenToday.includes('collect')) return EVENTS.find(e => e.id === 'collect');
   if (S.exiled) {   // 외곽에서는 외곽 이벤트만
     const f = faction();
@@ -2212,9 +2337,9 @@ function chooseEvent() {
   const f = faction();
   let pool = EVENTS.filter(e => !e.chainOnly && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
     && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.origin || e.origin.includes(S.ch.id))
-    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted'))) && !e.exile
+    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted'))) && (f !== 'vampire' || (e.fac && e.fac.includes('vampire'))) && !e.exile
     && (!e.cond || e.cond()));
-  if (!pool.length) pool = EVENTS.filter(e => e.id === (f === 'twisted' ? 'tw_memory' : 'rest'));
+  if (!pool.length) pool = EVENTS.filter(e => e.id === (f === 'twisted' ? 'tw_memory' : f === 'vampire' ? (S.turn === 3 ? 'vp_night' : 'vp_lurk') : 'rest'));
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total;
   for (const e of pool) { r -= e.w; if (r <= 0) return e; }
   return pool[pool.length - 1];
@@ -2275,6 +2400,7 @@ function endTurn() {
   S.turn++;
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
+    if (faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
     print(S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
       : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
@@ -2774,6 +2900,8 @@ function showHelp() {
   <b>외곽</b> — 「외곽으로」 이벤트로 직접 갈 수 있고, 외곽 열차로 다음 날부터 돌아올 수 있습니다. 외곽에서는 황무지의 도서관에 합류하거나 도전할 수 있습니다.<br>
   <b>금기와 조율자</b> — 날개의 금기를 4번 어기거나(금기 사냥꾼 처치 포함) 발톱을 죽이면 불순물로 지정되어 조율자가 찾아옵니다.
   조율자는 죽지 않습니다. 체력을 다 깎으면 외곽으로 축출되고, 지면 죽습니다. 외곽 열차로 도시에 돌아갈 수 있지만 조율자가 다시 기다립니다.<br>
+  <b>혈귀</b> — 도시의 평범한 활동(일반 이벤트·시설)은 불가능합니다. 흡혈·피주머니로 피를 모으고 권속을 만들어 강해지지만,
+  악명이 쌓이면 재해 등급이 올라 하나 협회가 해결사를 보냅니다(등급이 높을수록 강한 토벌대). 장로의 호텔에서 소문을 덮을 수 있습니다.<br>
   <b>빚</b> — 돈이 모자란 선택지도 사채(이자 20%, 총 20만 안까지)로 고를 수 있습니다. 3일 안에 갚지 못하면 손가락 조직원이 추심하러 옵니다. 도시 시설에서 갚을 수 있습니다.<br>
   <b>출신과 소속</b> — 출신은 바뀌지 않지만, 소속(협회·손가락·조직·날개 등)은 이벤트로 옮길 수 있습니다. 출신 특성과 소속 패시브가 함께 적용됩니다.<br>
   · 예) 쥐·고아 → 면허 시험 → 해결사 → 협회 스카우트 / 손가락의 손짓 → 손가락 → … 1급이 되면 특색 지정<br>
