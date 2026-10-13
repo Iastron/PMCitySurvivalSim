@@ -1022,7 +1022,8 @@ function renderTop() {
   if (!S) return;
   const t = TURNS[S.turn];
   $('#sLoc').textContent = S.warp ? '📍 W사 워프 열차 안' : S.loc ? '📍 ' + S.loc.label : '';
-  $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${t.name} ${t.time}</span>`;
+  if (S.warp) { $('#clock').innerHTML = `<span style="color:var(--red)">열차 안 ${Math.max(1, warpInner()).toLocaleString()}일째</span>`; }   // 열차 안에서는 바깥 시간을 보여주지 않는다
+  else $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${t.name} ${t.time}</span>`;
   const hp = S.phase === 'combat' && C ? C.P.hp : S.hp;
   $('#sHp').textContent = `${hp}/${S.maxHp}`;
   $('#sMoney').textContent = won(S.money);
@@ -1032,7 +1033,7 @@ function renderTop() {
   if (faction() === 'vampire') $('#sPay').innerHTML += ` <span class="l-bad">피 ${S.blood || 0} · 권속 ${S.thralls || 0}/5(힘 +${S.thrallPow || 0}) · 피주머니 ${S.pouches || 0}(매일 +${S.pouchYield || 0}) · 재해 등급 「${VDIS[vLevel()]}」(${S.notoriety || 0})</span>`;
   $('#boardBtn').classList.toggle('hidden', !boardAvailable());
   $('#boardBtn').textContent = S.pendingContract ? '의뢰 게시판 (수락 1)' : '의뢰 게시판';
-  if (S.warp) $('#sPay').innerHTML += ` <span class="l-bad">[워프 열차 — 내부 ${warpInner().toLocaleString()} / ${WARP_INNER.toLocaleString()}일, 바깥 ${S.day - S.warp.start}/${WARP_DAYS}일]</span>`;
+  if (S.warp) $('#sPay').innerHTML += ` <span class="l-bad">[워프 열차]</span>`;
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
   $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
@@ -3563,9 +3564,9 @@ function warpSnapshot() {
 }
 enterWarp = function () {
   const st = warpStatusFor();
-  S.warp = { start: S.day, end: S.day + WARP_DAYS, turns: 0, status: st, snap: warpSnapshot(), arrived: false };
+  S.warp = { start: S.day, startTurn: S.turn, end: S.day + WARP_DAYS, turns: 0, status: st, snap: warpSnapshot(), arrived: false };
   say('출발 신호. 10초 뒤면 도착이다. …10초가 지나지 않는다.', 'l-bad');
-  say(`도착 처리 지연. 바깥의 ${WARP_DAYS}일이 열차 안에서는 ${WARP_INNER.toLocaleString()}일이 된다. 열차 안에서는 아무도 죽지 못한다. 도착하면 W사가 모든 것을 '복구'할 것이다.`, 'l-day');
+  say(`도착 안내가 오지 않는다. 열차 안의 시간이 흐르기 시작했다. 몇 날이, 몇 년이 될지 모른다. 열차 안에서는 아무도 죽지 못한다. 도착하면 W사가 모든 것을 '복구'할 것이다.`, 'l-day');
 };
 exitWarp = function () {   // 바깥 7일이 지나면 도착 — 정리 작업 이벤트로 이어진다
   if (!S.warp || S.warp.arrived) return;
@@ -3586,6 +3587,8 @@ function finishWarp(restore) {
     say('당신은 워프 열차의 진실을 안다. W사는 이 사실을 달가워하지 않을 것이다.', 'l-bad');
     merit(6);
   }
+  S.day = w.start; S.turn = w.startTurn; S.seenToday = []; S.flags.travelDay = S.day;   // 바깥에서는 몇 초밖에 지나지 않았다
+  say(`바깥 시계는 겨우 몇 초 지나 있었다. ${S.day}일차 ${TURNS[S.turn].name} 그대로다.`, 'l-sys');
   if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; say(`📍 도착 — ${S.loc.label}`, 'l-day'); }
 }
 
@@ -3954,20 +3957,20 @@ function endTurn() {
   if (S.travelSkip > 0 && S.turn <= 3) { S.travelSkip--; print('— 이동 중 — 이 시간대는 길 위에서 보냈다.', 'l-amb'); S.turn++; }
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
-    if (inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
-    if (faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
-    print(S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
+    if (!S.warp && inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
+    if (!S.warp && faction() === 'vampire' && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
+    print(S.warp ? `열차 안 ${warpInner().toLocaleString()}일째 — 창밖은 여전히 색이 없다.` : S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
       : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
     if (S.warp) {
       if (S.day >= S.warp.end) exitWarp();
-      else { say(`열차 안에서 또 ${Math.round(WARP_INNER / WARP_DAYS).toLocaleString()}일이 흘렀다. (내부 ${warpInner().toLocaleString()}일째)`, 'l-bad'); stress(5); }
+      else { say(`또 ${Math.round(WARP_INNER / WARP_DAYS).toLocaleString()}일이 흘렀다. (열차 안 ${warpInner().toLocaleString()}일째)`, 'l-bad'); stress(5); }
     }
     // 월급은 30일마다. 날개에 막 들어왔다면 첫 월급날을 정한다
-    if (H().monthlyPay && !S.exiled) {
+    if (H().monthlyPay && !S.exiled && !S.warp) {
       if (!S.payDay) S.payDay = S.day + rnd(5, 30);
       else if (S.day >= S.payDay) { say('월급날이다. 세금과 관리비가 빠져나간 뒤의 숫자를 확인한다.'); gain(pay(H().monthlyPay)); S.payDay += 30; }
-    } else S.payDay = 0;
+    } else if (!H().monthlyPay) S.payDay = 0;   // 외곽·워프 열차 안에서는 월급일을 유지한 채 건너뛴다
     return;
   }
   startTurn();
