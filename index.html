@@ -86,6 +86,10 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
 .fac-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
 .fac-row button{white-space:nowrap;min-width:92px}
 
+/* warp log */
+.warp-log{border-left:3px solid var(--line);padding:4px 10px;margin:6px 0;font-size:13px;line-height:1.7;font-style:normal;color:var(--dim)}
+.warp-log b{color:var(--text)}
+
 /* origin roll */
 .roll-btn{font-size:17px;padding:14px 22px;border-color:var(--gold);color:var(--gold)}
 #rollResult{margin-top:16px}
@@ -3149,6 +3153,7 @@ function startTurn() {
   const t = TURNS[S.turn];
   T = { timeLeft: TURN_TIME, queue: [], lineCd: 0, ambCd: 6, eventShown: false, awaiting: null, resolved: false };
   if (S.travelPending && !S.travelSkip && !S.warp) { arrive(S.travelPending); S.travelPending = null; }   // 걸어서 이동한 경우 도착
+  if (S.warp && !S.warp.arrived) writeWarpLog();
   print(`— ${t.name} ${t.time} —`, t.cls);
   const amb = shuffle([...ambientPool()]);
   say(amb[0], 'l-amb'); say(amb[1], 'l-amb');
@@ -3580,15 +3585,16 @@ function finishWarp(restore) {
     Object.assign(S, { hp: s.hp, maxHp: s.maxHp, maxStg: s.maxStg, press: s.press, deck: s.deck, aff: s.aff, prevAff: s.prevAff, ego: s.ego, egoType: s.egoType,
       twistForm: s.twistForm, twistCards: s.twistCards, twistBonus: s.twistBonus }); S.ch.twistName = s.twistName; S.flags.crisis = s.crisis; S.flags.cracks = s.cracks; S._h = null;
     say('현상 복구 — 몸도, 기억도 안전벨트를 맨 그 순간으로 돌아갔다.', 'l-sys');
+    say(`주머니를 뒤져봤지만 일지는 남지 않았다. ${(w.logged || 0).toLocaleString()}일 동안 쓴 기록이 처음부터 없었던 것처럼.`, 'l-amb');
     say('10초 만에 도착한 쾌적한 여행이었다. …그런데 왜 이렇게 지쳤을까.', 'l-day');
   } else {
     S.maxHp += 20; S.hp = Math.min(S.maxHp, S.hp + 20); S.maxStg += 10; S.flags.warpSurvivor = true; S.flags.wTruth = true;
     say('복구를 거부하고 열차를 빠져나왔다. 열차 안의 3만 일이 고스란히 남아 있다. [3만 일의 기억] 최대 체력 +20, 흐트러짐 +10', 'l-good');
+    say(`손에는 너덜너덜한 일지 한 권이 들려 있다. 마지막 장은 ${(w.logged || 0).toLocaleString()}일.`, 'l-amb');
     say('당신은 워프 열차의 진실을 안다. W사는 이 사실을 달가워하지 않을 것이다.', 'l-bad');
     merit(6);
   }
   S.day = w.start; S.turn = w.startTurn; S.seenToday = []; S.flags.travelDay = S.day;   // 바깥에서는 몇 초밖에 지나지 않았다
-  say(`바깥 시계는 겨우 몇 초 지나 있었다. ${S.day}일차 ${TURNS[S.turn].name} 그대로다.`, 'l-sys');
   if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; say(`📍 도착 — ${S.loc.label}`, 'l-day'); }
 }
 
@@ -3696,6 +3702,73 @@ Object.assign(EVENTS.find(e => e.id === 'warp_onboard'), {
     this.text = '승강장의 W사 직원이 미소 지으며 설문지를 내민다. "쾌적한 여행이셨습니까?" 그 뒤로, 열차 안을 정리하러 들어가는 푸른 제복들이 보인다.';
     return [{ t: '"네, 쾌적했어요."', def: true, fn() { return done('설문지에 만점을 적었다. 정말 쾌적했던 것 같다.'); } }];
   } });
+
+/* ---------- 워프 열차 일지 — 열차 시간선 100일마다 플레이어가 남기는 기록 ---------- */
+const WARP_LOG = [
+  { upto: 1000, lines: [
+    '도착 안내가 오지 않는다. 시계는 멈췄고, 나는 손가락으로 날짜를 센다.',
+    '창밖에는 아무것도 없다. 색도, 빛도, 거리도. 그런데 눈이 아프지 않다.',
+    '배가 고프지 않다. 졸리지도 않다. 그게 제일 무섭다.',
+    '{seat}번 좌석 남자가 문을 두드린다. 백 일째 같은 박자로.',
+    '나는 {who}였다. 잊지 않으려고 여기에 적어둔다.',
+    '승무원 호출 버튼을 3,000번쯤 눌렀다. 아무도 오지 않았다.',
+    '다른 칸으로 가는 문은 열린다. 열차는 끝나지 않는다.',
+    '맞은편 여자는 아직 울고 있다. 울음에도 지치지 않는 모양이다.',
+    '처음으로 누군가 자기 손목을 그었다. 피가 흘렀는데, 그는 죽지 않았다.',
+    '차내 방송이 또 패키지 상품을 안내한다. 나는 그 문장을 외워버렸다.',
+  ] },
+  { upto: 5000, lines: [
+    '{seat}번 칸 사람들이 둥글게 앉아 놀이를 시작했다. 배를 가르고, 서로에게 건넨다. 웃는다.',
+    '죽지 못한다는 걸 다들 알게 되자, 열차의 공기가 달라졌다.',
+    '저쪽 칸에서는 천 년째 주먹을 휘두르는 무리가 있다. 할 일이 그것밖에 없으니까.',
+    '살점이 혈관 한 가닥으로 이어져 있다. 끊어지지 않는다. 아무리 당겨도.',
+    '오늘은 다른 승객에게 이름을 물었다. 그는 대답 대신 자기 혀를 보여줬다.',
+    '피범벅의 바닥에 발자국으로 길이 생겼다. 몇 천 일 동안 같은 길을 걸었으니까.',
+    '{seat}번 좌석의 아이가 나를 "아저씨"라고 부른다. 그 아이도 백 살은 넘었을 것이다.',
+    '단련하는 무리가 나를 불렀다. 거절했다. 아직은.',
+    '내 손톱이 팔걸이에 수천 개의 선을 그었다. 날짜는 거기에 있다.',
+    '누군가 문을 열어 바깥으로 뛰어내렸다. 다음 날 그는 같은 좌석에 앉아 있었다.',
+  ] },
+  { upto: 15000, lines: [
+    '계절이 없다. 그래서 나는 일지에 계절을 만들어 적는다. 오늘은 봄이다.',
+    '{who}였던 시절의 일이 꿈처럼 느껴진다. 진짜로 있었던 일일까.',
+    '내장놀이에 초대받았다. 이번엔 웃음을 참기가 어려웠다.',
+    '{seat}번 칸의 노인은 열차가 출발하기 전 무엇을 먹었는지 매일 이야기한다. 메뉴가 매일 다르다.',
+    '나는 이제 모든 승객의 얼굴을 안다. 얼굴이 남아 있는 사람에 한해서.',
+    '수련 무리의 우두머리는 칼 한 자루로 공기를 가른다. 소리가 늦게 들린다.',
+    '거울을 봤다. 늙지 않았다. 이 몸은 출발한 그 순간 그대로다. 안쪽만 늙는다.',
+    '오늘 하루를 말없이 보냈다. 아니, 천 일이었던가.',
+    '방송 속 패키지 여행지의 이름을 하나씩 지어 불렀다. 거기엔 해가 뜬다.',
+    '나는 아직 이 일지를 쓴다. 쓰는 동안은 내가 나라는 걸 안다.',
+  ] },
+  { upto: 1e9, lines: [
+    '내가 누구였는지 첫 장을 다시 읽고서야 알았다. {who}. 낯선 이름이다.',
+    '펜이 닳아 피로 쓴다. 피는 마르지 않는다.',
+    '{seat}번 칸 사람들은 이제 서로를 구분하지 않는다. 엉겨붙은 채 하나의 덩어리로 숨을 쉰다.',
+    '도착하면 모든 게 되돌려진다는 소문이 돈다. 그렇다면 이 일지도 사라질까.',
+    '창밖에서 무언가를 본 것 같다. 아무것도 아니었다. 아무것도 아니어야 한다.',
+    '오늘은 웃었다. 이유는 기억나지 않는다.',
+    '수만 일이 지났는데도, 나는 아직 도착을 기다린다. 그것만은 잊지 않았다.',
+    '열차가 덜컹였다. 수만 일 만의 첫 진동. 모두가 고개를 들었다.',
+    '마지막으로 하고 싶은 말을 적어둔다. …적을 말이 없다.',
+    '창밖의 색이 아주 조금, 돌아오는 것 같다.',
+  ] },
+];
+function warpLogLine(day) {
+  const stage = WARP_LOG.find(s => day <= s.upto);
+  const who = S.ch.name + (affName() && affName() !== S.ch.name ? ` (${affName()})` : '');
+  let line;
+  do { line = pick(stage.lines); } while (S.warp.lastLine === line && stage.lines.length > 1);
+  S.warp.lastLine = line;
+  return line.replace('{who}', who).replace('{seat}', rnd(1, 300));
+}
+function writeWarpLog() {
+  if (!S.warp) return;
+  const inner = warpInner(), from = (S.warp.logged || 0) + 100;
+  const entries = [];
+  for (let d = from; d <= inner; d += 100) { entries.push(`<div><b>${d.toLocaleString()}일</b> — ${warpLogLine(d)}</div>`); S.warp.logged = d; }
+  if (entries.length) print(`<div class="warp-log">📓 열차 일지<br>${entries.join('')}</div>`, 'l-amb');
+}
 
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
