@@ -587,15 +587,15 @@ function changeAff(id, after) {
    데이터: 적
 ========================================================= */
 const ENEMIES = {
-  rat: { tier: 9, name: '뒷골목 쥐', desc: '장기를 노리는 도시의 최하층. 강도로 하루를 연명한다.', hp: 30, stg: 16, slots: 1,
+  rat: { cowed: true, tier: 9, name: '뒷골목 쥐', desc: '장기를 노리는 도시의 최하층. 강도로 하루를 연명한다.', hp: 30, stg: 16, slots: 1,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [15000, 40000],
     pool: [{ name: '녹슨 칼질', dice: [['참격', 2, 5]] }, { name: '쇠파이프', dice: [['타격', 2, 5]] },
       { name: '장기 적출 시도', dice: [['관통', 1, 6]], onHit: { bleed: 1 } }, { name: '움츠리기', dice: [['방어', 1, 4]] }] },
-  kong: { tier: 8, name: '콩콩이파 조직원', desc: '하와이안 셔츠와 단검. 전당포 거리의 수금원.', hp: 44, stg: 22, slots: 2,
+  kong: { cowed: true, tier: 8, name: '콩콩이파 조직원', desc: '하와이안 셔츠와 단검. 전당포 거리의 수금원.', hp: 44, stg: 22, slots: 2,
     res: { 참격: 1.2, 관통: 0.8, 타격: 1 }, reward: [80000, 150000],
     pool: [{ name: '단검 찌르기', dice: [['관통', 3, 6]] }, { name: '하와이안 난도질', dice: [['참격', 2, 4], ['참격', 2, 4]] },
       { name: '막아!', dice: [['방어', 2, 5]] }, { name: '빚 독촉', dice: [['타격', 3, 7]], onHit: { para: 1 } }] },
-  thumb: { tier: 6, name: '엄지 솔다토', desc: '예법을 어긴 자에게 탄환으로 답한다.', hp: 60, stg: 28, slots: 2,
+  thumb: { cowed: true, tier: 6, name: '엄지 솔다토', desc: '예법을 어긴 자에게 탄환으로 답한다.', hp: 60, stg: 28, slots: 2,
     res: { 참격: 0.8, 관통: 1, 타격: 1.2 }, reward: [400000, 800000],
     pool: [{ name: '탄환 장전 사격', dice: [['관통', 4, 8]], onHit: { burn: 2 } }, { name: '총검 돌격', dice: [['관통', 3, 6], ['참격', 2, 4]] },
       { name: '카포에 대한 예', dice: [['방어', 3, 6]], onUse: { nextStr: 1 } }, { name: '개머리판', dice: [['타격', 3, 7]] }] },
@@ -1345,7 +1345,7 @@ EVENTS.push(
       return [
         { t: `전부 갚는다 (${won(S.debt)})`, req: () => S.money >= S.debt, reqText: '돈 부족', fn() { repayDebt(S.debt); say('조직원들이 정중히 모자를 들어 보이고 물러났다.'); } },
         { t: '맞서 싸운다', def: true, fn() {
-          fight(n ? 'finger_exec' : 'thumb', { lethal: false,
+          fight(n ? 'finger_exec' : 'thumb', { lethal: false, noCow: true,
             win() { favor('엄지'); S.flags.collected = n + 1; S.debt = Math.ceil(S.debt * 1.5); S.debtDue = S.day + 2;
               say(`추심원들을 쫓아냈다. 하지만 손가락은 잊지 않는다. 빚이 ${won(S.debt)}(으)로 불어났다 (${S.debtDue}일차까지).`, 'l-bad'); },
             lose() { say('눈을 떠보니 수술 자국이 남아 있었다. 빚은 "현물"로 정산되었다. (최대 체력 -10)', 'l-bad');
@@ -1373,7 +1373,7 @@ EVENTS.push(
       this.text = `${f}의 간부가 직접 찾아왔다. "그동안의 일, 잘 봤다. 들어올 자격이 있는지 마지막으로 확인하지." 손가락에 들어가면 다시는 나올 수 없다는 소문이 있다. (${AFFS[k].passive})`;
       return [
         { t: `시험에 응한다 — ${f}의 시험관과 대련`, fn() {
-          fight('thumb', { lethal: false, name: `${f}의 시험관`, desc: `${f}에 들어올 자격을 가늠하는 조직원. 봐주지 않는다.`,
+          fight('thumb', { lethal: false, noCow: true, name: `${f}의 시험관`, desc: `${f}에 들어올 자격을 가늠하는 조직원. 봐주지 않는다.`,
             win() { say(`시험관이 고개를 끄덕였다. "환영한다." 이제 당신은 ${f}의 일원이다.`); S.favor[f] = 0; changeAff(k); },
             lose() { say(`"아직이군." ${f}의 신임이 식었다.`, 'l-bad'); S.favor[f] = 0; } });
         } },
@@ -1705,8 +1705,9 @@ const mkSt = () => ({ bleed: 0, burn: 0, para: 0, str: 0, end: 0, prot: 0 });
 
 function fight(key, opts = {}) {
   const d = ENEMIES[key];
-  // 압도: 위상이 적의 격보다 4단계 이상 높으면 적이 싸우기 전에 물러난다
-  if (!d.elite && d.tier && S.grade <= d.tier - 4 && faction() !== 'twisted') {
+  // 압도: 쥐나 하급 조직원 같은 '사람'만 겁먹는다. 뒤틀림·청소부 등은 위상과 상관없이 덤빈다.
+  // 임무로 온 자(추심원·시험관)는 물러나지 않는다 (opts.noCow)
+  if (d.cowed && !opts.noCow && d.tier && S.grade <= d.tier - 4 && faction() !== 'twisted') {
     say(`${opts.name || d.name}이(가) 당신을 알아보고 얼어붙었다. 무기를 내려놓고 물러난다. — 압도`, 'l-good');
     const [a, b] = d.reward;
     gain(Math.round(rnd(a, b) * payMul() * (H().moneyMul || 1)));
@@ -2114,7 +2115,7 @@ function showHelp() {
 
   · 합에서 이기면 <b>감정</b>이 쌓이고, 감정 단계가 오르면 최대 빛 +1 + 빛 전부 회복<br><br>
   <b>위상의 힘</b> — 승급할 때마다 최대 체력 +12, 흐트러짐 +5, 완치, 카드 1장 선택. 6급·3급에 최대 빛 +1. 위상이 높을수록 모든 주사위 위력 상승(1급 +4).
-  위상이 적의 격보다 크게 높으면 일반 적은 싸우기 전에 물러납니다(압도). 강적은 예외.<br>
+  위상이 크게 높으면 쥐·하급 조직원 같은 하찮은 상대는 싸우기 전에 물러납니다(압도). 뒤틀림·청소부·강적은 항상 덤빕니다.<br>
   <b>성장</b> — 의뢰와 전투로 실적을 쌓으면 하나 협회 승급 심사로 등급이 오릅니다. 등급이 오를수록 보수가 늘어납니다.<br>
   <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
   <b>안(眼)</b> — 원화와 비슷한 가치입니다. 둥지 중상위층의 월급이 400만 안 정도입니다.<br>
