@@ -2202,7 +2202,16 @@ function infamy(n, why) {
 }
 
 Object.assign(ENEMIES, {
-  hana_low: { name: '하청 해결사 사무소', desc: '하나 협회의 공개 의뢰를 받고 온 해결사들. 혈귀 토벌 장비를 챙겨 왔다.', hp: 130, stg: 55, slots: 2,
+  fixer_rookie: { name: '저등급 해결사 사무소', desc: '도시 괴담급 의뢰를 하청받은 8~7급 해결사들. 보수가 썩 좋지 않아 의욕도 그만큼이다.', hp: 80, stg: 35, slots: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [300000, 800000], light: 3, lightRegen: 1,
+    pool: [{ name: '어설픈 연계', dice: [['참격', 3, 7], ['관통', 3, 6]] }, { name: '방패 들기', dice: [['방어', 4, 8]] },
+      { name: '나무 말뚝', dice: [['관통', 4, 9]] }, { name: '몰아붙이기', dice: [['타격', 4, 8]] }] },
+  fixer_vet: { name: '이름난 해결사 사무소', desc: '도시 질병급 의뢰를 맡을 만큼 검증된 4~3급 해결사들. 협회가 직접 나서기 전의 마지막 하청이다.', hp: 190, stg: 80, slots: 3,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [3000000, 6000000], light: 5, lightRegen: 2,
+    passive: '숙련 — 매 막 인내 1', onRound: e => { e.st.end += 1; },
+    pool: [{ name: '연계 검격', dice: [['참격', 8, 12], ['관통', 6, 10]] }, { name: '은 말뚝', dice: [['관통', 10, 15]], onHit: { para: 1 } },
+      { name: '굳건한 방어', dice: [['방어', 9, 13]] }, { name: '포위', dice: [['타격', 7, 11], ['참격', 6, 9]] }] },
+  hana_low: { name: '협력 해결사 사무소', desc: '하나 협회와 협력 관계인 6~5급 해결사들. 도시 전설급 토벌 장비를 챙겨 왔다.', hp: 130, stg: 55, slots: 2,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [1000000, 2000000], light: 4, lightRegen: 2,
     pool: [{ name: '연계 공격', dice: [['참격', 6, 10], ['관통', 5, 9]] }, { name: '방패 들기', dice: [['방어', 7, 11]] },
       { name: '은 말뚝', dice: [['관통', 8, 13]], onHit: { para: 1 } }, { name: '협공', dice: [['타격', 7, 11], ['참격', 5, 8]] }] },
@@ -2221,9 +2230,10 @@ Object.assign(ENEMIES, {
 EVENTS.push(
   { id: 'vp_hunters', fac: ['vampire'], when: [0, 1, 2, 3], w: 0, cond: () => false, title: '토벌대',
     build() {
-      const l = vLevel(), enemy = l >= 5 ? ((S.flags.starWins || 0) >= 2 ? 'color_rival' : 'hana_high') : l === 4 ? 'hana_high' : l === 3 ? 'hana_mid' : 'hana_low';
+      // 괴담·전설·질병은 하청 사무소, 악몽부터 하나 협회가 직접 나선다
+      const l = vLevel(), enemy = l >= 5 ? ((S.flags.starWins || 0) >= 2 ? 'color_rival' : 'hana_high') : ['fixer_rookie', 'fixer_rookie', 'hana_low', 'fixer_vet', 'hana_mid'][l];
       const atStar = l >= 5;   // 이미 도시의 별인 상태에서의 승리만 센다
-      this.text = `하나 협회의 의뢰서에 당신의 얼굴이 실렸다. 재해 등급 「${VDIS[l]}」. ${josa(ENEMIES[enemy].name, '이', '가')} 당신의 은신처를 찾아냈다.`;
+      this.text = `${l >= 4 ? '하나 협회가 직접 움직였다.' : '하나 협회의 공개 의뢰서에 당신의 얼굴이 실렸다.'} 재해 등급 「${VDIS[l]}」. ${josa(ENEMIES[enemy].name, '이', '가')} 당신의 은신처를 찾아냈다.`;
       return [
         { t: '맞선다', def: true, fn() {
           S.flags.vHunt = false;
@@ -2322,7 +2332,9 @@ const CAPTIVES = {
   thumb: { label: '손가락 조직원', pow: 2, yield: 2, feed: 2 },
   hunter: { label: '금기 사냥꾼', pow: 2, yield: 2, feed: 3 },
   smile: { label: '웃는 얼굴들 조직원', pow: 2, yield: 2, feed: 3 },
+  fixer_rookie: { label: '저등급 해결사', pow: 1, yield: 1, feed: 2 },
   hana_low: { label: '해결사', pow: 2, yield: 2, feed: 2 },
+  fixer_vet: { label: '이름난 해결사', pow: 3, yield: 2, feed: 3 },
   hana_mid: { label: '하나 협회 3과 해결사', pow: 3, yield: 3, feed: 3 },
   hana_high: { label: '하나 협회 1과 해결사', pow: 4, yield: 3, feed: 4 },
   finger_exec: { label: '손가락 간부', pow: 4, yield: 3, feed: 4 },
