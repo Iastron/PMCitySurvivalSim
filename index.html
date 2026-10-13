@@ -1650,6 +1650,118 @@ EVENTS.push(
 );
 
 /* =========================================================
+   균열과 도서관 — 과거의 존재들과 싸운다
+   균열: 도시에 생긴 틈 너머에서, 이미 죽었거나 만날 수 없는 특색·재해의 잔영이 나타난다
+   도서관: 접대 상대를 고른다 (롤랑 / 게부라 · 붉은안개 열화판 / 비나 · 조율자 열화판 / 사서)
+========================================================= */
+Object.assign(CARDS, {
+  // 도서관 보상
+  lib_durandal: { name: '듀란달', cost: 1, dice: [['참격', 7, 12], ['참격', 5, 8]], desc: '흑색침묵이 가장 아끼던 검' },
+  lib_mimicry:  { name: '미믹리', cost: 2, dice: [['참격', 10, 16]], onHit: { healSelf: 8 }, desc: '적중 시 체력 8 흡수 — 붉은안개의 E.G.O' },
+  lib_pillar:   { name: '열화된 기둥', cost: 2, dice: [['타격', 12, 18]], onHit: { para: 2 }, desc: '적중 시 마비 2 — 조율자의 힘, 그 일부' },
+  // 균열 보상
+  rf_redmist:   { name: '붉은안개의 잔영', cost: 2, dice: [['참격', 9, 15], ['참격', 7, 11]] },
+  rf_argalia:   { name: '공명하는 잔향', cost: 1, dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onHit: { para: 1 }, desc: '적중 시 마비 1' },
+  rf_pianist:   { name: '건반 위의 비명', cost: 2, dice: [['타격', 8, 13], ['타격', 8, 13]], onHit: { para: 1 }, desc: '적중 시 마비 1' },
+  rf_scarlet:   { name: '주홍빛 창', cost: 1, dice: [['관통', 9, 15]], onHit: { bleed: 3 }, desc: '적중 시 출혈 3' },
+  rf_chef:      { name: '궁극의 한 접시', cost: 1, instant: true, fx: { heal: 25, nextStr: 2 }, desc: '즉시: 체력 25 회복, 다음 막 힘 2' },
+});
+
+const FURIOSO = { name: '퓨리오소', cost: 3, dice: [['참격', 5, 9], ['관통', 5, 9], ['타격', 5, 9], ['참격', 5, 9], ['관통', 5, 9], ['타격', 6, 10]] };
+Object.assign(ENEMIES, {
+  /* ---------- 도서관 ---------- */
+  roland_lib: { elite: true, name: '롤랑 — 흑색침묵', desc: '도서관의 접대 담당. 검은 장갑에서 무기가 끝없이 나온다.', hp: 220, stg: 90, slots: 3,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [80000000, 120000000],
+    passive: '퓨리오소 — 체력 절반 이하가 되면 모든 무기를 쏟아내는 퓨리오소가 열린다',
+    onRound: e => { if (e.hp < e.maxHp / 2 && !e.extra) { e.extra = [FURIOSO, FURIOSO]; clog('검은 장갑이 떨린다 — 퓨리오소', 'l-bad'); } },
+    pool: [{ name: '듀란달', dice: [['참격', 7, 12], ['참격', 5, 8]] }, { name: '젤코바 공방', dice: [['타격', 6, 10], ['참격', 6, 10]] },
+      { name: '아틀리에 로직', dice: [['관통', 5, 9], ['관통', 5, 9]] }, { name: '휠 인더스트리', dice: [['타격', 12, 18]] },
+      { name: '묵 공방', dice: [['참격', 8, 13]] }, { name: '올드 보이즈 공방', dice: [['방어', 9, 14]] }] },
+  gebura_lib: { elite: true, name: '게부라 — 붉은안개 (열화판)', desc: '도서관의 지정사서. 한때 도시 최강이라 불린 해결사의 잔재.', hp: 240, stg: 95, slots: 3,
+    res: { 참격: 0.9, 관통: 1, 타격: 1.1 }, reward: [80000000, 120000000],
+    passive: '붉은안개 — 잃은 체력 25%마다 힘 1',
+    onRound: e => { e.st.str += Math.floor((1 - e.hp / e.maxHp) * 4); },
+    pool: [{ name: '대분할: 세로', dice: [['참격', 12, 18]] }, { name: '대분할: 가로', dice: [['참격', 9, 14], ['참격', 9, 14]] },
+      { name: '미믹리', dice: [['참격', 8, 12]], onHit: { healSelf: 8 } }, { name: '수평 베기', dice: [['참격', 6, 10], ['관통', 6, 10]] },
+      { name: '창', dice: [['관통', 9, 14]] }] },
+  binah_lib: { elite: true, name: '비나 — 조율자 (열화판)', desc: '도서관의 지정사서. 머리의 조율자였던 자. 힘의 대부분을 잃었지만, 충분하다.', hp: 260, stg: 110, slots: 3,
+    res: { 참격: 0.8, 관통: 0.8, 타격: 0.8 }, reward: [80000000, 120000000],
+    passive: '조율 — 매 막 당신의 힘을 지운다',
+    onRound: (e, P) => { if (P.st.str > 0) { P.st.str = 0; clog('비나가 당신의 힘을 "조율"했다', 'l-bad'); } },
+    pool: [{ name: '열화된 기둥', dice: [['타격', 12, 18]], onHit: { para: 2 } }, { name: '열화된 자물쇠', dice: [['방어', 9, 14]], onUse: { enemy: { para: 2 } } },
+      { name: '열화된 요정', dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onHit: { bleed: 2 } },
+      { name: '열화된 충격파', dice: [['타격', 14, 20]] }, { name: '열화된 사슬', dice: [['타격', 8, 12]], onHit: { para: 2 } }] },
+
+  /* ---------- 균열 너머의 잔영 ---------- */
+  rift_redmist: { elite: true, name: '균열의 잔영 — 붉은안개', desc: '연기 전쟁의 영웅, 도시 최강의 해결사. 이미 죽은 자의 기억이 균열을 타고 흘러나왔다.', hp: 230, stg: 90, slots: 3,
+    res: { 참격: 0.9, 관통: 1, 타격: 1.1 }, reward: [50000000, 80000000],
+    passive: '붉은안개 — 잃은 체력 25%마다 힘 1', onRound: e => { e.st.str += Math.floor((1 - e.hp / e.maxHp) * 4); },
+    pool: [{ name: '대분할: 세로', dice: [['참격', 12, 18]] }, { name: '대분할: 가로', dice: [['참격', 9, 14], ['참격', 9, 14]] },
+      { name: '미믹리', dice: [['참격', 8, 12]], onHit: { healSelf: 8 } }, { name: '수평 베기', dice: [['참격', 6, 10]] }] },
+  rift_argalia: { elite: true, name: '균열의 잔영 — 푸른잔향', desc: '잔향악단의 지휘자. 도서관에서 스러졌을 그의 울림이 아직 남아 있다.', hp: 210, stg: 85, slots: 3,
+    res: { 참격: 1, 관통: 0.9, 타격: 1.1 }, reward: [50000000, 80000000],
+    passive: '공명 — 매 막 적(당신)에게 마비 1', onRound: (e, P) => { P.st.para += 1; },
+    pool: [{ name: '공명', dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], onHit: { para: 1 } }, { name: '푸른 잔향', dice: [['관통', 8, 13]] },
+      { name: '진동 증폭', dice: [['방어', 8, 12]], onUse: { enemy: { para: 2 } } }, { name: '현의 울림', dice: [['타격', 9, 14]] }] },
+  rift_pianist: { elite: true, name: '균열의 잔영 — 피아니스트', desc: '첫 번째 뒤틀림. 9구 뒷골목 30만 명을 집어삼킨 연주가 다시 시작된다.', hp: 260, stg: 100, slots: 4,
+    res: { 참격: 1.1, 관통: 1, 타격: 0.8 }, reward: [50000000, 80000000],
+    passive: '크레셴도 — 매 막 힘 1씩 누적', onRound: e => { e.cresc = (e.cresc || 0) + 1; e.st.str += e.cresc; },
+    pool: [{ name: '연주: 첫 악장', dice: [['타격', 6, 10], ['타격', 6, 10]] }, { name: '불협화음', dice: [['타격', 8, 12]], onHit: { para: 2 } },
+      { name: '건반의 비명', dice: [['관통', 7, 12]], onHit: { bleed: 2 } }, { name: '피아노 뚜껑', dice: [['방어', 9, 14]] }] },
+  rift_scarlet: { elite: true, name: '균열의 잔영 — 주홍십자', desc: '잔향악단 진압에 나섰다가 하나 협회 1과와 함께 스러진 특색.', hp: 200, stg: 85, slots: 3,
+    res: { 참격: 0.9, 관통: 0.9, 타격: 1.1 }, reward: [50000000, 80000000],
+    passive: '수호의 십자 — 매 막 보호 2', onRound: e => { e.st.prot += 2; },
+    pool: [{ name: '주홍 창', dice: [['관통', 9, 15]], onHit: { bleed: 2 } }, { name: '십자 베기', dice: [['참격', 7, 12], ['참격', 7, 12]] },
+      { name: '방패 돌진', dice: [['타격', 8, 12]] }, { name: '수호', dice: [['방어', 9, 14]] }] },
+  rift_chefs: { elite: true, name: '균열의 잔영 — 8인의 셰프', desc: '궁극의 맛을 좇다 스스로를 재료로 삼은 도시의 별. 주방의 열기가 균열 너머에서 새어 나온다.', hp: 220, stg: 90, slots: 3,
+    res: { 참격: 1, 관통: 1.1, 타격: 0.9 }, reward: [50000000, 80000000],
+    pool: [{ name: '손질', dice: [['참격', 5, 8], ['참격', 5, 8], ['참격', 5, 8]], onHit: { bleed: 1 } }, { name: '조리', dice: [['타격', 8, 13]], onHit: { burn: 2 } },
+      { name: '시식', dice: [['관통', 8, 12]], onHit: { healSelf: 10 } }, { name: '플레이팅', dice: [['방어', 8, 12]] }] },
+});
+
+const RIFT_FIGURES = [
+  { id: 'redmist', enemy: 'rift_redmist', card: 'rf_redmist', title: '붉은안개', hint: '균열 너머로 붉은 안개가 피어오른다. 거대한 검을 든 그림자가 보인다.' },
+  { id: 'argalia', enemy: 'rift_argalia', card: 'rf_argalia', title: '푸른잔향', hint: '균열에서 푸른 빛과 함께 현을 켜는 듯한 진동이 울려 퍼진다.' },
+  { id: 'pianist', enemy: 'rift_pianist', card: 'rf_pianist', title: '피아니스트', hint: '균열 너머에서 피아노 소리가 들린다. 9구 사람들이라면 그 곡을 안다.' },
+  { id: 'scarlet', enemy: 'rift_scarlet', card: 'rf_scarlet', title: '주홍십자', hint: '균열 사이로 주홍빛 십자 문양의 방패가 언뜻 비친다.' },
+  { id: 'chefs', enemy: 'rift_chefs', card: 'rf_chef', title: '8인의 셰프', hint: '균열에서 견딜 수 없이 맛있는 냄새가 흘러나온다. 무엇으로 만든 요리인지는 생각하지 않기로 한다.' },
+];
+EVENTS.push(
+  { id: 'rift', when: [1, 2], w: 0.7, cond: () => S.day >= 2 && RIFT_FIGURES.some(f => !(S.flags.rift || {})[f.id]), title: '도시의 균열',
+    build() {
+      const f = pick(RIFT_FIGURES.filter(x => !(S.flags.rift || {})[x.id]));
+      this.text = `골목 한가운데 공간이 갈라져 있다. 사람들은 그것을 피해 돌아간다. ${f.hint} 지금은 존재하지 않는 자 — 「${f.title}」의 잔영이다.`;
+      return [
+        { t: `균열로 들어간다 — 「${f.title}」과(와) 싸운다 (최강적, 패배해도 균열 밖으로 튕겨날 뿐)`, fn() {
+          S.flags.rift = S.flags.rift || {}; S.flags.rift[f.id] = true;
+          stress(5);
+          fight(f.enemy, { lethal: false, noRob: true, noCow: true, rare: true,
+            win() { say(`잔영이 흩어지며 무언가를 남겼다. 과거의 존재와 겨룬 감각이 몸에 새겨진다.`, 'l-day'); merit(6); addCard(f.card); },
+            lose() { say('균열이 당신을 밀어냈다. 정신을 차려보니 골목 바닥이다. 균열은 이미 닫혀 있었다.', 'l-bad'); } });
+        } },
+        { t: '균열을 피해 돌아간다', def: true, fn() { say('뒤를 돌아보자 균열은 이미 사라져 있었다.'); } },
+      ];
+    }, text: '' },
+);
+// 도서관: 접대 상대를 고른다
+Object.assign(EVENTS.find(e => e.id === 'library'), {
+  build() {
+    this.text = '책상 위에 금빛 초대장이 놓여 있다. "도서관에 오신 것을 환영합니다. 원하는 책을 얻으실 수 있을 겁니다." 초대장 뒷면에 접대를 맡을 사서들의 이름이 적혀 있다. 패배한 손님은 책이 된다.';
+    const go = (enemy, card, line) => () => {
+      S.flags.library = true; stress(10);
+      fight(enemy, { lethal: true, rare: true, win() { say(line, 'l-day'); gain(30000000); merit(8); addCard(card); } });
+    };
+    return [
+      { t: '롤랑에게 접대받는다 — 흑색침묵의 무기들, 퓨리오소', fn: go('roland_lib', 'lib_durandal', '"…좋아, 인정하지." 롤랑이 장갑을 벗으며 한 권의 책을 건넸다. 책장 사이에 검 한 자루가 끼워져 있었다.') },
+      { t: '게부라에게 접대받는다 — 붉은안개 (열화판)', fn: go('gebura_lib', 'lib_mimicry', '게부라가 검을 내렸다. "열화판이라도 붉은안개를 넘었다. 가져가." 붉은 대검의 기억이 손에 남았다.') },
+      { t: '비나에게 접대받는다 — 조율자 (열화판)', fn: go('binah_lib', 'lib_pillar', '비나가 희미하게 웃었다. "흥미롭군요." 그녀가 건넨 책에서 열화된 기둥의 힘이 흘러나왔다.') },
+      { t: '이름 없는 사서에게 접대받는다', fn: go('librarian', 'ego', '접대를 이겨냈다. 손에는 빛나는 책 한 권이 쥐어져 있었다.') },
+      { t: '초대장을 버린다', def: true, fn() { say('초대장은 쓰레기통 속에서도 은은하게 빛났다.'); } },
+    ];
+  },
+});
+
+/* =========================================================
    턴 진행 (자동 진행 + 제한시간)
 ========================================================= */
 function startTurn() {
@@ -1867,7 +1979,7 @@ function startRound() {
   if (C.round > 1) E.light = Math.min(E.maxLight, E.light + E.lightRegen);
   C.intents = [];
   if (!E.staggered) {
-    const pool = shuffle([...E.d.pool]);
+    const pool = shuffle([...E.d.pool, ...(E.extra || [])]);   // extra: 전투 중 열리는 추가 기술 (퓨리오소 등)
     for (let i = 0; i < E.d.slots; i++) {
       const c = pool.find(x => ecost(x) <= E.light);
       if (!c) break;
@@ -2113,8 +2225,8 @@ function endCombat(win) {
     rewardModal(opts.rare);
   } else {
     if (opts.lethal === false) {
-      print('⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
-      S.hp = 1; stress(25); spend(Math.floor(S.money / 2), true);
+      print(opts.noRob ? '⚔ 패배 — 정신을 잃었다.' : '⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
+      S.hp = 1; stress(25); if (!opts.noRob) spend(Math.floor(S.money / 2), true);
       opts.lose && opts.lose();
       T.resolved = true;
     } else {
