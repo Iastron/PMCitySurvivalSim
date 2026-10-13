@@ -4304,6 +4304,14 @@ function wGrantCCA() {
   say('★ 안내 방송: "정리 요원의 컨제스천 클리닝 아머 장착이 허가되었습니다." 어마어마한 가격의 장비다. 부수면 월급에서 깎인다.', 'l-day');
 }
 const wJobDone = (n = 1) => { S.wJobs = (S.wJobs || 0) + n; };
+// 출동 동료 — 전투마다 새로 편성된다 (영구 동료 아님)
+const W_MATE_NAMES = ['진', '하루', '페드로', '미샤', '오웬', '세라', '토마', '레아', '도윤', '카밀', '빅토르', '노아'];
+function wMate(g, cca) {
+  const nm = pick(W_MATE_NAMES);
+  return cca ? { name: `${nm} (W사 ${g}등급 - CCA)`, maxHp: 120 + (g - 4) * 60, atk: [8 + (g - 4) * 4, 17 + (g - 4) * 6], type: '타격', skill: pick(['혼잡승객 정리', '부스트 엘보 커터']) }
+    : { name: `${nm} (W사 ${g}등급)`, maxHp: 35 + g * 18, atk: [3 + g * 2, 7 + g * 3], type: pick(['참격', '관통']), skill: pick(['공간 절단', '차원 절단', '정리']) };
+}
+const wTeam = (n, g, cca) => Array.from({ length: n }, () => wMate(g, cca && g >= 4 && Math.random() < 0.5));
 // 출동 — 등급에 맞는 열차 상황. 아래 등급은 윗선을 '보조'하러 따라갈 수도 있다
 const W_SITE = {
   원활: { min: 1, foe: null, pay: 300000 },
@@ -4346,7 +4354,8 @@ EVENTS.push(
         }
         const strong = st === '결항';
         say(strong ? '1급 해결사 혹은 그 이상. 승객 하나가 객차 전체를 피로 칠해 놓았다.' : st === '혼잡' ? '저항이 거센 승객들. 수십 년을 단련한 무리가 칸을 차지하고 있다.' : '정리 업무 외에 승객 제압이 필요하다. 눈의 초점이 없는 승객이 일어선다.', 'l-bad');
-        fight(site.foe, { lethal: st !== '지연', noCow: true, noRob: true, hpMul: strong ? 1.8 : st === '혼잡' ? 1.1 : 1,
+        const mates = st === '지연' ? wTeam(rnd(1, 2), 3) : st === '혼잡' ? (wg() >= 4 && S.ch.cca ? wTeam(1, 3) : wTeam(rnd(2, 3), rnd(3, 4), true)) : wTeam(2, 5, true);
+        fight(site.foe, { mates, lethal: st !== '지연', noCow: true, noRob: true, hpMul: strong ? 2.2 : st === '혼잡' ? 1.4 : 1.2,
           name: strong ? '결항 열차의 승객 — 1급 해결사급' : undefined, count: st === '지연' ? rnd(1, 2) : 1,
           win() { wJobDone(strong ? 3 : 2); merit(strong ? 5 : st === '혼잡' ? 3 : 2); wPay(site.pay, '출동 수당'); say('정리 완료. 현상 복구 진행 중 — 승객들은 아무것도 기억하지 못할 것이다.'); },
           lose() { say('제압에 실패했다. 다른 요원들이 투입되었다.', 'l-bad'); wPenalty(1, '정리 실패'); } });
@@ -4356,7 +4365,8 @@ EVENTS.push(
         ...(g < 5 ? [{ t: `윗등급 「${g >= 4 ? '결항' : g === 3 ? '혼잡' : '지연'}」 열차 보조로 따라간다 — 위험하지만 실적이 크다`, fn() {
           const st2 = g >= 4 ? '결항' : g === 3 ? '혼잡' : '지연', s2 = W_SITE[st2];
           say(`보조 요원으로 「${st2}」 열차에 탑승했다. 상급자들 뒤에서 파편을 모으는 게 일이라지만…`, 'l-bad');
-          fight(s2.foe, { lethal: true, noCow: true, noRob: true, hpMul: st2 === '결항' ? 1.2 : 0.8,
+          const lead = st2 === '결항' ? wTeam(2, 5, true) : st2 === '혼잡' ? wTeam(2, 4, true) : wTeam(2, 3);   // 상급 요원들이 앞장선다
+          fight(s2.foe, { mates: lead, lethal: true, noCow: true, noRob: true, hpMul: st2 === '결항' ? 2 : 1.3,
             win() { wJobDone(3); merit(4); wPay(s2.pay * 0.6, '보조 수당'); say('"보조 치고는 꽤 하는데?" 상급 요원이 어깨를 툭 쳤다.'); },
             lose() { say('상급 요원이 당신을 끌어내 객차 밖으로 던졌다. 살았다.', 'l-bad'); } });
         } }] : []),
@@ -4373,7 +4383,7 @@ EVENTS.push(
         { t: '하차를 요구한다 — 거부하면 제압 (강적)', fn() {
           if (Math.random() < 0.4) { say('그는 혀를 차며 내렸다. 열차는 정시에 출발했다.'); wJobDone(); merit(2); return; }
           say('"10초짜리 여행에 웃돈은 못 내." 장갑이 움직인다.', 'l-bad');
-          fight('fixer_vet', { lethal: true, noCow: true, noRob: true, hpMul: 1.3, power: 2, name: '부정 승차자 — 강등된 2급 해결사',
+          fight('fixer_vet', { mates: wTeam(1, Math.max(2, wg())), lethal: true, noCow: true, noRob: true, hpMul: 1.6, power: 2, name: '부정 승차자 — 강등된 2급 해결사',
             win() { wJobDone(2); merit(3); wPay(2000000, '적발 포상금'); }, lose() { say('그는 당신을 쓰러뜨리고 그대로 열차에 올랐다.', 'l-bad'); wPenalty(1, '부정 승차 방치'); } });
         } },
         { t: '1등석 차액을 받고 넘어간다 (뇌물 50만 안 · 들키면 벌점)', fn() {
@@ -4491,6 +4501,10 @@ EVENTS.filter(e => e.wjob).forEach(e => { const oc = e.cond; e.cond = () => onSh
 const _fightAllies = fight;
 fight = function (key, opts = {}) {
   _fightAllies(key, opts);
+  if (C && S.phase === 'combat' && opts.mates && opts.mates.length && !C.allies) {   // 이번 전투만 함께하는 동료
+    C.allies = opts.mates.map(m => ({ kind: 'mate', ...m, hp: m.maxHp }));
+    clog(`👥 동료 — ${C.allies.map(a => a.name).join(', ')}`, 'l-sys'); renderCombat(); return;
+  }
   if (!C || S.phase !== 'combat' || faction() !== 'vampire' || C.allies) return;
   const th = Math.min(5, S.thralls || 0), po = Math.min(3, S.pouches || 0);
   const avgPow = th ? (S.thrallPow || 0) / (S.thralls || 1) : 0, avgYield = (S.pouches ? (S.pouchYield || S.pouches) / S.pouches : 1);
@@ -4509,6 +4523,10 @@ function alliesPhase() {
     const v = rnd(4, 9) + Math.round(a.pow * 2) + Math.floor(rankPower() / 2);
     clog(`🩸 ${a.name}이(가) ${t.name}에게 달려든다`, 'l-choice'); dmg(t, v, pick(['참격', '관통', '타격']));
   }
+  for (const a of al.filter(a => a.kind === 'mate')) {
+    const t = pick(foes()); if (!t) break;
+    clog(`👥 ${a.name} — 「${a.skill || '공격'}」 → ${t.name}`, 'l-choice'); dmg(t, rnd(a.atk[0], a.atk[1]), a.type || '참격');
+  }
   // 피주머니 — 주인에게 피를 내어준다 (막당 1회)
   const bag = al.find(a => a.kind === 'pouch' && a.hp > 0);
   if (bag && P.hp > 0 && P.hp < P.maxHp * 0.6) {
@@ -4524,6 +4542,7 @@ function alliesPhase() {
   }
   for (const a of C.allies) if (a.hp <= 0 && !a.dead) {
     a.dead = true;
+    if (a.kind === 'mate') { clog(`✝ ${a.name}이(가) 쓰러졌다.`, 'l-bad'); continue; }
     if (a.kind === 'thrall') { S.thralls = Math.max(0, (S.thralls || 0) - 1); S.thrallPow = Math.max(0, (S.thrallPow || 0) - Math.round(a.pow)); clog(`✝ ${a.name}이(가) 쓰러졌다. 다시 일어나지 않는다. (권속 ${S.thralls})`, 'l-bad'); }
     else { S.pouches = Math.max(0, (S.pouches || 0) - 1); S.pouchYield = Math.max(0, (S.pouchYield || 0) - Math.round(a.yield)); clog(`✝ ${a.name}이(가) 말라붙었다. (피주머니 ${S.pouches})`, 'l-bad'); }
   }
@@ -4541,7 +4560,7 @@ renderCombat = function () {
   _renderCombatAllies();
   if (!C || !C.allies || !C.allies.length) return;
   $('#pBox').innerHTML += `<div class="allies" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">${C.allies.map(a =>
-    `<span class="dim" style="font-size:12px;border:1px solid var(--line);border-radius:4px;padding:2px 6px;${a.hp <= 0 ? 'opacity:.4;text-decoration:line-through' : ''}">${a.kind === 'thrall' ? '🧛' : '🩸'} ${a.name} ${Math.max(0, a.hp)}/${a.maxHp}</span>`).join('')}</div>`;
+    `<span class="dim" style="font-size:12px;border:1px solid var(--line);border-radius:4px;padding:2px 6px;${a.hp <= 0 ? 'opacity:.4;text-decoration:line-through' : ''}">${a.kind === 'thrall' ? '🧛' : a.kind === 'mate' ? '👥' : '🩸'} ${a.name} ${Math.max(0, a.hp)}/${a.maxHp}</span>`).join('')}</div>`;
 };
 
 const FINGER_DAILY = [
