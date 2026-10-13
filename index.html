@@ -3806,6 +3806,12 @@ Object.assign(EVENTS.find(e => e.id === 'travel_method'), {
       ...(isColor ? [{ t: `특색 전용 열차 (${won(W_FIRST_CLASS)}) — 바로 도착`, cost: W_FIRST_CLASS, fn() { spend(W_FIRST_CLASS); say('특색 전용 열차는 조용했다. 승객은 당신 하나뿐이었다.'); arrive(dest); return nextEvent(); } }]
         : [{ t: `W사 열차 일반석 (30만 안)${high ? ' — 직원이 난처해한다' : ''}`, cost: 300000, fn: goNormal(300000) }]),
       { t: `W사 열차 1등석 (${won(W_FIRST_CLASS)}) — 냉동 수면, 바로 도착`, cost: W_FIRST_CLASS, fn() { spend(W_FIRST_CLASS); say('냉동 캡슐에서 눈을 떴다. 도착이다.'); arrive(dest); return nextEvent(); } },
+      // 부정 승차 — 특색·혈귀가 정체를 숨기고 일반석에 탄다. 사고 열차 확정, 언제든 내릴 수 있다
+      ...((isColor || faction() === 'vampire') ? [{ t: `정체를 숨기고 일반석에 탄다 — 부정 승차 (30만 안) · 사고 열차, 원할 때 내린다`, cost: 300000, fn() {
+        spend(300000); S.flags.warpDest = dest; enterWarp(); S.warp.stow = faction() === 'vampire' ? 'vamp' : 'color'; S.warp.pouchesMade = 0;
+        say(faction() === 'vampire' ? '모자를 눌러쓰고 송곳니를 숨겼다. 검표원이 당신의 얼굴을 한 번 보고 지나간다.' : '코트를 바꿔 입고 일반석 표를 내밀었다. 검표원은 당신의 얼굴까지는 모른다.', 'l-bad');
+        return nextEvent();
+      } }] : []),
       { t: '걸어서 간다 — 무료, 2턴 소모', def: true, fn() { say('골목과 검문소를 몇 개나 지났다. 구역 경계마다 통행 절차가 길다.'); S.travelSkip = 1; S.travelPending = dest; endTurnNow(); } },
       { t: '그만둔다 — 머문다', fn() { say('떠나지 않기로 했다.'); return nextEvent(); } },
     ];
@@ -4069,7 +4075,7 @@ function vampLeaveTrain(forced) {
   const w = S.warp; S.warp = null;
   S.day = w.start; S.turn = w.startTurn; S.seenToday = []; S.flags.travelDay = S.day;   // 바깥에서는 몇 초
   if (forced) say('추격자들에게 밀려 열차 밖으로 내던져졌다. 승강장 바닥에 피가 번진다.', 'l-bad');
-  else say('객차 문의 틈을 손톱으로 찢어 벌렸다. 색 없는 공간을 지나 — 승강장에 발이 닿았다.', 'l-day');
+  else say(`${w.stow === 'vamp' ? '객차 문의 틈을 손톱으로 찢어 벌렸다' : '무기로 객차 문을 갈라 열었다'}. 색 없는 공간을 지나 — 승강장에 발이 닿았다.`, 'l-day');
   say('출발 안내 전광판의 시계는 거의 움직이지 않았다. 누구도 당신이 열차에 있었다는 걸 모른다.', 'l-amb');
   if (w.pouchesMade) say(`열차에서 데리고 나온 피주머니 ${w.pouchesMade}개. 그들은 아직도 자신이 열차 안에 있다고 믿는다.`, 'l-sys');
   if (S.flags.warpDest) { S.loc = S.cityLoc = S.flags.warpDest; S.flags.warpDest = null; }
@@ -4096,7 +4102,7 @@ ENEMIES.warp_taboo = { elite: true, name: '금기 사냥꾼', desc: '제압을 �
 const STOW_TABOO_AT = 3;
 
 EVENTS.push(
-  { id: 'vp_warp_board', fac: ['vampire'], when: [0, 1, 2], w: 1, cond: () => !S.warp && !S.exiled, title: 'W사 워프 열차 승강장',
+  { id: 'vp_warp_board', fac: ['vampire'], when: [0, 1, 2], w: 2.5, cond: () => !S.warp && !S.exiled, title: 'W사 워프 열차 승강장',
     text: '승강장은 사람으로 붐빈다. 모자를 눌러쓰고 송곳니를 숨기면, 혈귀도 승객 중 하나다. 이 열차가 "사고"를 낼 때 안쪽에서 무슨 일이 생기는지, 당신은 알고 있다. 거기서는 아무도 죽지 않는다 — 몇 번을 마셔도.',
     choices: [
       { t: '정체를 숨기고 일반석에 탄다 (30만 안) — 사고 열차', cost: 300000, fn() {
@@ -4105,7 +4111,7 @@ EVENTS.push(
       } },
       { t: '타지 않는다', def: true, fn() { say('열차가 떠났다. 다음 기회는 또 온다.'); } },
     ] },
-  { id: 'col_warp_board', when: [0, 1, 2], w: 1, cond: () => !S.warp && !S.exiled && (faction() === 'color' || S.colorBadge), title: '부정 승차',
+  { id: 'col_warp_board', when: [0, 1, 2], w: 3, cond: () => !S.warp && !S.exiled && (faction() === 'color' || S.colorBadge), title: '부정 승차',
     text: '특색은 별도의 차량에 태우는 것이 W사의 방침이다. 하지만 요즘은 일등석에 타야 할 강자들이 신분을 속이고 일반석에 탄다. 사람들은 그들을 부정 승차자라 부른다. 코트를 바꿔 입고 일반석 표를 사면 — 검표원은 당신의 얼굴까지는 모른다. 이 열차가 "사고"를 내면 그 안에서 얼마든 머물 수 있다.',
     choices: [
       { t: '정체를 숨기고 일반석에 탄다 (30만 안) — 사고 열차', cost: 300000, fn() {
