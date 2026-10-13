@@ -559,7 +559,7 @@ function buildOrigin(o, fingerKey) {
 const AFF = () => AFFS[S.aff];
 const isFixer = () => !!AFF().fixer;
 const faction = () => AFF().faction;
-const hasHome = () => !!AFF().home || !!S.ownHome;
+const hasHome = () => faction() === 'library' || (!S.exiled && (!!AFF().home || !!S.ownHome));
 const FINGER_NAMES = ['엄지', '검지', '중지', '약지', '소지'];
 // 손가락 직급: 조직원(위상 1~4) → 하위 간부(5~7) → 상위 간부(8~9)
 // 소지는 산하 조직을 두지 않는다
@@ -789,6 +789,7 @@ function renderTop() {
   $('#sHp').textContent = `${hp}/${S.maxHp}`;
   $('#sMoney').textContent = won(S.money);
   $('#sPay').innerHTML = H().monthlyPay && S.payDay ? `월급까지 <b>${Math.max(0, S.payDay - S.day)}일</b>` : '';
+  $('#sPay').innerHTML += S.exiled ? ` <span class="l-bad">[${S.flags.impurity ? '외곽 축출' : '외곽'}]</span>` : S.flags.impurity ? ' <span class="l-bad">[불순물]</span>' : S.flags.taboo ? ` <span class="l-bad">금기 위반 ${S.flags.taboo}/${TABOO_LIMIT}</span>` : '';
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
   $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
@@ -900,7 +901,7 @@ const EVENTS = [
       { t: '금기를 꼼꼼히 읽는다', fn() { say('"이 둥지에서는 오른손으로 문을 열면 안 된다." …읽어두길 잘했다. 의뢰를 무사히 마쳤다.'); gain(pay(200000)); merit(1); } },
       { t: '대충 훑고 들어간다', def: true, fn() {
         if (Math.random() < 0.5) { say('운 좋게 아무 일도 없었다. 의뢰 완료.'); gain(pay(200000)); merit(1); }
-        else { say('어딘가에서 경보가 울린다. 금기를 어겼다.', 'l-bad'); fight('hunter', { lethal: true, win() { say('금기 사냥꾼을 물리쳤다… 당분간 이 둥지 근처엔 오지 말아야겠다.'); merit(2); } }); }
+        else { say('어딘가에서 경보가 울린다. 금기를 어겼다.', 'l-bad'); tabooHit('둥지의 금기 위반'); fight('hunter', { lethal: true, win() { say('금기 사냥꾼을 물리쳤다… 당분간 이 둥지 근처엔 오지 말아야겠다.'); merit(2); } }); }
       } },
     ] },
   { id: 'index', aff: ['f_index'], when: [0, 1, 2], w: 2.5, title: '검지의 지령',
@@ -1315,7 +1316,9 @@ function cityRender() {
     `<div class="fac-row"><div><b>${label}</b><div class="dim">${desc}</div></div>
      <button data-act="${act}" ${(!ok || S.money < cost) ? 'disabled' : ''}>${won(cost)}</button></div>`;
   let h = `<h3>도시 시설 <span class="dim" style="font-size:13px">보유 ${won(S.money)} · ${S.loc ? S.loc.label : ''}</span></h3>`;
-  if (faction() === 'twisted') {
+  if (S.exiled) {
+    h += '<p class="l-bad">외곽에는 도시의 시설이 없다. 공방도, 병원도, 법도.</p>';
+  } else if (faction() === 'twisted') {
     h += '<p class="l-bad">문을 두드리자 비명이 돌아왔다. 괴물에게 팔 물건은 없다.</p>';
   } else if (night) {
     h += '<p class="l-bad">뒷골목의 밤(03:13~04:34)에는 모든 시설이 문을 닫는다.</p>';
@@ -1762,6 +1765,193 @@ Object.assign(EVENTS.find(e => e.id === 'library'), {
 });
 
 /* =========================================================
+   불순물 지정 · 조율자 · 외곽 축출
+   날개의 금기를 4번 어기거나(금기 사냥꾼 처치 포함) 발톱을 죽이면 머리가 불순물로 지정한다.
+   조율자는 죽지 않는다. 체력을 다 깎으면 당신을 외곽으로 축출한다. 지면 죽는다.
+   외곽에서 도시로 돌아갈 수 있지만, 조율자가 다시 기다리고 있다.
+========================================================= */
+const TABOO_LIMIT = 4;
+function tabooHit(why) {
+  if (!S || faction() === 'head') return;
+  S.flags.taboo = (S.flags.taboo || 0) + 1;
+  say(`${why} — 날개의 금기 위반 기록 ${S.flags.taboo}/${TABOO_LIMIT}`, 'l-bad');
+  if (S.flags.taboo >= TABOO_LIMIT) markImpurity('날개들의 금기를 거듭 어겼다');
+}
+function markImpurity(why) {
+  if (!S || faction() === 'head' || S.flags.impurity) return;
+  S.flags.impurity = true;
+  say(`✦ ${why}. 응시자의 보고가 머리에 올라갔다. 당신은 '불순물'로 지정되었다.`, 'l-bad');
+}
+const OUTSKIRTS = { area: 'outskirts', label: '외곽', note: '괴물과 버려진 것들이 득실거리는 도시 바깥' };
+// 자발적으로 외곽에 나간다 (불순물이 아니면 조율자 없이 돌아올 수 있다)
+function leaveCity(line) {
+  S.exiled = true; S.cityLoc = S.loc; S.loc = OUTSKIRTS; S.flags.exileDay = S.day;
+  say(line, 'l-sys');
+  say('외곽에서는 도시의 시설도 월급도 닿지 않는다. 외곽 열차를 타면 다음 날부터 돌아갈 수 있다.', 'l-sys');
+}
+function expel() {
+  S.exiled = true; S.cityLoc = S.loc; S.loc = OUTSKIRTS; S.flags.exileDay = S.day;
+  say('조율자가 손을 들었다. 세계가 접히는 감각. 눈을 떠보니 도시의 불빛이 지평선 너머에 있다. — 외곽으로 축출되었다.', 'l-bad');
+  say('외곽에는 도시의 시설도, 월급도, 법도 없다. 대신 괴물이 있다.', 'l-sys');
+}
+
+Object.assign(ENEMIES, {
+  arbiter_enemy: { elite: true, name: '머리의 조율자', desc: '불순물을 배제하기 위해 머리가 보낸 자. 죽일 수 없다. 버틸 수 있을 뿐.', hp: 380, stg: 160, slots: 4,
+    res: { 참격: 0.7, 관통: 0.7, 타격: 0.7 }, reward: [0, 0], light: 6, lightRegen: 3,
+    passive: '조율 — 매 막 당신의 힘·인내를 지우고 보호 3', onRound: (e, P) => { P.st.str = 0; P.st.end = 0; e.st.prot += 3; },
+    pool: [{ name: '기둥', dice: [['타격', 14, 22]], onHit: { para: 2 } }, { name: '자물쇠', dice: [['방어', 12, 18]], onUse: { enemy: { para: 3 } } },
+      { name: '요정', dice: [['참격', 6, 10], ['참격', 6, 10], ['참격', 6, 10]], onHit: { bleed: 3 } },
+      { name: '충격파', dice: [['타격', 18, 26], ['타격', 12, 18]] }, { name: '사슬', dice: [['타격', 10, 15]], onHit: { para: 2 } }] },
+  gnome: { name: '노움 무리', desc: '봉제인형처럼 생긴 외곽의 종족. 작지만 떼로 다니고, 인간을 증오한다.', hp: 50, stg: 24, slots: 2,
+    res: { 참격: 1.2, 관통: 1, 타격: 0.9 }, reward: [20000, 60000],
+    pool: [{ name: '떼 공격', dice: [['참격', 2, 5], ['참격', 2, 5]] }, { name: '녹슨 창', dice: [['관통', 3, 7]] },
+      { name: '실장의 몽둥이', dice: [['타격', 4, 8]] }, { name: '흩어지기', dice: [['회피', 3, 6]] }] },
+  toothgear: { name: '이빨태엽', desc: '시계를 닮은 외곽의 괴물. 머리카락 한 올도 넘겨줘서는 안 된다.', hp: 75, stg: 32, slots: 2,
+    res: { 참격: 0.9, 관통: 0.8, 타격: 1.3 }, reward: [60000, 150000],
+    pool: [{ name: '맞물리는 이빨', dice: [['참격', 4, 8], ['참격', 4, 8]], onHit: { bleed: 2 } }, { name: '태엽 감기', dice: [['방어', 5, 9]], onUse: { nextStr: 2 } },
+      { name: '분쇄', dice: [['타격', 6, 11]] }, { name: '초침', dice: [['관통', 6, 10]], onHit: { para: 1 } }] },
+  giant: { name: '수염거인', desc: '북쪽의 거인. 배가 가스로 불룩하다. 죽기 전에 터진다는 소문이 있다.', hp: 150, stg: 60, slots: 2,
+    res: { 참격: 1, 관통: 1.3, 타격: 0.7 }, reward: [200000, 500000],
+    passive: '부푼 배 — 체력 절반 이하일 때 매 막 힘 2', onRound: e => { if (e.hp < e.maxHp / 2) e.st.str += 2; },
+    pool: [{ name: '내려찍기', dice: [['타격', 10, 16]] }, { name: '휩쓸기', dice: [['타격', 7, 11], ['타격', 7, 11]] },
+      { name: '산성 트림', dice: [['관통', 6, 10]], onHit: { burn: 3 } }, { name: '거인의 팔', dice: [['방어', 8, 13]] }] },
+});
+
+EVENTS.push(
+  { id: 'go_outskirts', when: [0, 1], w: 0.9, cond: () => !S.exiled && faction() !== 'head', title: '외곽으로',
+    build() {
+      const fx = isFixer();
+      this.text = fx ? '하나 협회 게시판에 외곽 조사 의뢰가 붙었다. "외곽 정착지 주변 괴물 실태 조사. 왕복 열차표 지급." 도시 밖은 괴물의 땅이다.'
+        : '역 앞에 외곽 열차 시간표가 붙어 있다. 도시 밖에서는 도시의 규칙이 통하지 않는다. 그게 누군가에겐 위협이고, 누군가에겐 기회다.';
+      return [
+        fx ? { t: '외곽 조사 의뢰를 받는다 — 착수금을 받고 외곽으로', fn() { gain(pay(1000000)); merit(1); leaveCity('열차가 도시의 경계를 넘었다. 창밖으로 빌딩 숲이 끝나고 황무지가 펼쳐진다.'); } }
+           : { t: '외곽 열차표를 산다 (20만 안) — 외곽으로', cost: 200000, fn() { spend(200000); leaveCity('열차가 도시의 경계를 넘었다. 창밖으로 빌딩 숲이 끝나고 황무지가 펼쳐진다.'); } },
+        { t: '도시에 남는다', def: true, fn() { say('도시 밖은 아직 이르다.'); } },
+      ];
+    }, text: '' },
+  { id: 'arbiter_come', when: [0, 1, 2, 3], w: 0, cond: () => false, title: '조율자',
+    build() {
+      this.text = (S.flags.expelled ? '도시의 경계를 넘자마자 공기가 멈췄다. 그 사람이 기다리고 있었다. 두 번은 봐주지 않는다는 얼굴로.'
+        : '골목의 소음이 한순간에 사라진다. 녹취 장치가 멈추고, 사람들이 이유도 모른 채 자리를 피한다. 흰 옷의 인물이 걸어온다. 머리의 조율자다.')
+        + ' "불순물로 지정되었습니다. 도시에서 배제합니다."';
+      return [
+        { t: '맞선다 — 조율자는 죽일 수 없다. 체력을 다 깎으면 외곽으로 축출되고, 지면 죽는다', def: true, fn() {
+          fight('arbiter_enemy', { lethal: true, noReward: true, noCow: true,
+            winText: '⚔ 조율자가 무릎을 꿇었다… 아니, 그것은 처음부터 싸움이 아니었다.',
+            win() { S.flags.expelled = (S.flags.expelled || 0) + 1; expel(); } });
+        } },
+        { t: '저항하지 않는다 — 스스로 외곽으로 물러난다', fn() { say('"현명하군요." 조율자는 손짓 한 번으로 당신을 도시 밖으로 내보냈다.'); S.flags.expelled = (S.flags.expelled || 0) + 1; expel(); } },
+      ];
+    }, text: '' },
+
+  /* ---------- 외곽 ---------- */
+  { id: 'os_gnome', exile: true, when: [0, 1, 2], w: 3, title: '노움의 습격',
+    text: '덤불 너머에서 작은 그림자들이 튀어나온다. 봉제인형 같은 얼굴, 녹슨 창. "인간이다!"',
+    choices: [
+      { t: '싸운다', def: true, fn() { fight('gnome', { lethal: true, win() { say('노움들이 흩어졌다. 그들이 끌고 다니던 자루에서 쓸 만한 물건이 나왔다.'); } }); } },
+      { t: '도망친다', fn() { if (Math.random() < 0.6) say('간신히 따돌렸다.'); else { say('창끝이 등을 긁었다.', 'l-bad'); hurt(10); } } },
+    ] },
+  { id: 'os_toothgear', exile: true, when: [1, 2], w: 2, title: '이빨태엽',
+    text: '째깍, 째깍. 시계 소리가 가까워진다. 외곽 사람들이 가장 두려워하는 소리다.',
+    choices: [
+      { t: '맞선다', fn() { fight('toothgear', { lethal: true, win() { say('태엽이 멈췄다. 톱니 몇 개를 챙겼다. 도시에서는 비싸게 팔린다던데.'); merit(2); } }); } },
+      { t: '숨을 죽이고 지나가길 기다린다', def: true, fn() { if (Math.random() < 0.5) say('소리가 멀어졌다.'); else { say('머리카락이 몇 올 뽑혀 나갔다. 무언가가 그것을 가져갔다.', 'l-bad'); hurt(14); stress(10); } } },
+    ] },
+  { id: 'os_giant', exile: true, when: [1, 2], w: 1, cond: () => S.day >= 2, title: '수염거인',
+    text: '땅이 울린다. 하얀 수염의 거인이 배를 두드리며 걸어온다. 터지기 전에 배에 말뚝을 박아야 한다고, 외곽 사람들은 말한다.',
+    choices: [
+      { t: '거인을 사냥한다', fn() { fight('giant', { lethal: true, win() { say('말뚝을 박아 가스를 빼냈다. 거인의 몸에서 귀한 재료가 나왔다.'); merit(3); } }); } },
+      { t: '멀리 돌아간다', def: true, fn() { say('반나절을 돌아갔다. 지쳤다.'); hurt(5); } },
+    ] },
+  { id: 'os_village', exile: true, when: [0, 1, 2], w: 2, title: '외곽의 정착지',
+    text: '낡은 울타리로 둘러싼 작은 마을. 사냥꾼들이 경계를 서고 있다. 도시에서 쫓겨난 자를 보는 눈이 곱지는 않지만, 문은 열어준다.',
+    choices: [
+      { t: '하룻밤 묵는다 (3만 안) — 체력 40% 회복', cost: 30000, fn() { spend(30000); say('딱딱한 침대였지만, 괴물 걱정 없이 잤다.'); heal(Math.round(S.maxHp * 0.4)); } },
+      { t: '사냥꾼들의 일을 돕는다', fn() { say('울타리 보수와 망보기. 마을 사람들이 조금은 마음을 열었다.'); gain(50000); merit(1); } },
+      { t: '지나간다', def: true, fn() { say('울타리 너머로 아이들이 당신을 훔쳐본다.'); } },
+    ] },
+  { id: 'os_ruin', exile: true, when: [0, 1, 2], w: 1.5, title: '버려진 연구소',
+    text: '반쯤 무너진 연구소. 날개가 외곽에 하청을 주던 시절의 흔적이다. 안쪽에서 무언가 움직인다.',
+    choices: [
+      { t: '안을 뒤진다', fn() {
+        if (Math.random() < 0.55) { say('먼지 쌓인 금고에서 도시의 돈과 장비가 나왔다.'); gain(pay(500000)); }
+        else { say('움직이던 것은 이빨태엽이었다.', 'l-bad'); fight('toothgear', { lethal: true, win() { say('연구소를 정리했다.'); gain(pay(300000)); } }); }
+      } },
+      { t: '지나간다', def: true, fn() { say('좋은 기억이 있는 장소는 아닐 것이다.'); } },
+    ] },
+  { id: 'os_return', exile: true, notFac: ['library'], when: [0, 1], w: 1.2, cond: () => S.day >= (S.flags.exileDay || 0) + (S.flags.impurity ? 2 : 1), title: '외곽 열차',
+    build() {
+      const imp = S.flags.impurity;
+      this.text = imp ? '도시의 경계를 따라 달리는 외곽 열차가 멈춰 섰다. 화물칸에 숨어들면 도시로 돌아갈 수 있다. 그리고 그곳에는, 조율자가 있을 것이다.'
+        : '외곽 열차가 정착지 근처 승강장에 멈춰 섰다. 도시로 돌아가는 표는 왕복으로 끊어 두었다.';
+      return [
+        { t: imp ? '도시로 돌아간다 — 조율자와 다시 마주한다' : '도시로 돌아간다', fn() {
+          S.exiled = false;
+          if (S.cityLoc && S.cityLoc.area !== 'outskirts') S.loc = S.cityLoc;
+          else { const n = rnd(1, 25), L = String.fromCharCode(64 + n); S.loc = { area: '뒷골목', n, letter: L, label: `${n}구 ${L}사 뒷골목`, note: WING_NOTE[L] || '' }; }
+          say(`열차에서 내렸다. ${S.loc.label}. 도시의 냄새다.`);
+          if (imp) return 'arbiter_come';
+        } },
+        { t: '아직은 외곽에 머문다', def: true, fn() { say('열차가 떠났다.'); } },
+      ];
+    }, text: '' },
+  { id: 'os_night', exile: true, notFac: ['library'], when: [3], w: 1, title: '외곽의 밤',
+    text: '도시의 밤처럼 정해진 규칙은 없다. 대신 어둠 속에서 무언가가 끝없이 움직인다.',
+    choices: [
+      { t: '모닥불을 지키며 밤을 새운다 — 체력 15 회복', def: true, fn() { say('불빛 너머로 눈들이 반짝였지만, 다가오지는 않았다.'); heal(15); } },
+      { t: '어둠 속으로 사냥을 나간다', fn() { fight(pick(['gnome', 'toothgear']), { lethal: true, win() { say('외곽의 밤에서 살아남았다.'); merit(2); } }); } },
+    ] },
+);
+
+const AMBIENT_OS = [
+  ['황무지 위로 해가 뜬다. 도시보다 하늘이 넓다.', '멀리 외곽 열차가 도시의 경계를 따라 달린다.', '버려진 건물 잔해 사이로 바람이 분다.', '어딘가에서 노움들의 노랫소리가 들린다. 좋은 징조는 아니다.'],
+  ['사냥꾼 둘이 괴물의 사체를 끌고 지나간다.', '지평선 너머로 도시의 첨탑들이 아득하게 보인다.', '마른 풀 사이에서 무언가가 바스락거린다.', '모래바람이 눈을 따갑게 한다.'],
+  ['해가 기운다. 외곽의 밤에는 정해진 시간이 없다.', '정착지의 울타리에 횃불이 하나둘 켜진다.', '도시 쪽 하늘이 불빛으로 붉다.', '째깍거리는 소리가 들린 것 같다. 기분 탓이길.'],
+  ['별이 쏟아질 듯하다. 도시에서는 볼 수 없던 하늘.', '어둠 속에서 눈들이 반짝인다.', '모닥불이 탁탁 소리를 낸다.', '먼 곳에서 거대한 무언가가 걷는 진동이 느껴진다.'],
+];
+
+/* ---------- 도서관 (외곽) — 합류하거나 도전한다 ---------- */
+Object.assign(AFFS, {
+  library: { name: '도서관의 사서', faction: 'library', locked: true, home: true,
+    passive: '책의 힘 — 매 막 카드 1장 추가로 뽑음. 전투마다 1번 치명상을 체력 1로 버틴다 (사서는 도서관에서 되살아난다).',
+    hooks: { extraDraw: 1, lastStand: true } },
+});
+EVENTS.push(
+  { id: 'os_library', exile: true, when: [1, 2], w: 1.5, cond: () => faction() !== 'library', title: '황무지의 도서관',
+    text: '황무지 한가운데 거대한 건물이 서 있다. 도시에서 축출된 도서관이다. 문 앞에서 갈색 머리의 사서가 당신을 내려다본다. "불순물이 또 하나 왔군. 손님인가, 동료인가?"',
+    choices: [
+      { t: '도서관에 합류한다 — 사서가 된다 (소속 변경 불가)', req: () => !AFF().locked, reqText: '소속을 바꿀 수 없다', fn() {
+        say('관장이 당신을 받아들였다. 이제 당신은 도서관의 사서다. 도시가 버린 것들의 이야기를 지킨다.');
+        S.flags.libraryJoined = true; changeAff('library');
+      } },
+      { t: '손님으로서 접대를 청한다 — 사서들과 싸운다', fn() { say('"좋아. 접대를 시작하지."'); return 'library'; } },
+      { t: '지나간다', def: true, fn() { say('도서관의 문이 소리 없이 닫혔다.'); } },
+    ] },
+  { id: 'lib_guest', exile: true, fac: ['library'], when: [0, 1, 2], w: 3, title: '손님의 방문',
+    build() {
+      const g = pick(['kong', 'thumb', 'hunter', 'smile', 'sweeper', 'twisted_small', 'twisted', 'gnome', 'toothgear']);
+      this.text = `도서관에 손님이 찾아왔다. 「${ENEMIES[g].name}」. 책을 원하는 자는 접대를 받아야 한다. 패배한 손님은 책이 된다.`;
+      return [
+        { t: '접대한다', def: true, fn() {
+          fight(g, { lethal: false, noRob: true, noCow: true,
+            win() { const b = pick(DROP_POOL()); say(`손님이 책이 되었다. 책장을 넘기자 그의 기술이 손에 익는다.`, 'l-day'); addCard(b); merit(2); },
+            lose() { say('사서는 도서관에서 되살아난다. 손님은 원하는 책을 들고 떠났다.', 'l-bad'); } });
+        } },
+        { t: '다른 사서에게 맡긴다', fn() { say('오늘 접대는 쉬었다.'); heal(10); } },
+      ];
+    }, text: '' },
+  { id: 'lib_read', exile: true, fac: ['library'], when: [0, 1, 2], w: 2, title: '서고',
+    text: '끝없이 이어진 서가. 책이 된 손님들의 삶과 기술이 잠들어 있다.',
+    choices: [
+      { t: '전투 기술서를 읽는다 — 카드 1장 획득', fn() { const b = pick(DROP_POOL()); say('누군가의 일생이 담긴 기술이 머릿속에 스며든다.'); addCard(b); } },
+      { t: '이야기를 읽는다 — 정신 압박 감소, 체력 15 회복', def: true, fn() { say('도시의 누군가가 살았던 하루를 읽었다. 이상하게 위로가 된다.'); heal(15); stress(-10); } },
+    ] },
+  { id: 'lib_night', exile: true, fac: ['library'], when: [3], w: 1, title: '도서관의 밤',
+    text: '도서관 안은 고요하다. 외곽의 괴물들도 이 건물에는 다가오지 않는다.',
+    choices: [{ t: '서가 사이에서 쉰다 — 체력 40% 회복', def: true, fn() { say('책장 넘어가는 소리를 들으며 잠들었다.'); heal(Math.round(S.maxHp * 0.4)); } }] },
+);
+
+/* =========================================================
    턴 진행 (자동 진행 + 제한시간)
 ========================================================= */
 function startTurn() {
@@ -1769,7 +1959,7 @@ function startTurn() {
   const t = TURNS[S.turn];
   T = { timeLeft: TURN_TIME, queue: [], lineCd: 0, ambCd: 6, eventShown: false, awaiting: null, resolved: false };
   print(`— ${t.name} ${t.time} —`, t.cls);
-  const amb = shuffle([...AMBIENT[S.turn]]);
+  const amb = shuffle([...(S.exiled ? AMBIENT_OS : AMBIENT)[S.turn]]);
   say(amb[0], 'l-amb'); say(amb[1], 'l-amb');
   $('#event').classList.add('hidden');
   $('#nextBtn').classList.add('hidden');
@@ -1778,11 +1968,21 @@ function startTurn() {
 
 function chooseEvent() {
   if (S.flags.crisis && !S.seenToday.includes('crisis')) return EVENTS.find(e => e.id === 'crisis');
-  if (S.debt > 0 && S.day > S.debtDue && S.turn < 3 && !S.seenToday.includes('collect')) return EVENTS.find(e => e.id === 'collect');
+  if (S.flags.impurity && !S.exiled && !S.seenToday.includes('arbiter_come')) return EVENTS.find(e => e.id === 'arbiter_come');
+  if (S.debt > 0 && !S.exiled && S.day > S.debtDue && S.turn < 3 && !S.seenToday.includes('collect')) return EVENTS.find(e => e.id === 'collect');
+  if (S.exiled) {   // 외곽에서는 외곽 이벤트만
+    const f = faction();
+    const os = EVENTS.filter(e => e.exile && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
+      && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.cond || e.cond()));
+    const pool = os.length ? os : EVENTS.filter(e => e.id === (f === 'library' ? (S.turn === 3 ? 'lib_night' : 'lib_read') : (S.turn === 3 ? 'os_night' : 'os_village')));
+    let tot = pool.reduce((a, e) => a + e.w, 0), rr = Math.random() * tot;
+    for (const e of pool) { rr -= e.w; if (rr <= 0) return e; }
+    return pool[pool.length - 1];
+  }
   const f = faction();
   let pool = EVENTS.filter(e => !e.chainOnly && e.when.includes(S.turn) && !S.seenToday.includes(e.id)
     && (!e.fac || e.fac.includes(f)) && (!e.notFac || !e.notFac.includes(f)) && (!e.origin || e.origin.includes(S.ch.id))
-    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted')))
+    && (!e.aff || e.aff.includes(S.aff)) && (!e.notAff || !e.notAff.includes(S.aff)) && (f !== 'twisted' || (e.fac && e.fac.includes('twisted'))) && !e.exile
     && (!e.cond || e.cond()));
   if (!pool.length) pool = EVENTS.filter(e => e.id === (f === 'twisted' ? 'tw_memory' : 'rest'));
   let total = pool.reduce((a, e) => a + e.w, 0), r = Math.random() * total;
@@ -1845,10 +2045,11 @@ function endTurn() {
   S.turn++;
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
-    print(`${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
+    print(S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
+      : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
     // 월급은 30일마다. 날개에 막 들어왔다면 첫 월급날을 정한다
-    if (H().monthlyPay) {
+    if (H().monthlyPay && !S.exiled) {
       if (!S.payDay) S.payDay = S.day + rnd(5, 30);
       else if (S.day >= S.payDay) { say('월급날이다. 세금과 관리비가 빠져나간 뒤의 숫자를 확인한다.'); gain(pay(H().monthlyPay)); S.payDay += 30; }
     } else S.payDay = 0;
@@ -1888,7 +2089,7 @@ function tick() {
   } else if (T.resolved && T.timeLeft > 0) {
     $('#nextBtn').classList.remove('hidden');
     T.ambCd -= dt;
-    if (T.ambCd <= 0) { print(pick(AMBIENT[S.turn]), 'l-amb'); T.ambCd = 9; }
+    if (T.ambCd <= 0) { print(pick((S.exiled ? AMBIENT_OS : AMBIENT)[S.turn]), 'l-amb'); T.ambCd = 9; }
   }
 
   if (T.timeLeft <= 0) {
@@ -2210,9 +2411,16 @@ function endCombat(win) {
   $('#day').classList.remove('hidden');
   S.phase = 'day';
   T.timeLeft = Math.max(T.timeLeft, 8);
-  if (win) {
+  if (win && opts.noReward) {   // 조율자: 쓰러지지 않는다
+    print(opts.winText || `⚔ ${C.E.name}의 체력을 다 깎았다.`, 'l-day');
+    S.hp = Math.max(S.hp, 1);
+    opts.win && opts.win();
+    T.resolved = true;
+  } else if (win) {
     S.kills++;
     print(`⚔ 승리 — ${C.E.name}을(를) 쓰러뜨렸다.`, 'l-good');
+    if (C.key === 'hunter') tabooHit('금기 사냥꾼을 죽였다');
+    if (C.key === 'claw_enemy') markImpurity('머리의 발톱을 죽였다');
     const [a, b] = C.E.d.reward;
     // 강적(elite)의 보상은 고정, 일반 적은 위상에 따라 증가
     let money = Math.round(rnd(a, b) * (C.E.d.elite ? 1 : payMul()) * (H().moneyMul || 1));
@@ -2331,6 +2539,9 @@ function showHelp() {
   <b>정신 압박</b> — 부상·패배·공포로 쌓이고 회복·휴식으로 줄어듭니다. 100%가 되면 자신과 마주하게 됩니다.<br>
   · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 세 번 외면해도 뒤틀립니다.<br>
   · 뒤틀리면 소속을 잃고 하나 협회 토벌대에게 사냥당합니다. Limbus Company에게 "지면" 해소됩니다. 머리 소속은 흔들리지 않습니다.<br>
+  <b>외곽</b> — 「외곽으로」 이벤트로 직접 갈 수 있고, 외곽 열차로 다음 날부터 돌아올 수 있습니다. 외곽에서는 황무지의 도서관에 합류하거나 도전할 수 있습니다.<br>
+  <b>금기와 조율자</b> — 날개의 금기를 4번 어기거나(금기 사냥꾼 처치 포함) 발톱을 죽이면 불순물로 지정되어 조율자가 찾아옵니다.
+  조율자는 죽지 않습니다. 체력을 다 깎으면 외곽으로 축출되고, 지면 죽습니다. 외곽 열차로 도시에 돌아갈 수 있지만 조율자가 다시 기다립니다.<br>
   <b>빚</b> — 돈이 모자란 선택지도 사채(이자 20%, 총 20만 안까지)로 고를 수 있습니다. 3일 안에 갚지 못하면 손가락 조직원이 추심하러 옵니다. 도시 시설에서 갚을 수 있습니다.<br>
   <b>출신과 소속</b> — 출신은 바뀌지 않지만, 소속(협회·손가락·조직·날개 등)은 이벤트로 옮길 수 있습니다. 출신 특성과 소속 패시브가 함께 적용됩니다.<br>
   · 예) 쥐·고아 → 면허 시험 → 해결사 → 협회 스카우트 / 손가락의 손짓 → 손가락 → … 1급이 되면 특색 지정<br>
