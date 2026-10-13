@@ -238,6 +238,9 @@ const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', 
    onUse: 합 시작 시 효과 / onHit: 이 카드의 공격 주사위 적중 시 / instant: 즉시 사용 카드(fx)
 ========================================================= */
 const CARDS = {
+  yan_brand: { name: '불길한 낙인', cost: 3, dice: [['참격', 4, 8], ['관통', 6, 10, { onHit: { erosion: 2 } }], ['방어', 5, 9]], desc: '지령의 인형 전용 · 두 번째 주사위 적중 시 침식 2' },
+  yan_lock: { name: '잠금', cost: 4, dice: [['방어', 7, 9], ['타격', 12, 19, { destroyNext: 1 }]], desc: '지령의 인형 전용 · 타격 주사위 합 승리 시 상대의 다음 주사위 1개 파괴' },
+  yan_blade: { name: '뒤틀린 검', cost: 7, mass: true, dice: [['참격', 18, 33]], onHit: { erosion: 2 }, desc: '광역 합산 · 각 적의 첫 행동 주사위 합보다 높으면 피해·침식 2, 해당 행동 취소. 빛 7' },
   oracle_axe: { name: '신탁 단말기 — 도끼', cost: 2, dice: [['참격', 9, 14], ['타격', 7, 11]], onHit: { bleed: 2 }, desc: '공격 주사위 적중마다 출혈 2' },
   oracle_rapier: { name: '신탁 단말기 — 세검', cost: 1, dice: [['관통', 6, 10], ['관통', 5, 9]], onUse: { draw: 1 }, desc: '사용 시 카드 1장 뽑기' },
   oracle_hammer: { name: '신탁 단말기 — 망치', cost: 2, dice: [['타격', 13, 20]], onHit: { para: 2 }, desc: '적중 시 마비 2' },
@@ -396,8 +399,9 @@ const CARDS = {
 const SHOP_POOL = () => Object.keys(CARDS).filter(k => CARDS[k].price);
 const DROP_POOL = () => SHOP_POOL().filter(k => !CARDS[k].premium);
 
-const STATUS_NAME = { bleed: '출혈', burn: '화상', para: '마비', str: '힘', end: '인내', prot: '보호' };
+const STATUS_NAME = { erosion: '침식', bleed: '출혈', burn: '화상', para: '마비', str: '힘', end: '인내', prot: '보호' };
 const STATUS_DESC = {
+  erosion: '막 종료 시 수치만큼 체력 피해, 이후 1 감소',
   bleed: '공격 주사위를 굴릴 때마다 수치만큼 피해, 이후 2/3로 감소',
   burn: '막 종료 시 수치만큼 피해, 이후 절반으로 감소',
   para: '다음 주사위 N개가 최솟값으로 고정',
@@ -724,6 +728,7 @@ const fingerTier = grade => grade <= 2 ? 2 : grade <= 5 ? 1 : 0;
 function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   const a = AFFS[id];
   if (arguments.length === 0 && id === 'f_index' && S && S.ch.id === 'index_oracle' && S.aff === id) return '검지 — 신탁대행자';
+  if (id === 'twisted' && S && S.twistForm === 'index_puppet') return '뒤틀림 — wlfuddmldlsgud (지령의 인형)';
   if (id === 'bloodkin') return `혈귀 — 제${(S && S.vampRank) || '?'}권속`;
   if (id === 'gang') return `뒷골목 조직원 [${gf || '?'} 산하]`;
   if (id === 'wing') {   // 날개: 출신 직함이 있으면 그것, 아니면 위상에 따른 직위
@@ -752,7 +757,7 @@ function H() {
   return (S._h = out);
 }
 function passiveText() {
-  return `[출신] ${S.ch.trait}<br>[소속] ${AFF().passive}` + (S.ego ? `<br>[E.G.O 「${S.ego}」] 모든 주사위 위력 상승(공격 +2, 방어 +1), 빛 +1, 전투마다 1번 치명상을 버틴다.` : '');
+  return `[출신] ${S.ch.trait}<br>[소속] ${AFF().passive}` + (faction() === 'twisted' && S.twistForm === 'index_puppet' ? '<br>[뒤틀린 형상] 지령의 인형 — 전달하던 지령에 매달린 몸. 불길한 낙인·잠금·뒤틀린 검. 매 막 지령 1회, 최대 빛 최소 7(전투 시작 시 빛 4).' : '') + (S.ego ? `<br>[E.G.O 「${S.ego}」] 모든 주사위 위력 상승(공격 +2, 방어 +1), 빛 +1, 전투마다 1번 치명상을 버틴다.` : '');
 }
 // 소속 변경. 조직·손가락을 떠나면 추격자가 따라온다.
 function changeAff(id, after) {
@@ -1758,16 +1763,30 @@ function manifestEGO() {
   ['ego_strike', 'ego_guard', 'ego_bloom'].forEach(addCard);
 }
 function twist() {
+  if (faction() === 'twisted') return;
+  // 판정은 뒤틀리기 직전의 실제 소속·직책으로 한다. 과거 출신이나 신탁대행자는 대상이 아니다.
+  const puppet = S.aff === 'f_index' && fingerTier(S.grade) === 1 && S.ch.id !== 'index_oracle';
+  S.twistForm = puppet ? 'index_puppet' : null;
+  S.twistCards = puppet ? ['yan_brand', 'yan_lock', 'yan_blade'] : ['tw_rend', 'tw_howl', 'tw_devour'];
+  S.twistBonus = { hp: 40, stg: 15 };
   S.prevAff = S.aff; S.aff = 'twisted'; S._h = null; S.press = 0;
-  S.ch.twistName = pick(TWIST_NAMES);
-  S.maxHp += 40; S.hp = S.maxHp; S.maxStg += 15;
-  say(`✦ 뒤틀림 — 몸이 찢어지고, 다른 무언가가 되었다. 사람들은 이제 당신을 「${S.ch.twistName}」이라 부른다.`, 'l-bad');
+  S.ch.twistName = puppet ? 'wlfuddmldlsgud' : pick(TWIST_NAMES);
+  S.maxHp += S.twistBonus.hp; S.hp = S.maxHp; S.maxStg += S.twistBonus.stg;
+  if (puppet) {
+    say('봉인된 지령이 손에서 떨어진다. 종이를 전달하던 손은 거대한 인형의 손이 되고, 읽을 수 없던 문장들이 몸을 감싼다.', 'l-bad');
+    say('“이 선택마저… 지령이었습니까.” — 뒤틀림 「wlfuddmldlsgud」, 지령의 인형.', 'l-day');
+  } else say(`✦ 뒤틀림 — 몸이 찢어지고, 다른 무언가가 되었다. 사람들은 이제 당신을 「${S.ch.twistName}」이라 부른다.`, 'l-bad');
   say(`하나 협회가 재해 등급을 매기기 시작한다: ${twistRank()}. 소속은 사라졌고, 도시는 당신을 사냥할 것이다.`, 'l-bad');
-  ['tw_rend', 'tw_howl', 'tw_devour'].forEach(addCard);
+  S.twistCards.forEach(addCard);
 }
 function untwist() {
-  S.aff = S.prevAff || 'street'; S._h = null; S.maxHp = Math.max(30, S.maxHp - 40); S.hp = Math.min(S.hp, S.maxHp);
-  for (const id of ['tw_rend', 'tw_howl', 'tw_devour']) { const i = S.deck.indexOf(id); if (i >= 0) S.deck.splice(i, 1); }
+  if (faction() !== 'twisted') return;
+  const bonus = S.twistBonus || { hp: 40, stg: 15 };
+  S.aff = S.prevAff || 'street'; S._h = null;
+  S.maxHp = Math.max(30, S.maxHp - bonus.hp); S.hp = Math.min(S.hp, S.maxHp);
+  S.maxStg = Math.max(1, S.maxStg - bonus.stg);
+  for (const id of S.twistCards || ['tw_rend', 'tw_howl', 'tw_devour']) { const i = S.deck.lastIndexOf(id); if (i >= 0) S.deck.splice(i, 1); }
+  S.twistForm = null; S.twistCards = null; S.twistBonus = null; delete S.ch.twistName;
   say(`✦ 뒤틀림이 해소되었다. 사람의 모습으로 돌아왔다. 소속: ${affName()}`, 'l-day');
 }
 const TWIST_RANKS = ['뜬소문', '뜬소문', '도시 괴담', '도시 괴담', '도시 전설', '도시 전설', '도시 질병', '도시 악몽', '도시의 별'];
@@ -2833,7 +2852,7 @@ setInterval(tick, 100);
    - 짝이 없는 카드는 일방 공격
    - 흐트러짐 게이지가 0이 되면 다음 막 행동 불가 + 받는 피해 2배
 ========================================================= */
-const mkSt = () => ({ bleed: 0, burn: 0, para: 0, str: 0, end: 0, prot: 0 });
+const mkSt = () => ({ erosion: 0, bleed: 0, burn: 0, para: 0, str: 0, end: 0, prot: 0 });
 
 const combatEnemies = () => C.enemies || [C.E];
 const encounterOver = () => C.P.hp <= 0 || combatEnemies().every(e => e.hp <= 0);
@@ -2862,6 +2881,7 @@ function fight(key, opts = {}) {
   E.maxLight = opts.light || d.light || d.slots + 1; E.light = E.maxLight; E.lightRegen = opts.lightRegen || d.lightRegen || (d.elite ? 2 : 1);
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
+  if (S.twistForm === 'index_puppet' && faction() === 'twisted') { P.maxLight = Math.max(7, P.maxLight); P.light = 4; }
   const keys = (opts.enemies || Array(Math.max(1, Math.min(3, Math.floor(opts.count || 1)))).fill(key)).slice(0, 3);
   if (!keys.length) keys.push(key);
   keys[0] = key;
@@ -2909,7 +2929,7 @@ function drawCards(n) {
 }
 
 function startRound() {
-  C.round++;
+  C.round++; C.prescriptUsed = false;
   const P = C.P, foes = combatEnemies().filter(e => e.hp > 0);
   C.E = combatEnemies()[C.target] && combatEnemies()[C.target].hp > 0 ? combatEnemies()[C.target] : foes[0];
   C.target = combatEnemies().indexOf(C.E);
@@ -2949,6 +2969,8 @@ function playCard(hi) {
     clog(`「${c.name}」 사용`, 'l-choice');
     applyFx(c.fx, C.P, C.E);
     C.discard.push(id);
+  } else if (c.mass) {
+    C.played.push({ id, slot: -2, target: C.target });
   } else {
     const used = C.played.map(p => p.slot);
     let slot = -1;
@@ -2965,6 +2987,7 @@ function unplay(pi) {
   // 취소 후에도 선택한 대상의 예고에만 다시 배치한다.
   const used = new Set();
   for (const card of C.played) {
+    if (CARDS[card.id].mass) { card.slot = -2; continue; }
     card.slot = C.intents.findIndex((_, i) => !used.has(i) && C.intentOwners[i] === combatEnemies()[card.target]);
     if (card.slot >= 0) used.add(card.slot);
   }
@@ -2992,7 +3015,7 @@ function applyHit(card, atk, def) {
     const v = Math.round(def.maxHp * h.pctDmg); def.hp -= v; lastStand(def);
     clog(`→ 「${card.name}」 — ${def.name}의 최대 체력 ${Math.round(h.pctDmg * 100)}%, <b>${v}</b> 피해`, def === C.P ? 'l-bad' : 'l-good');
   }
-  for (const k of ['bleed', 'burn', 'para']) if (h[k]) { def.st[k] += h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
+  for (const k of ['bleed', 'burn', 'para', 'erosion']) if (h[k]) { def.st[k] += h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
   if (h.healSelf) { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
 }
 
@@ -3043,7 +3066,7 @@ function gainEmo(n) {
   const P = C.P; P.emo += n * (H().emoMul || 1);
   const th = [3, 7, 12, 18];
   while (P.emoLv < th.length && P.emo >= th[P.emoLv]) {
-    P.emoLv++; P.maxLight = Math.min(Math.max(6, S.ch.light || 0), P.maxLight + 1);
+    P.emoLv++; P.maxLight = Math.min(Math.max(6, S.ch.light || 0, S.twistForm === 'index_puppet' && faction() === 'twisted' ? 7 : 0), P.maxLight + 1);
     P.light = P.maxLight;
     clog(`감정 단계 ${P.emoLv} — 최대 빛 +1, 빛 전부 회복`, 'l-sys');
   }
@@ -3052,6 +3075,40 @@ function gainEmo(n) {
 const dieHtml = (d, v) => `<span class="die t-${d[0]}">${d[0]} ${v !== undefined ? `<b>${v}</b>` : `${d[1]}-${d[2]}`}</span>`;
 function diceText(c) { return c.dice ? c.dice.map(d => `${d[0]} ${d[1]}-${d[2]}`).join(', ') : (c.desc || ''); }
 
+function dieHitCard(card, die) {
+  return die[3] && die[3].onHit ? { ...card, onHit: { ...(card.onHit || {}), ...die[3].onHit } } : card;
+}
+const YAN_PRESCRIPTS = [
+  { name: '지령: 힘', desc: '다음 막 힘 +1', fx: { nextStr: 1 } },
+  { name: '지령: 보호', desc: '다음 막 보호·인내 +1', fx: { nextProt: 1, nextEnd: 1 } },
+  { name: '지령: 보급', desc: '카드 1장 뽑기', fx: { draw: 1 } },
+  { name: '지령: 빛', desc: '빛 1 회복', fx: { light: 1 } },
+];
+function useYanPrescript(index) {
+  if (!C || C.busy || C.prescriptUsed || C.P.staggered || C.P.hp <= 0 || faction() !== 'twisted' || S.twistForm !== 'index_puppet') return;
+  const order = YAN_PRESCRIPTS[index]; if (!order) return;
+  C.prescriptUsed = true; applyFx(order.fx, C.P, C.E); clog(order.name + ' — ' + order.desc, 'l-choice'); renderCombat();
+}
+async function resolveMassAttack(card) {
+  const P = C.P;
+  if (P.hp <= 0 || P.staggered) return;
+  const die = card.dice[0];
+  const attack = roll(P, die, C.E);
+  if (P.hp <= 0) return;
+  for (const enemy of combatEnemies().filter(e => e.hp > 0)) {
+    C.E = enemy;
+    const index = C.intents.findIndex((_, i) => C.intentOwners[i] === enemy && !C.cancelledIntents.has(i));
+    const defense = index < 0 || enemy.staggered ? 0 : C.intents[index].dice.reduce((n, d) => n + roll(enemy, d, P), 0);
+    if (enemy.hp <= 0) continue;
+    await wait(420);
+    clog('광역 합산 「' + card.name + '」 → ' + enemy.name + ': ' + attack + ' vs ' + defense, 'l-choice');
+    if (attack > defense) {
+      dmg(enemy, attack, die[0]); applyHit(dieHitCard(card, die), P, enemy);
+      if (index >= 0) C.cancelledIntents.add(index);
+    } else clog(enemy.name + '이(가) 광역 공격을 막았다.', 'l-sys');
+    renderCombat();
+  }
+}
 async function clash(pc, ec) {
   const { P, E } = C;
   clog(`⚔ 합: 「${pc.name}」 vs 「${ec.name}」`, 'l-choice');
@@ -3065,7 +3122,11 @@ async function clash(pc, ec) {
     if (E.staggered) ed.length = 0;
     if (!a && !b) break;
     await wait(420);
-    if (a && b) clashDie(a, pc, b, ec);
+    if (a && b) {
+      const winner = clashDie(a, pc, b, ec);
+      if (winner === P && a[3]?.destroyNext && ed.length) { ed.shift(); clog('잠금 — 상대의 다음 주사위 파괴', 'l-good'); }
+      if (winner === E && b[3]?.destroyNext && pd.length) { pd.shift(); clog('잠금 — 내 다음 주사위 파괴', 'l-bad'); }
+    }
     else if (a) oneSide(P, a, pc, E);
     else oneSide(E, b, ec, P);
     renderCombat();
@@ -3078,22 +3139,26 @@ function clashDie(a, pc, b, ec) {
   clog(`${dieHtml(a, ra)} vs ${dieHtml(b, rb)}`);
   const ao = OFF(a[0]), bo = OFF(b[0]);
   if (ao && bo) {
-    if (ra > rb) { clog('합 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(pc, P, E); gainEmo(1); shiPassive(); }
-    else if (ra === rb && H().tieWin) { clog('결전의 예 — 동률 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(pc, P, E); gainEmo(1); shiPassive(); }
-    else if (rb > ra) { clog('합 패배', 'l-bad'); dmg(P, rb, b[0]); applyHit(ec, E, P); }
+    if (ra > rb) { clog('합 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(dieHitCard(pc, a), P, E); gainEmo(1); shiPassive(); }
+    else if (ra === rb && H().tieWin) { clog('결전의 예 — 동률 승리!', 'l-good'); dmg(E, ra, a[0]); applyHit(dieHitCard(pc, a), P, E); gainEmo(1); shiPassive(); }
+    else if (rb > ra) { clog('합 패배', 'l-bad'); dmg(P, rb, b[0]); applyHit(dieHitCard(ec, b), E, P); }
     else clog('상쇄');
   } else if (ao && !bo) attackVsDef(P, a, ra, pc, E, b, rb, true);
   else if (!ao && bo) attackVsDef(E, b, rb, ec, P, a, ra, false);
   else clog('서로 방어 — 아무 일도 없었다.', 'l-amb');
+  if (ao && bo) return ra > rb || (ra === rb && H().tieWin) ? P : rb > ra ? E : null;
+  if (ao && !bo) return ra > rb ? P : rb > ra || b[0] === '회피' ? E : null;
+  if (!ao && bo) return rb > ra ? E : ra > rb || a[0] === '회피' ? P : null;
+  return null;
 }
 function attackVsDef(atk, ad, ra, acard, def, dd, rd, playerAttacks) {
   if (dd[0] === '방어') {
-    if (ra > rd) { dmg(def, ra - rd, ad[0]); applyHit(acard, atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); } }
+    if (ra > rd) { dmg(def, ra - rd, ad[0]); applyHit(dieHitCard(acard, ad), atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); } }
     else if (rd > ra) { clog(`방어 성공 — ${atk.name} 흐트러짐 피해 ${rd - ra}`, playerAttacks ? 'l-bad' : 'l-good'); stgDmg(atk, rd - ra); if (!playerAttacks) gainEmo(1); }
     else clog('막아냈다.');
   } else { // 회피
     if (rd >= ra) { clog(`회피 성공 — ${def.name} 흐트러짐 ${rd} 회복`, playerAttacks ? 'l-bad' : 'l-good'); if (!def.staggered) def.stg = Math.min(def.maxStg, def.stg + rd); if (!playerAttacks) gainEmo(1); }
-    else { dmg(def, ra, ad[0]); applyHit(acard, atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); } }
+    else { dmg(def, ra, ad[0]); applyHit(dieHitCard(acard, ad), atk, def); if (playerAttacks) { gainEmo(1); shiPassive(); } }
   }
 }
 function shiPassive() { if (H().onClashWin) H().onClashWin(C.P, C.E); }
@@ -3102,7 +3167,7 @@ function oneSide(atk, die, card, def) {
   if (!OFF(die[0])) { clog(`${atk.name}의 ${die[0]} 주사위 — 상대가 없어 소멸`, 'l-amb'); return; }
   const r = roll(atk, die, def);
   clog(`일방 공격 ${dieHtml(die, r)}`);
-  dmg(def, r, die[0]); applyHit(card, atk, def);
+  dmg(def, r, die[0]); applyHit(dieHitCard(card, die), atk, def);
 }
 
 const dead = () => C.P.hp <= 0 || C.E.hp <= 0;
@@ -3121,12 +3186,17 @@ async function resolveRoundInner() {
     if (pc.onUse) applyFx(pc.onUse, P, target);
     for (const die of pc.dice) { if (dead() || P.staggered) break; await wait(380); oneSide(P, die, pc, target); renderCombat(); }
   };
+  C.cancelledIntents = new Set();
+  for (const entry of C.played.filter(p => CARDS[p.id].mass)) {
+    if (encounterOver()) break;
+    await resolveMassAttack(CARDS[entry.id]);
+  }
   for (let i = 0; i < C.intents.length; i++) {
     if (encounterOver()) break;
     const ec = C.intents[i], enemy = C.intentOwners[i], pair = C.played.find(p => p.slot === i);
     C.E = enemy;
     await wait(350);
-    if (enemy.hp <= 0 || enemy.staggered) {
+    if (enemy.hp <= 0 || enemy.staggered || C.cancelledIntents.has(i)) {
       if (pair) await attackAlone(CARDS[pair.id], enemy.hp > 0 ? enemy : combatEnemies().find(e => e.hp > 0));
       continue;
     }
@@ -3146,6 +3216,7 @@ async function resolveRoundInner() {
   if (!encounterOver()) {
     await wait(300);
     for (const u of [P, ...combatEnemies().filter(e => e.hp > 0)]) {
+      if (u.st.erosion > 0) { const n = u.st.erosion; u.hp -= n; u.st.erosion--; lastStand(u); clog(u.name + ' 침식으로 ' + n + ' 피해', u === P ? 'l-bad' : 'l-good'); }
       if (u.st.burn > 0) { const b = u.st.burn; u.hp -= b; u.st.burn = Math.floor(b / 2); lastStand(u); clog(u.name + ' 화상으로 ' + b + ' 피해', u === P ? 'l-bad' : 'l-good'); }
       if (u.staggered) { u.sr++; if (u.sr >= 2) { u.staggered = false; u.stg = u.maxStg; clog(u.name + ' 흐트러짐에서 회복', 'l-sys'); } }
     }
@@ -3279,8 +3350,12 @@ function renderCombat() {
     <div class="desc">${passiveText()}${rankPower() ? `<br><span style="color:var(--gold)">[위상 보정] 모든 주사위 위력 +${rankPower()}</span>` : ''}</div>${barsHtml(P)}
     <div style="margin-top:6px;font-size:13px">빛 <span class="light">${Array.from({ length: P.maxLight }, (_, i) => `<i class="${i < P.light ? 'f' : ''}"></i>`).join('')}</span>
     &nbsp; 감정 단계 ${P.emoLv} <span class="dim">(${P.emo})</span></div><div class="status">${statusHtml(P)}</div>`;
+  if (faction() === 'twisted' && S.twistForm === 'index_puppet') {
+    $('#pBox').innerHTML += '<div class="dim">지령 — 매 막 1회, 자신에게 적용</div>' + YAN_PRESCRIPTS.map((order, i) => '<button data-prescript="' + i + '" ' + (C.busy || C.prescriptUsed || P.staggered ? 'disabled' : '') + '>' + order.name + ' · ' + order.desc + '</button>').join('');
+    $('#pBox').querySelectorAll('[data-prescript]').forEach(el => el.onclick = () => useYanPrescript(+el.dataset.prescript));
+  }
   $('#played').innerHTML = C.played.length ? '배치: ' + C.played.map((p, i) =>
-    `<span data-p="${i}" title="클릭하여 취소">${CARDS[p.id].name} → ${p.slot >= 0 ? `예고 ${p.slot + 1} 합` : `${combatEnemies()[p.target]?.name || E.name} 일방 공격`} ✕</span>`).join('') : '<span class="dim" style="border:0">카드를 클릭해 배치하세요. 예고 순서대로 합을 겨룹니다. (배치된 카드 클릭 시 취소)</span>';
+    `<span data-p="${i}" title="클릭하여 취소">${CARDS[p.id].name} → ${p.slot === -2 ? '전체 적 광역 합산' : p.slot >= 0 ? `예고 ${p.slot + 1} 합` : `${combatEnemies()[p.target]?.name || E.name} 일방 공격`} ✕</span>`).join('') : '<span class="dim" style="border:0">카드를 클릭해 배치하세요. 예고 순서대로 합을 겨룹니다. (배치된 카드 클릭 시 취소)</span>';
   $('#hand').innerHTML = C.hand.map((id, i) => cardHtml(id, `data-h="${i}"`, CARDS[id].cost > P.light || P.staggered)).join('');
   $('#hand').querySelectorAll('.card').forEach(el => el.onclick = () => playCard(+el.dataset.h));
   $('#played').querySelectorAll('span[data-p]').forEach(el => el.onclick = () => unplay(+el.dataset.p));
