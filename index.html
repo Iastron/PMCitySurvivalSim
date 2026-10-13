@@ -424,7 +424,7 @@ const STATUS_DESC = {
   erosion: '막 종료 시 수치만큼 체력 피해, 이후 1 감소',
   bleed: '공격 주사위를 굴릴 때마다 수치만큼 피해, 이후 2/3로 감소',
   burn: '막 종료 시 수치만큼 피해, 이후 절반으로 감소',
-  para: '다음 주사위 N개가 최솟값으로 고정',
+  para: '이번 막의 다음 주사위 N개가 최솟값으로 고정. 남은 마비는 다음 막 시작 시 제거',
   str: '이번 막 공격 주사위 위력 +N', end: '이번 막 방어 주사위 위력 +N', prot: '이번 막 받는 피해 -N'
 };
 
@@ -835,7 +835,7 @@ const ENEMIES = {
     res: { 참격: 1, 관통: 1.2, 타격: 0.8 }, reward: [3000000, 6000000],
     pool: [{ name: '곰방대 휘두르기', dice: [['타격', 4, 7]] }, { name: '강화 연기 흡입', dice: [['방어', 3, 6]], onUse: { nextStr: 2 } },
       { name: '얇게 저미기', dice: [['참격', 3, 6], ['참격', 3, 6]], onHit: { bleed: 2 } }, { name: '숨겨진 검', dice: [['관통', 5, 9]] }] },
-  librarian: { tier: 1, name: '도서관의 사서', desc: '금빛 초대장의 끝. 패배한 손님은 책이 된다.', hp: 120, stg: 50, slots: 3,
+  librarian: { tier: 1, name: '도서관의 사서', desc: '금빛 초대장의 끝. 패배한 손님은 책이 된다.', hp: 200, stg: 80, slots: 3,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [30000000, 60000000],
     passive: '접대 — 막이 지날수록 강해진다', onRound: (e) => { e.st.str += Math.floor(C.round / 3); },
     pool: [{ name: '책장 넘기기', dice: [['참격', 4, 8], ['관통', 4, 8]] }, { name: '접대', dice: [['방어', 5, 9]] },
@@ -1924,21 +1924,21 @@ Object.assign(CARDS, {
 const FURIOSO = { name: '퓨리오소', cost: 3, dice: [['참격', 5, 9], ['관통', 5, 9], ['타격', 5, 9], ['참격', 5, 9], ['관통', 5, 9], ['타격', 6, 10]] };
 Object.assign(ENEMIES, {
   /* ---------- 도서관 ---------- */
-  roland_lib: { elite: true, name: '롤랑 — 검은침묵', desc: '도서관의 접대 담당. 검은 장갑에서 무기가 끝없이 나온다.', hp: 220, stg: 90, slots: 3,
+  roland_lib: { elite: true, name: '롤랑 — 검은침묵', desc: '도서관의 접대 담당. 검은 장갑에서 무기가 끝없이 나온다.', hp: 360, stg: 130, slots: 3,
     res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [80000000, 120000000],
     passive: '퓨리오소 — 체력 절반 이하가 되면 모든 무기를 쏟아내는 퓨리오소가 열린다',
     onRound: e => { if (e.hp < e.maxHp / 2 && !e.extra) { e.extra = [FURIOSO, FURIOSO]; clog('검은 장갑이 떨린다 — 퓨리오소', 'l-bad'); } },
     pool: [{ name: '듀란달', dice: [['참격', 7, 12], ['참격', 5, 8]] }, { name: '젤코바 공방', dice: [['타격', 6, 10], ['참격', 6, 10]] },
       { name: '아틀리에 로직', dice: [['관통', 5, 9], ['관통', 5, 9]] }, { name: '휠 인더스트리', dice: [['타격', 12, 18]] },
       { name: '묵 공방', dice: [['참격', 8, 13]] }, { name: '올드 보이즈 공방', dice: [['방어', 9, 14]] }] },
-  gebura_lib: { elite: true, name: '게부라 — 붉은안개 (열화판)', desc: '도서관의 지정사서. 한때 도시 최강이라 불린 해결사의 잔재.', hp: 240, stg: 95, slots: 3,
+  gebura_lib: { elite: true, name: '게부라 — 붉은안개 (열화판)', desc: '도서관의 지정사서. 한때 도시 최강이라 불린 해결사의 잔재.', hp: 380, stg: 145, slots: 3,
     res: { 참격: 0.9, 관통: 1, 타격: 1.1 }, reward: [80000000, 120000000],
     passive: '붉은안개 — 잃은 체력 25%마다 힘 1',
     onRound: e => { e.st.str += Math.floor((1 - e.hp / e.maxHp) * 4); },
     pool: [{ name: '대분할: 세로', dice: [['참격', 12, 18]] }, { name: '대분할: 가로', dice: [['참격', 9, 14], ['참격', 9, 14]] },
       { name: '미믹리', dice: [['참격', 8, 12]], onHit: { healSelf: 8 } }, { name: '수평 베기', dice: [['참격', 6, 10], ['관통', 6, 10]] },
       { name: '창', dice: [['관통', 9, 14]] }] },
-  binah_lib: { elite: true, name: '비나 — 조율자 (열화판)', desc: '도서관의 지정사서. 머리의 조율자였던 자. 힘의 대부분을 잃었지만, 충분하다.', hp: 260, stg: 110, slots: 3,
+  binah_lib: { elite: true, name: '비나 — 조율자 (열화판)', desc: '도서관의 지정사서. 머리의 조율자였던 자. 힘의 대부분을 잃었지만, 충분하다.', hp: 420, stg: 160, slots: 3,
     res: { 참격: 0.8, 관통: 0.8, 타격: 0.8 }, reward: [80000000, 120000000],
     passive: '조율 — 매 막 당신의 힘을 지운다',
     onRound: (e, P) => { if (P.st.str > 0) { P.st.str = 0; clog('비나가 당신의 힘을 "조율"했다', 'l-bad'); } },
@@ -3128,7 +3128,7 @@ function startRound() {
   const P = C.P, foes = combatEnemies().filter(e => e.hp > 0);
   C.E = combatEnemies()[C.target] && combatEnemies()[C.target].hp > 0 ? combatEnemies()[C.target] : foes[0];
   C.target = combatEnemies().indexOf(C.E);
-  for (const u of [P, ...foes]) { u.st.str = u.next.str; u.st.end = u.next.end; u.st.prot = u.next.prot; u.next = mkSt(); }
+  for (const u of [P, ...foes]) { u.st.para = 0; u.st.str = u.next.str; u.st.end = u.next.end; u.st.prot = u.next.prot; u.next = mkSt(); }
   for (const e of foes) { if (e.d.onRound) e.d.onRound(e, P); if (e.power) e.st.str += e.power; }
   if (H().roundStart) H().roundStart(P, C.E);
   if (S.armor) P.st.prot += S.armor;
