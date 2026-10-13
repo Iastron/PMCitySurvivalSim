@@ -434,47 +434,94 @@ const ASSOC_KEYS = ['zwei', 'shi', 'liu'];
 const TIER_NAME = ['흔함', '평범', '드묾', '희귀', '전설', '신화'];
 
 const ORIGINS = [
-  { id: 'orphan', w: 140, tier: 0, name: '뒷골목 고아', aff: 'street', grade: 9, hp: 38, stg: 24, money: 3000,
+  /* ---------- 흔함 ---------- */
+  { id: 'orphan', w: 120, tier: 0, name: '뒷골목 고아', aff: 'street', grade: 9, hp: 38, stg: 24, money: 3000,
     trait: '살아남은 아이 — 전투마다 1번, 치명상을 체력 1로 버틴다. 도주 성공률 높음.',
     deck: ['or_bite', 'or_bite', 'or_run', 'or_run', 'or_run', 'or_stone', 'or_stone', 'or_hide'],
     intro: '부모의 얼굴은 기억나지 않는다. 기억나는 건 배고픔과, 밤마다 들리던 기계음뿐.',
     hooks: { lastStand: true, flee: 0.85 } },
-  { id: 'rat', w: 160, tier: 0, name: '뒷골목의 쥐', aff: 'street', grade: 9, hp: 48, stg: 28, money: 20000,
+  { id: 'rat', w: 130, tier: 0, name: '뒷골목의 쥐', aff: 'street', grade: 9, hp: 48, stg: 28, money: 20000,
     trait: '뒷골목 생존술 — 전투 보상 안 ×1.5, 도주 성공률 높음.',
     deck: ['rt_knife', 'rt_knife', 'rt_flail', 'rt_flail', 'rt_stab', 'rt_stab', 'rt_sand', 'rt_grit'],
     intro: '직업도, 연줄도, 돈도 없다. 자신보다 약한 자의 주머니만이 내일을 보장한다.',
     hooks: { moneyMul: 1.5, flee: 0.85 } },
-  { id: 'feather', w: 120, tier: 1, name: '둥지 출신 깃털', aff: 'wing', grade: 8, hp: 44, stg: 26, money: 3000000,
+  { id: 'exam', w: 80, tier: 0, name: '입시촌 수험생', aff: 'street', grade: 9, hp: 42, stg: 26, money: 200000,
+    trait: '수험생 — 날개 입사 시험·해결사 면허 시험 합격률 +25%.',
+    deck: ['fe_bag', 'fe_bag', 'st_feint', 'st_feint', 'rt_flail', 'rt_flail', 'fe_report', 'firstaid'],
+    intro: '둥지로 가는 길은 시험뿐이다. 입시촌의 좁은 방에서 몇 년째 같은 문제집을 풀고 있다.',
+    hooks: { examBonus: 0.25 } },
+  { id: 'feather', w: 100, tier: 0, name: '둥지의 말단 깃털', aff: 'wing', grade: 8, hp: 44, stg: 26, money: 3000000,
     trait: '둥지의 교육 — 시작 자금이 많다.',
     deck: ['fe_bag', 'fe_bag', 'fe_bag', 'fe_spray', 'fe_spray', 'fe_report', 'rt_flail', 'firstaid'],
     intro: '주 70시간 근무. 그래도 둥지 안이다. 창밖의 뒷골목을 내려다보며 캔맥주를 마시는 삶.' },
-  { id: 'grunt', w: 110, tier: 1, name: '뒷골목 조직 출신', aff: 'gang', grade: 9, hp: 54, stg: 30, money: 150000,
+  /* ---------- 평범 ---------- */
+  { id: 'grunt', w: 90, tier: 1, name: '뒷골목 조직 말단', aff: 'gang', grade: 9, hp: 54, stg: 30, money: 150000,
     trait: '싸움꾼 — 시작 체력이 높다.',
     deck: ['gg_knife', 'gg_knife', 'gg_rush', 'gg_rush', 'gg_ink', 'rt_flail', 'rt_flail', 'rt_knife'],
     intro: '어깨에 새긴 강화 문신은 조직을 나갈 수 없다는 뜻이기도 하다.' },
-  { id: 'zwei', w: 80, tier: 1, name: '츠바이 협회 견습', aff: 'zwei', grade: 9, hp: 72, stg: 46, money: 400000,
+  { id: 'zwei', w: 55, tier: 1, name: '츠바이 협회 견습', aff: 'zwei', grade: 9, hp: 72, stg: 46, money: 400000,
     trait: '협회 교육 — 기초 검술과 방어를 배웠다.',
     deck: ['zw_slash', 'zw_slash', 'zw_guard', 'zw_guard', 'zw_counter', 'zw_protect', 'zw_justice', 'zw_slash'],
     intro: '츠바이 협회의 문양이 새겨진 코트. 견습이지만, 지키는 법은 배웠다.' },
-  { id: 'shi', w: 80, tier: 1, name: '시 협회 견습', aff: 'shi', grade: 9, hp: 56, stg: 34, money: 500000,
+  { id: 'shi', w: 55, tier: 1, name: '시 협회 견습', aff: 'shi', grade: 9, hp: 56, stg: 34, money: 500000,
     trait: '협회 교육 — 급소를 노리는 법을 배웠다.',
     deck: ['shi_ambush', 'shi_ambush', 'shi_evade', 'shi_evade', 'shi_vital', 'shi_flurry', 'shi_death', 'shi_vital'],
     intro: '검은 옷, 조용한 발걸음. 시 협회는 의뢰받은 목숨만을 가져간다.' },
-  { id: 'liu', w: 80, tier: 1, name: '리우 협회 견습', aff: 'liu', grade: 9, hp: 62, stg: 40, money: 450000,
+  { id: 'liu', w: 55, tier: 1, name: '리우 협회 견습', aff: 'liu', grade: 9, hp: 62, stg: 40, money: 450000,
     trait: '협회 교육 — 불을 다루는 법을 배웠다.',
     deck: ['liu_fist', 'liu_fist', 'liu_block', 'liu_stoke', 'liu_blaze', 'liu_dodge', 'liu_fist', 'liu_block'],
     intro: '동부식 무복 위에 불씨가 튄다. 리우의 불은 꺼지지 않는다.' },
-  { id: 'veteran', w: 60, tier: 2, name: '협회 3과 해결사', aff: 'assoc', grade: 4, hp: 88, stg: 52, money: 15000000, light: 4,
-    trait: '숙련 — 최대 빛 4로 시작한다.',
-    deck: ['zw_justice', 'combo', 'combo', 'mook_blade', 'deflect', 'train', 'bullet', 'shi_vital', 'zw_guard'],
-    intro: '도시 질병급 의뢰를 몇 번 넘겼다. 이제 뒷골목의 쥐들은 당신을 보면 길을 비킨다.' },
-  { id: 'grade1', w: 15, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 300000000, light: 4,
+  { id: 'fixer_low', w: 75, tier: 1, variant: 'fixer', grades: [8, 7], label: '해결사 (8~7급)' },
+  { id: 'finger_member', w: 50, tier: 1, variant: 'finger', rank: 0, label: '손가락 조직원' },
+  { id: 'artisan', w: 40, tier: 1, name: '공방 견습 장인', aff: 'street', grade: 8, hp: 50, stg: 30, money: 1000000,
+    trait: '공방 장인 — 공방 카드 가격 30% 할인. 무기를 직접 다듬어 쓴다.',
+    deck: ['hammer', 'st_knuckle', 'st_knuckle', 'md_pipe', 'zw_guard', 'rt_flail', 'md_counter', 'st_feint'],
+    intro: '해결사들의 피로 돌아가는 공방. 망치를 쥔 손에는 굳은살과 화상 자국이 가득하다.',
+    hooks: { shopDiscount: 0.3 } },
+  { id: 'os_hunter', w: 40, tier: 1, name: '외곽 사냥꾼', aff: 'street', grade: 7, hp: 70, stg: 38, money: 300000, forceOutskirts: true,
+    trait: '괴물 사냥꾼 — 외곽의 괴물에게 공격 위력 +3. 외곽에서 태어났다.',
+    deck: ['bullet', 'shi_vital', 'shi_vital', 'deflect', 'combo', 'st_smoke', 'zw_guard', 'rt_flail'],
+    intro: '정착지의 울타리를 지키며 자랐다. 노움과 이빨태엽의 습성은 사람보다 잘 안다. 도시는 아직 낯설다.',
+    hooks: { rollBonus(P, d) { return OFF(d[0]) && ['gnome', 'toothgear', 'giant'].includes(C.key) ? 3 : 0; } } },
+  /* ---------- 드묾 ---------- */
+  { id: 'fixer_mid', w: 45, tier: 2, variant: 'fixer', grades: [6, 5], label: '해결사 (6~5급)' },
+  { id: 'fixer_high', w: 22, tier: 2, variant: 'fixer', grades: [4, 3], label: '해결사 (4~3급)' },
+  { id: 'finger_mid', w: 20, tier: 2, variant: 'finger', rank: 1, label: '손가락 하위 간부' },
+  { id: 'wing_mgr', w: 28, tier: 2, name: '날개의 중간 관리자', affTitle: '날개의 중간 관리자', aff: 'wing', grade: 5, hp: 55, stg: 32, money: 50000000,
+    trait: '관리자 — 월급이 두 배. 사내 보안팀을 부를 수 있는 위치.',
+    deck: ['fe_report', 'fe_report', 'fe_spray', 'fe_bag', 'md_shield', 'hi_bag', 'firstaid', 'st_smoke'],
+    intro: '부하 직원 열둘, 결재 서류 수백 장. 날개의 톱니바퀴 중에서는 큰 편이다.',
+    hooks: { monthlyPay: 3000000 } },
+  { id: 'gang_boss', w: 25, tier: 2, name: '뒷골목 조직 보스', aff: 'gang', grade: 5, hp: 85, stg: 45, money: 30000000,
+    trait: '보스 — 첫 막에 힘 +2 추가 (조직 문신과 합쳐 +4).',
+    deck: ['gg_knife', 'gg_rush', 'gg_rush', 'gg_ink', 'md_pipe', 'hi_tattoo', 'md_chainwhip', 'md_counter'],
+    intro: '골목 세 개가 당신의 구역이다. 위로는 손가락에 상납하고, 아래로는 상납을 받는다.',
+    hooks: { roundStart(P) { if (C.round === 1) P.st.str += 2; } } },
+  { id: 'taboo_hunter', w: 15, tier: 2, name: '금기 사냥꾼', affTitle: '날개 직속 금기 사냥꾼', aff: 'wing', grade: 4, hp: 95, stg: 50, money: 40000000,
+    trait: '날개 직속 집행자 — 매 막 인내 1.',
+    deck: ['md_chainwhip', 'zw_justice', 'hi_mirror', 'md_shield', 'md_counter', 'tremor', 'hi_rifle', 'train'],
+    intro: '둥지의 금기를 어긴 자를 처리한다. 금기 책자는 몇 권째 외우고 있다.',
+    hooks: { roundStart(P) { P.st.end += 1; } } },
+  { id: 'vampire', w: 15, tier: 2, name: '혈귀', aff: 'street', grade: 6, hp: 80, stg: 40, money: 20000000,
+    trait: '혈귀 — 공격이 적중할 때마다 체력 2 흡수.',
+    deck: ['hi_vamp', 'hi_vamp', 'shi_flurry', 'shi_evade', 'shi_evade', 'md_needle', 'combo', 'st_feint'],
+    intro: '도시의 음지에서 피를 갈망하며 살아가는 인간의 아종. 낮에는 사람들 속에 섞여 있다.',
+    hooks: { vamp: 2 } },
+  /* ---------- 희귀 ---------- */
+  { id: 'fixer_top', w: 8, tier: 3, variant: 'fixer', grades: [2], label: '해결사 (2급)' },
+  { id: 'grade1', w: 7, tier: 3, name: '1급 해결사', aff: 'fixer', grade: 1, hp: 130, stg: 70, money: 300000000, light: 4,
     trait: '해결사의 정점 — 최대 빛 4, 매 막 카드를 1장 더 뽑는다.',
     deck: ['top_slash', 'top_slash', 'top_guard', 'top_guard', 'top_counter', 'top_pierce', 'top_pierce', 'flow', 'deflect'],
     intro: '날개조차 당신을 함부로 대하지 않는다. 엄지는 당신을 카포와 동등하게 대접한다.',
     hooks: { extraDraw: 1 } },
-  { id: 'finger', w: 15, tier: 3, variant: 'finger' },
-  { id: 'color', w: 6, tier: 4, variant: 'color' },
+  { id: 'finger', w: 6, tier: 3, variant: 'finger', rank: 2, label: '손가락 상위 간부' },
+  { id: 'wing_exec', w: 5, tier: 3, name: '날개의 임원', affTitle: '날개의 임원', aff: 'wing', grade: 2, hp: 75, stg: 40, money: 2000000000, light: 4,
+    trait: '임원 — 막대한 월급. 사병이 따라다닌다: 첫 막 보호 5.',
+    deck: ['hi_rifle', 'hi_rifle', 'hi_mirror', 'hi_mirror', 'hi_bag', 'md_amp', 'flow', 'atl_shield'],
+    intro: '특이점의 진실을 아는 몇 안 되는 사람. 그 진실 위에 앉아 와인을 마신다.',
+    hooks: { monthlyPay: 30000000, roundStart(P) { if (C.round === 1) P.st.prot += 5; } } },
+  /* ---------- 전설 / 신화 ---------- */
+  { id: 'color', w: 5, tier: 4, variant: 'color', label: '특색 해결사' },
   { id: 'watcher', w: 3, tier: 4, name: '머리의 응시자', aff: 'watcher', grade: 1, hp: 120, stg: 80, money: 800000000, light: 5,
     trait: '비전투원 — 직접 싸우기보다 관측하고 기록한다. 머리의 행정 업무 대부분이 이 손을 거친다.',
     deck: ['wt_gaze', 'wt_gaze', 'wt_veil', 'wt_veil', 'wt_record', 'wt_record', 'wt_point', 'wt_point', 'wt_call'],
@@ -488,6 +535,31 @@ const ORIGINS = [
     deck: ['ar_lock', 'ar_lock', 'ar_pillar', 'ar_pillar', 'ar_fairy', 'ar_fairy', 'ar_chain', 'ar_chain', 'ar_wave'],
     intro: '도시는 당신이 정한 대로 존재한다. 날개도, 손가락도, 특색도 당신 앞에서는 불순물일 뿐.' },
 ];
+
+// 해결사 출신: 등급대별 능력치와 덱
+const FIXER_BANDS = [
+  { max: 9, deck: ['zw_slash', 'zw_slash', 'combo', 'zw_guard', 'deflect', 'st_feint', 'md_counter', 'rt_flail'],
+    intro: '면허를 딴 지 얼마 안 됐다. 고양이 찾기에서 조금씩 벗어나는 중이다.' },
+  { max: 6, deck: ['combo', 'combo', 'md_counter', 'zw_guard', 'deflect', 'md_doubletap', 'train', 'zw_justice', 'st_smoke'],
+    intro: '둥지 주민의 의뢰도 받을 만큼은 이름이 났다. 그만큼 위험한 일도 들어온다.' },
+  { max: 4, deck: ['zw_justice', 'combo', 'mook_blade', 'deflect', 'train', 'bullet', 'shi_vital', 'hi_mirror', 'md_counter'],
+    intro: '도시 질병급 의뢰를 몇 번 넘겼다. 이제 뒷골목의 쥐들은 당신을 보면 길을 비킨다.' },
+  { max: 2, deck: ['top_slash', 'top_guard', 'top_counter', 'mook_blade', 'hi_mirror', 'combo', 'flow', 'deflect', 'hi_rifle'],
+    intro: '내로라하는 해결사들 사이에서도 인간 흉기 대접을 받는다. 1급까지는 한 걸음.' },
+];
+const FIXER_MONEY = { 8: 500000, 7: 1000000, 6: 3000000, 5: 8000000, 4: 15000000, 3: 40000000, 2: 100000000 };
+// 손가락 출신: 직급별 (0 조직원 / 1 하위 간부 / 2 상위 간부)
+const FINGER_RANK_STATS = [
+  { grade: 7, hp: 62, stg: 34, money: 3000000, light: 3 },
+  { grade: 4, hp: 98, stg: 52, money: 80000000, light: 3 },
+  { grade: 2, hp: 140, stg: 72, money: 500000000, light: 4 },
+];
+function fingerDeck(k, rank) {
+  const fd = FINGER_DECKS[k];
+  if (rank === 0) return [fd[0], fd[0], fd[5], 'gg_knife', 'gg_knife', 'rt_flail', 'rt_flail', 'gg_ink'];
+  if (rank === 1) return [fd[0], fd[0], fd[1], fd[2], fd[5], fd[6], 'combo', 'deflect', 'train'];
+  return FINGER_DECKS[k];
+}
 
 // 손가락 간부 출신: 소속 손가락별 시작 덱
 const FINGER_DECKS = {
@@ -538,10 +610,21 @@ function rollOrigin() {
 }
 function buildOrigin(o, fingerKey) {
   if (o.variant === 'finger') {
-    const k = fingerKey || pick(FINGER_KEYS), a = AFFS[k];
-    return { id: 'finger', tier: o.tier, w: o.w, name: `${a.name} 간부 출신`, aff: k, grade: 2, hp: 140, stg: 72, money: 500000000, light: 4,
-      trait: '간부의 무게 — 손가락에서 쌓아온 힘과 재산.', deck: FINGER_DECKS[k],
-      intro: `${a.ranks[2]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.` };
+    const k = fingerKey || pick(FINGER_KEYS), a = AFFS[k], rk = o.rank === undefined ? 2 : o.rank, st = FINGER_RANK_STATS[rk];
+    return { id: 'finger', tier: o.tier, w: o.w, name: a.ranks[rk], aff: k, grade: st.grade, hp: st.hp, stg: st.stg, money: st.money, light: st.light,
+      trait: ['손가락의 말단 — 조직의 이름이 곧 방패다.', '중간 간부 — 위아래로 치이며 쌓은 수완.', '간부의 무게 — 손가락에서 쌓아온 힘과 재산.'][rk],
+      deck: fingerDeck(k, rk),
+      intro: [`${a.ranks[0]}. 손가락의 가장 아래. 위로 올라가려면 실적과 충성, 그리고 운이 필요하다.`,
+        `${a.ranks[1]}. 아랫사람이 생겼고, 윗선의 눈치를 본다. 손가락에서 가장 바쁜 자리다.`,
+        `${a.ranks[2]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.`][rk] };
+  }
+  if (o.variant === 'fixer') {   // 해결사: 등급과 소속(무소속/협회)을 따로 굴린다
+    const g = pick(o.grades), band = FIXER_BANDS[g >= 7 ? 0 : g >= 5 ? 1 : g >= 3 ? 2 : 3];
+    const aff = Math.random() < 0.5 ? 'fixer' : pick(ASSOC_KEYS);
+    const post = { 8: '협회 직속 사무소', 7: '협회 직속 사무소', 6: '6과', 5: '6과 부장', 4: '3과', 3: '2과', 2: '1과' }[g];
+    return { id: 'fixer', tier: o.tier, w: o.w, name: `${g}급 해결사` + (aff === 'fixer' ? ' (무소속)' : ` (${AFFS[aff].name} ${post})`),
+      aff, grade: g, hp: 50 + (9 - g) * 11, stg: 30 + (9 - g) * 6, money: FIXER_MONEY[g], light: g <= 4 ? 4 : 3,
+      trait: `${g}급 해결사 — 하나 협회가 실적으로 인정한 등급.`, deck: band.deck, intro: band.intro };
   }
   if (o.variant === 'color') {
     const title = makeColorTitle();
@@ -570,6 +653,10 @@ const fingerTier = grade => grade <= 2 ? 2 : grade <= 5 ? 1 : 0;
 function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   const a = AFFS[id];
   if (id === 'gang') return `뒷골목 조직원 [${gf || '?'} 산하]`;
+  if (id === 'wing') {   // 날개: 출신 직함이 있으면 그것, 아니면 위상에 따른 직위
+    if (S && S.aff === 'wing' && S.ch.affTitle) return S.ch.affTitle;
+    return grade <= 2 ? '날개의 임원' : grade <= 5 ? '날개의 중간 관리자' : '날개 소속 깃털';
+  }
   if (a.ranks) return a.ranks[fingerTier(grade)];
   if (a.faction === 'assoc') return `${a.name} 해결사`;
   return a.name;
@@ -683,7 +770,7 @@ function newGame(ch) {
   $('#topbar').classList.remove('hidden');
   $('#day').classList.remove('hidden');
   $('#log').innerHTML = '';
-  print(`출신: ${ch.name} · 소속: ${affName(ch.aff, ch.grade, S.gangFinger)}. ${ch.intro}`, 'l-sys');
+  print(`출신: ${ch.name} · 소속: ${affName()}. ${ch.intro}`, 'l-sys');
   print(`태어난 곳: ${S.loc.label}${S.loc.note ? ' — ' + S.loc.note : ''}${S.loc.area === 'outskirts' ? '. 괴물들 사이에서 자란 몸은 질기다 (최대 체력 +8).' : ''}`, 'l-sys');
   print(`1일차 — 오늘도 도시는 굴러간다.`, 'l-day');
   startTurn();
@@ -843,8 +930,8 @@ const EVENTS = [
       return [
         ...items.map(id => {
           const c = CARDS[id];
-          return { t: `「${c.name}」 구매 — ${won(c.price)} <span class="dim">(${diceText(c)})</span>`, cost: c.price,
-            fn() { spend(c.price); addCard(id); } };
+          return { t: `「${c.name}」 구매 — ${won(priceOf(id))} <span class="dim">(${diceText(c)})</span>`, cost: priceOf(id),
+            fn() { spend(priceOf(id)); addCard(id); } };
         }),
         { t: '구경만 하고 나간다', def: true, fn() { say('공방 주인이 혀를 찼다.'); } },
       ];
@@ -1195,7 +1282,7 @@ EVENTS.push(
     choices: [
       { t: '응시한다 (응시료 5만 안)', cost: 50000, fn() {
         spend(50000);
-        const p = Math.min(0.9, 0.45 + (9 - S.grade) * 0.07 + S.kills * 0.03);
+        const p = Math.min(0.95, 0.45 + (9 - S.grade) * 0.07 + S.kills * 0.03 + (H().examBonus || 0));
         if (Math.random() < p) { say('실기 시험관의 목검을 받아냈다. 합격.', 'l-good'); changeAff('fixer'); }
         else say('필기에서 떨어졌다. "도시의 금기 제7조를 서술하시오"… 그런 게 있었나.', 'l-bad');
       } },
@@ -1236,7 +1323,7 @@ EVENTS.push(
     choices: [
       { t: '응시한다 (응시료 20만 안)', cost: 200000, fn() {
         spend(200000);
-        if (Math.random() < 0.35 + (9 - S.grade) * 0.05) { say('합격 통지서가 도착했다. 둥지의 문이 열린다.', 'l-good'); changeAff('wing'); }
+        if (Math.random() < 0.35 + (9 - S.grade) * 0.05 + (H().examBonus || 0)) { say('합격 통지서가 도착했다. 둥지의 문이 열린다.', 'l-good'); changeAff('wing'); }
         else say('불합격. 입시촌의 수많은 사람들처럼, 내년을 기약한다.', 'l-bad');
       } },
       { t: '포기한다', def: true, fn() { say('공고문을 지나쳤다.'); } },
@@ -1272,6 +1359,7 @@ const WING_NOTE = {
   T: '색을 잃은 공장의 둥지', U: '대호수의 항구', V: '우는 아이가 지나간 22구', W: '워프 열차의 둥지', Y: '가장 북쪽, 추운 25구',
 };
 function rollBirthplace(ch) {
+  if (ch.forceOutskirts) return { area: 'outskirts', label: '외곽', note: '괴물과 버려진 것들이 득실거리는 도시 바깥' };
   const f = AFFS[ch.aff].faction;
   const inside = f === 'head' || f === 'wing';
   if (!inside && Math.random() < 0.15) return { area: 'outskirts', label: '외곽', note: '괴물과 버려진 것들이 득실거리는 도시 바깥' };
@@ -1298,6 +1386,7 @@ function restockShop() {
   const prem = shuffle(SHOP_POOL().filter(k => CARDS[k].premium)).slice(0, 2);
   S.stock = [...shuffle(DROP_POOL()).slice(0, 6), ...prem];
 }
+const priceOf = id => Math.round(CARDS[id].price * (1 - (H().shopDiscount || 0)));
 function buy(cost, text) {
   if (S.money < cost) return false;
   moneyStress(cost, S.money, false);
@@ -1324,7 +1413,7 @@ function cityRender() {
     h += '<p class="l-bad">뒷골목의 밤(03:13~04:34)에는 모든 시설이 문을 닫는다.</p>';
   } else {
     h += '<h4>공방 — 오늘의 진열대</h4>';
-    h += S.stock.length ? S.stock.map((id, i) => row(CARDS[id].name + (CARDS[id].premium ? ' ★' : ''), diceText(CARDS[id]) + (CARDS[id].desc && CARDS[id].dice ? ' · ' + CARDS[id].desc : ''), CARDS[id].price, `card:${i}`)).join('') : '<p class="dim">다 팔렸다. 내일 다시 오자.</p>';
+    h += S.stock.length ? S.stock.map((id, i) => row(CARDS[id].name + (CARDS[id].premium ? ' ★' : ''), diceText(CARDS[id]) + (CARDS[id].desc && CARDS[id].dice ? ' · ' + CARDS[id].desc : ''), priceOf(id), `card:${i}`)).join('') : '<p class="dim">다 팔렸다. 내일 다시 오자.</p>';
     h += '<h4>강화시술 클리닉</h4>';
     h += AUG.map(a => { const n = (S.aug[a.id] || 0), c = Math.round(a.base * Math.pow(a.mul, n));
       return row(`${a.name} (${n}회 받음)`, `최대 체력 +${a.hp}${a.stg ? `, 흐트러짐 저항 +${a.stg}` : ''}`, c, `aug:${a.id}`); }).join('');
@@ -1354,7 +1443,7 @@ function cityRender() {
 }
 function cityAct(act) {
   const [k, v] = act.split(':');
-  if (k === 'card') { const id = S.stock[+v]; if (buy(CARDS[id].price, `「${CARDS[id].name}」 구매`)) { S.deck.push(id); S.stock.splice(+v, 1); } }
+  if (k === 'card') { const id = S.stock[+v]; if (buy(priceOf(id), `「${CARDS[id].name}」 구매`)) { S.deck.push(id); S.stock.splice(+v, 1); } }
   else if (k === 'aug') {
     const a = AUG.find(x => x.id === v), n = S.aug[v] || 0, c = Math.round(a.base * Math.pow(a.mul, n));
     if (buy(c, `${a.name}`)) { S.aug[v] = n + 1; S.maxHp += a.hp; S.hp += a.hp; S.maxStg += a.stg; }
@@ -2242,6 +2331,7 @@ function applyFx(fx, self, foe) {
   if (fx.enemy) for (const k in fx.enemy) { foe.st[k] += fx.enemy[k]; clog(`${foe.name}에게 ${STATUS_NAME[k]} ${fx.enemy[k]}`, 'l-sys'); }
 }
 function applyHit(card, atk, def) {
+  if (atk === C.P && H().vamp) { const v = Math.min(H().vamp, atk.maxHp - atk.hp); if (v) { atk.hp += v; clog(`→ 흡혈 +${v}`, 'l-good'); } }
   const h = card.onHit; if (!h) return;
   for (const k of ['bleed', 'burn', 'para']) if (h[k]) { def.st[k] += h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
   if (h.healSelf) { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
@@ -2580,7 +2670,7 @@ document.addEventListener('keydown', e => {
 /* ---------- 캐릭터 선택 ---------- */
 /* ---------- 무작위 출신 결정 ---------- */
 const totalW = ORIGINS.reduce((a, o) => a + o.w, 0);
-const originLabel = o => o.variant === 'finger' ? '손가락 간부 (엄지·검지·중지·약지·소지 중 하나)' : o.variant === 'color' ? '특색 해결사' : o.name;
+const originLabel = o => o.label ? o.label + (o.variant === 'finger' ? ' (엄지·검지·중지·약지·소지)' : o.variant === 'fixer' ? ' (무소속/협회)' : '') : o.name;
 $('#oddsTable').innerHTML = '<table>' + ORIGINS.map(o =>
   `<tr><td><span class="tier tier-${o.tier}">${TIER_NAME[o.tier]}</span></td><td>${originLabel(o)}</td><td>${(o.w / totalW * 100).toFixed(o.w / totalW < 0.01 ? 2 : 1)}%</td></tr>`).join('') + '</table>';
 
@@ -2598,7 +2688,7 @@ $('#rollBtn').onclick = async () => {
   box.innerHTML = `<div class="origin t${ch.tier}">
     <span class="tier tier-${ch.tier}">${TIER_NAME[ch.tier]}</span> <span class="dim" style="font-size:12px">확률 ${p.toFixed(p < 1 ? 2 : 1)}%</span>
     <h2>${ch.name}</h2>
-    <div class="dim">소속: <b style="color:var(--text)">${affName(ch.aff, ch.grade, ch.gangFinger)}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
+    <div class="dim">소속: <b style="color:var(--text)">${ch.affTitle || affName(ch.aff, ch.grade, ch.gangFinger)}</b> · ${a.fixer ? `${ch.grade}급 해결사` : `위상 ${10 - ch.grade}단계`}
       ${a.locked ? '<br><span class="l-bad">🔒 머리 소속 — 소속을 옮길 수 없다</span>' : '<br><span class="l-good">소속은 이벤트로 옮길 수 있다</span>'}</div>
     <div class="dim" style="margin-top:4px">태어난 곳: <b style="color:var(--gold)">${ch.loc.label}</b>${ch.loc.note ? ' — ' + ch.loc.note : ''}${ch.loc.area === 'outskirts' ? ' (최대 체력 +8)' : ''}</div>
     <div style="margin-top:10px;line-height:1.7">${ch.intro}</div>
