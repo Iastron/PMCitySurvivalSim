@@ -655,7 +655,15 @@ function won(n) {
   return `${n}안`;
 }
 function gain(n) { S.money += n; say(`+${won(n)} (보유 ${won(S.money)})`, 'l-good'); }
-function spend(n) {
+// 돈을 잃으면 정신 압박. 빼앗긴 경우(forced)는 크게, 스스로 낸 경우는 조금만
+function moneyStress(lost, before, forced) {
+  if (lost < 10000 || before <= 0) return;
+  const ratio = Math.min(1, lost / before);
+  if (forced && ratio >= 0.2) { say(ratio >= 0.8 ? '모은 것이 한순간에 사라졌다.' : '주머니가 털린 감각이 오래 남는다.', 'l-bad'); stress(Math.round(ratio * 40)); }
+  else if (!forced && ratio >= 0.3) stress(Math.round(ratio * 10));
+}
+function spend(n, forced = false) {
+  moneyStress(n, S.money, forced);
   if (n > S.money) {   // 모자란 만큼은 사채로 메운다
     const short = n - S.money, owe = Math.ceil(short * (1 + DEBT_RATE));
     if (!S.debt) S.debtDue = S.day + DEBT_DAYS;
@@ -1037,7 +1045,7 @@ EVENTS.push(
     text: '퇴근 10분 전, 상사가 서류 더미를 책상에 내려놓는다. "내일 아침까지. 날개는 기다려주지 않네."',
     choices: [
       { t: '야근한다 — 수당을 받지만 몸이 상한다', fn() { say('창밖의 가로등이 하나둘 꺼질 때까지 일했다.'); gain(pay(100000)); hurt(6); merit(1); } },
-      { t: '칼퇴한다', def: true, fn() { if (Math.random() < 0.3) { say('다음 날 인사고과에 빨간 줄이 그어졌다.', 'l-bad'); spend(50000); } else say('상사의 시선이 등에 꽂혔지만, 무사히 퇴근했다.'); } },
+      { t: '칼퇴한다', def: true, fn() { if (Math.random() < 0.3) { say('다음 날 인사고과에 빨간 줄이 그어졌다. 감봉이다.', 'l-bad'); spend(50000, true); } else say('상사의 시선이 등에 꽂혔지만, 무사히 퇴근했다.'); } },
     ] },
   { id: 'singularity', fac: ['wing'], when: [0, 1], w: 1, title: '특이점 연구 협조 공지',
     text: '사내 공지: "특이점 연구 협조자 모집. 협조금 지급." 계약서 맨 아래, 아주 작은 글씨로 무언가가 적혀 있다.',
@@ -1207,6 +1215,7 @@ function restockShop() {
 }
 function buy(cost, text) {
   if (S.money < cost) return false;
+  moneyStress(cost, S.money, false);
   S.money -= cost; print(`🛒 ${text} (-${won(cost)}, 보유 ${won(S.money)})`, 'l-choice');
   return true;
 }
@@ -1931,7 +1940,7 @@ function endCombat(win) {
   } else {
     if (opts.lethal === false) {
       print('⚔ 패배 — 정신을 잃었다. 깨어나 보니 주머니가 가벼워져 있다.', 'l-bad');
-      S.hp = 1; spend(Math.floor(S.money / 2)); stress(25);
+      S.hp = 1; stress(25); spend(Math.floor(S.money / 2), true);
       opts.lose && opts.lose();
       T.resolved = true;
     } else {
