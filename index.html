@@ -2073,7 +2073,8 @@ Object.assign(ENEMIES.roland_lib, { light: 6, lightRegen: 3, pool: [
   { name: '크리스탈 아틀리에', cost: 3, dice: [['회피', 8, 11], ['참격', 7, 11], ['참격', 7, 11]] },
   { name: '휠스 인더스트리', cost: 4, dice: [['타격', 14, 24], ['방어', 5, 8]] },
 ] });
-FURIOSO.name = 'Furioso'; FURIOSO.cost = 3; FURIOSO.dice = [['참격', 20, 39]]; FURIOSO.onHit = { bleed: 5, para: 3 };
+FURIOSO.name = 'Furioso'; FURIOSO.cost = 3; FURIOSO.dice = [['참격', 20, 39]]; FURIOSO.onHit = { bleed: 5, para: 3, pctDmg: 0.3 };
+FURIOSO.desc = '적중 시 대상 최대 체력의 30% 추가 피해, 출혈 5, 마비 3';
 
 // 붉은안개 (게부라 열화판 / 균열의 잔영): 체력 절반 이하에서 E.G.O 발현 — 모든 주사위 위력 +2, 대절단-가로 사용
 const RED_MIST_POOL = [
@@ -2677,6 +2678,10 @@ function applyFx(fx, self, foe) {
 function applyHit(card, atk, def) {
   if (atk === C.P && H().vamp) { const v = Math.min(H().vamp, atk.maxHp - atk.hp); if (v) { atk.hp += v; clog(`→ 흡혈 +${v}`, 'l-good'); } }
   const h = card.onHit; if (!h) return;
+  if (h.pctDmg) {   // 최대 체력 비례 피해 (내성·보호 무시)
+    const v = Math.round(def.maxHp * h.pctDmg); def.hp -= v; lastStand(def);
+    clog(`→ 「${card.name}」 — ${def.name}의 최대 체력 ${Math.round(h.pctDmg * 100)}%, <b>${v}</b> 피해`, def === C.P ? 'l-bad' : 'l-good');
+  }
   for (const k of ['bleed', 'burn', 'para']) if (h[k]) { def.st[k] += h[k]; clog(`→ ${def.name}에게 ${STATUS_NAME[k]} ${h[k]}`, 'l-sys'); }
   if (h.healSelf) { const v = Math.min(h.healSelf, atk.maxHp - atk.hp); atk.hp += v; if (v) clog(`→ ${atk.name} 체력 +${v} 흡수`, 'l-bad'); }
 }
