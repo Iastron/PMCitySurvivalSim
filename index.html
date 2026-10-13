@@ -153,6 +153,7 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       <span class="stat" id="clock"></span>
       <span class="stat">HP <b id="sHp"></b></span>
       <span class="stat">자금 <b id="sMoney"></b></span>
+      <span class="stat dim" id="sPay"></span>
       <span class="stat l-bad" id="sDebt"></span>
       <span class="stat" id="sPress"></span>
       <span class="stat"><span id="sRole" class="dim"></span> <b id="sGrade"></b></span>
@@ -351,7 +352,7 @@ const STATUS_DESC = {
    fixer: 해결사 면허 / locked: 소속 변경 불가 / home: 무료 거처 / light: 최소 빛
    cards: 가입 시 받는 카드 / hooks: 패시브 구현
      roundStart(P,E) · rollBonus(P,die,E)→수 · onClashWin(P,E) · tieWin · moneyMul · payBonus · flee
-     lastStand · emoMul · enemyBleedMul · dailyPay · extraDraw
+     lastStand · emoMul · enemyBleedMul · monthlyPay · extraDraw
 ========================================================= */
 Object.assign(CARDS, {
   // 응시자 — 전투원이 아니다. 보고 기록하고, 필요하면 발톱을 부른다
@@ -364,8 +365,8 @@ Object.assign(CARDS, {
 
 const AFFS = {
   street:  { name: '뒷골목 무소속', faction: 'street', passive: '없음 — 아무도 당신을 지켜주지 않는다.' },
-  wing:    { name: '날개 소속 깃털', faction: 'wing', home: true, passive: '월급날 — 매일 아침 급여. 둥지의 집에서 밤을 무료로 보낸다.',
-    hooks: { dailyPay: 100000 }, cards: ['fe_report'] },
+  wing:    { name: '날개 소속 깃털', faction: 'wing', home: true, passive: '월급 — 30일마다 급여(기본 300만 안, 위상에 따라 증가). 둥지의 집에서 밤을 무료로 보낸다.',
+    hooks: { monthlyPay: 3000000 }, cards: ['fe_report'] },
   gang:    { name: '뒷골목 조직원', faction: 'gang', passive: '조직의 문신 — 첫 막에 힘 2.',
     hooks: { roundStart(P) { if (C.round === 1) P.st.str += 2; } }, cards: ['gg_knife', 'gg_ink'] },
   fixer:   { name: '무소속 해결사', faction: 'fixer', fixer: true, passive: '자유 계약 — 의뢰 보수 +20%.',
@@ -376,15 +377,15 @@ const AFFS = {
     hooks: { onClashWin(P, E) { E.st.bleed += 1; clog('일격필살 — 출혈 +1', 'l-sys'); } }, cards: ['shi_ambush', 'shi_death'] },
   liu:     { name: '리우 협회', faction: 'assoc', fixer: true, passive: '리우의 불길 — 화상 상태인 적에게 공격 위력 +1.',
     hooks: { rollBonus(P, d, E) { return OFF(d[0]) && E.st.burn > 0 ? 1 : 0; } }, cards: ['liu_fist', 'liu_blaze'] },
-  f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지의 카포'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
+  f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지의 카포', '엄지의 소토카포'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
     hooks: { roundStart(P) { P.st.str += 1; } }, cards: ['th_load', 'th_manner'] },
-  f_index: { name: '검지', ranks: ['검지의 신도', '검지의 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
+  f_index: { name: '검지', ranks: ['검지의 신도', '검지의 대행자', '검지의 상급 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
     hooks: { roundStart(P) { const k = pick(['str', 'end', 'prot']); P.st[k] += 2; clog(`지령 — ${STATUS_NAME[k]} +2`, 'l-sys'); } }, cards: ['ix_order', 'ix_will'] },
-  f_middle:{ name: '중지', ranks: ['중지의 동생', '중지의 형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
+  f_middle:{ name: '중지', ranks: ['중지의 동생', '중지의 형님', '중지의 큰형님'], faction: 'finger', home: true, passive: '복수 — 체력이 절반 이하이면 공격 위력 +3.',
     hooks: { rollBonus(P, d) { return OFF(d[0]) && P.hp <= P.maxHp / 2 ? 3 : 0; } }, cards: ['md_hammer', 'md_ledger'] },
-  f_ring:  { name: '약지', ranks: ['약지의 도슨트', '약지의 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
+  f_ring:  { name: '약지', ranks: ['약지의 견습 화가', '약지의 도슨트', '약지의 마에스트로'], faction: 'finger', home: true, passive: '예술 — 적이 받는 출혈 피해 2배.',
     hooks: { enemyBleedMul: 2 }, cards: ['rg_brush', 'rg_master'] },
-  f_pinky: { name: '소지', ranks: ['소지의 조직원', '소지의 간부'], faction: 'finger', home: true, passive: '결전의 예 — 공격 주사위끼리 동률이면 승리.',
+  f_pinky: { name: '소지', ranks: ['소지의 조직원', '소지의 간부', '소지의 상위 간부'], faction: 'finger', home: true, passive: '결전의 예 — 공격 주사위끼리 동률이면 승리.',
     hooks: { tieWin: true }, cards: ['pk_draw', 'pk_duel'] },
   color:   { name: '특색', faction: 'color', fixer: true, home: true, light: 5, passive: '색을 받은 자 — 최대 빛 5, 감정 획득 2배, 전투마다 1번 치명상을 체력 1로 버팀.',
     hooks: { emoMul: 2, lastStand: true }, cards: ['col_strike', 'col_mark'] },
@@ -483,7 +484,7 @@ function buildOrigin(o, fingerKey) {
     const k = fingerKey || pick(FINGER_KEYS), a = AFFS[k];
     return { id: 'finger', tier: o.tier, w: o.w, name: `${a.name} 간부 출신`, aff: k, grade: 2, hp: 140, stg: 72, money: 500000000, light: 4,
       trait: '간부의 무게 — 손가락에서 쌓아온 힘과 재산.', deck: FINGER_DECKS[k],
-      intro: `${a.ranks[1]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.` };
+      intro: `${a.ranks[2]}. 아랫사람들은 당신의 눈을 마주치지 못한다. 손가락을 떠나는 자가 어떻게 되는지, 당신은 누구보다 잘 안다.` };
   }
   if (o.variant === 'color') {
     return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${pick(COLORS)}${pick(COLOR_NOUNS)}」`, aff: 'color', grade: 1, hp: 170, stg: 85, money: 1500000000, light: 5,
@@ -492,7 +493,7 @@ function buildOrigin(o, fingerKey) {
       intro: '하나 협회가 당신에게 색을 부여했다. 도시의 별을 떨어뜨리는 것이 당신의 일이다.' };
   }
   if (o.aff === 'assoc') return { ...o, aff: pick(ASSOC_KEYS) };
-  if (o.aff === 'gang') return { ...o, gangFinger: pick(FINGER_NAMES) };
+  if (o.aff === 'gang') return { ...o, gangFinger: pick(GANG_FINGERS) };
   return { ...o };
 }
 
@@ -502,11 +503,16 @@ const isFixer = () => !!AFF().fixer;
 const faction = () => AFF().faction;
 const hasHome = () => !!AFF().home || !!S.ownHome;
 const FINGER_NAMES = ['엄지', '검지', '중지', '약지', '소지'];
+// 손가락 직급: 조직원(위상 1~4) → 하위 간부(5~7) → 상위 간부(8~9)
+// 소지는 산하 조직을 두지 않는다
+const GANG_FINGERS = ['엄지', '검지', '중지', '약지'];
+const FINGER_TIER_NAME = ['조직원', '하위 간부', '상위 간부'];
+const fingerTier = grade => grade <= 2 ? 2 : grade <= 5 ? 1 : 0;
 // gf: 뒷골목 조직이 속한 손가락 (지정하지 않으면 현재 게임의 값)
 function affName(id = S.aff, grade = S ? S.grade : 9, gf = S && S.gangFinger) {
   const a = AFFS[id];
   if (id === 'gang') return `뒷골목 조직원 [${gf || '?'} 산하]`;
-  if (a.ranks) return grade <= 2 ? a.ranks[1] : a.ranks[0];
+  if (a.ranks) return a.ranks[fingerTier(grade)];
   if (a.faction === 'assoc') return `${a.name} 해결사`;
   return a.name;
 }
@@ -535,6 +541,7 @@ function changeAff(id, after) {
   if (AFF().locked) { say('머리에 속한 자는 소속을 바꿀 수 없다.', 'l-bad'); return; }
   const old = S.aff, oldF = faction();
   S.aff = id; S._h = null;
+  if (AFFS[id].hooks && AFFS[id].hooks.monthlyPay) S.payDay = S.day + 30;
   say(`◆ 소속 변경: ${affName(old)} → <b>${affName(id)}</b>`, 'l-day');
   say(`새 패시브: ${AFF().passive}`, 'l-sys');
   (AFF().cards || []).forEach(addCard);
@@ -608,9 +615,10 @@ let T = null;   // 현재 턴 상태
 let C = null;   // 전투 상태
 
 function newGame(ch) {
-  S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff, gangFinger: ch.gangFinger || pick(FINGER_NAMES),
+  S = { ch, hp: ch.hp, maxHp: ch.hp, maxStg: ch.stg, money: ch.money, grade: ch.grade, merit: GRADE_REQ[ch.grade] || 0, aff: ch.aff, gangFinger: ch.gangFinger || pick(GANG_FINGERS),
     deck: [...ch.deck], day: 1, turn: 0, speed: 1, paused: false, phase: 'day', flags: {}, seenToday: [], kills: 0,
-    loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [], debt: 0, debtDue: 0, press: 0, ego: null };
+    loc: ch.loc || rollBirthplace(ch), aug: {}, armor: 0, ownHome: null, stock: [], debt: 0, debtDue: 0, press: 0, ego: null, payDay: 0 };
+  if (H().monthlyPay) S.payDay = 1 + rnd(1, 30);   // 입사 시점은 제각각이라 첫 월급날도 무작위
   if (S.loc.area === 'outskirts') { S.maxHp += 8; S.hp += 8; }
   restockShop();
   $('#title').classList.add('hidden');
@@ -683,7 +691,14 @@ function hurt(n, lethal = false) {
 function merit(n) {
   S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
   while (S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
+    const tierBefore = fingerTier(S.grade);
     S.grade--; S.maxHp += 5; S.hp += 5; S.maxStg += 2;
+    if (faction() === 'finger' && fingerTier(S.grade) > tierBefore) {
+      const a = AFF(), t = fingerTier(S.grade);
+      say(`★ 승진 — ${a.ranks[t - 1]} → <b>${a.ranks[t]}</b> (${FINGER_TIER_NAME[t]}). ${t === 2 ? '이제 손가락의 간부석에 앉는다. 아랫사람들이 당신의 눈을 피한다.' : '아랫사람이 생겼다. 상납금은 이제 당신에게도 올라온다.'}`, 'l-day');
+      S.money += pay(t === 2 ? 50000000 : 5000000);
+      say(`승진 축하금 +${won(pay(t === 2 ? 50000000 : 5000000))}`, 'l-good');
+    }
     if (isFixer()) {
       say(`★ 하나 협회 승급 심사 통과 — ${S.grade}급 해결사가 되었다. (최대 체력 +5, 의뢰 보수 증가)`, 'l-day');
       if (S.grade === 1) say('도시가 당신의 이름을 기억하기 시작했다. 이제 특색까지 남은 것은 단 하나의 색뿐.', 'l-day');
@@ -700,6 +715,7 @@ function renderTop() {
   const hp = S.phase === 'combat' && C ? C.P.hp : S.hp;
   $('#sHp').textContent = `${hp}/${S.maxHp}`;
   $('#sMoney').textContent = won(S.money);
+  $('#sPay').innerHTML = H().monthlyPay && S.payDay ? `월급까지 <b>${Math.max(0, S.payDay - S.day)}일</b>` : '';
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
   $('#sRole').textContent = `${S.ch.name} / ${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
@@ -799,8 +815,8 @@ const EVENTS = [
     text: '정장을 갖춰 입은 남자가 다가온다. 손목의 문신 — 엄지다. "카포께서 배달꾼을 찾으신다. 예의 바른 사람으로."',
     choices: [
       { t: '정중히 수락한다', fn() {
-        if (Math.random() < 0.7) { say('상자 하나를 지정된 곳에 옮겼다. 내용물은 묻지 않았다.'); gain(pay(500000)); S.flags.thumb = (S.flags.thumb || 0) + 1; }
-        else { say('배달 도중, 경쟁 조직이 길을 막았다!', 'l-bad'); fight('kong', { lethal: true, win() { say('상자를 무사히 전달했다. 엄지는 보답을 잊지 않는다.'); gain(pay(1000000)); merit(1); } }); }
+        if (Math.random() < 0.7) { say('상자 하나를 지정된 곳에 옮겼다. 내용물은 묻지 않았다.'); gain(pay(500000)); favor('엄지'); }
+        else { say('배달 도중, 경쟁 조직이 길을 막았다!', 'l-bad'); fight('kong', { lethal: true, win() { say('상자를 무사히 전달했다. 엄지는 보답을 잊지 않는다.'); gain(pay(1000000)); merit(1); favor('엄지'); } }); }
       } },
       { t: '정중히 거절한다', def: true, fn() { say('"아쉽군." 남자는 모자를 살짝 들어 보이고 사라졌다.'); } },
       { t: '"조직 심부름은 안 해."', fn() { say('공기가 얼어붙었다. "…예의가 없군."', 'l-bad'); fight('thumb', { lethal: true, win() { say('엄지의 솔다토를 쓰러뜨렸다. 이 일은 언젠가 돌아올 것이다.'); merit(3); S.flags.thumbHate = true; } }); } },
@@ -818,7 +834,7 @@ const EVENTS = [
     text: '발밑에 봉인된 편지 한 통. "오늘 세 번째로 마주치는 사람의 왼쪽 신발끈을 풀어라." 검지의 지령이다. 받은 자는 따라야 한다… 고들 한다.',
     choices: [
       { t: '지령을 따른다', fn() {
-        if (Math.random() < 0.6) { say('세 번째 사람은 검지의 대리인이었다. 그는 만족스럽게 고개를 끄덕이고 봉투를 건넸다.'); gain(pay(300000)); }
+        if (Math.random() < 0.6) { say('세 번째 사람은 검지의 대리인이었다. 그는 만족스럽게 고개를 끄덕이고 봉투를 건넸다.'); gain(pay(300000)); favor('검지'); }
         else { say('세 번째 사람은 성질 급한 해결사였다. 주먹이 먼저 날아왔다.', 'l-bad'); hurt(10); }
       } },
       { t: '무시한다', def: true, fn() { say('편지를 태웠다. 어딘가에서 누군가 지켜보는 느낌이 든다.'); } },
@@ -1033,7 +1049,7 @@ EVENTS.push(
     build() { this.text = `조직의 선배가 손바닥을 내민다. "이번 주 상납금. 10만 안. ${S.gangFinger}에 올릴 몫이야. 모자라면 몸으로 때우든가."`; return this.choices; },
     text: '',
     choices: [
-      { t: '10만 안을 낸다', cost: 100000, fn() { spend(100000); say('선배가 만족스럽게 어깨를 두드렸다.'); merit(1); } },
+      { t: '10만 안을 낸다', cost: 100000, fn() { spend(100000); say('선배가 만족스럽게 어깨를 두드렸다.'); merit(1); favor(S.gangFinger); } },
       { t: '몸으로 때운다', def: true, fn() { say('구석에서 한참을 맞았다. 이것도 조직의 규칙이다.', 'l-bad'); hurt(12); } },
     ] },
   { id: 'finger_duty', fac: ['finger'], when: [0, 1, 2], w: 2.5, title: '상부의 명령',
@@ -1043,7 +1059,13 @@ EVENTS.push(
       { t: '돈으로 무마한다 (5천만 안)', cost: 50000000, fn() { spend(50000000); say('돈이 오갔고, 문제는 조용히 사라졌다. 상부는 마뜩잖아한다.'); } },
       { t: '미룬다', def: true, fn() { say('명령을 미룬 대가로 손가락 하나가… 아니, 경고로 끝났다.', 'l-bad'); hurt(15); } },
     ] },
-  { id: 'finger_tribute', fac: ['finger'], when: [1, 2], w: 1.5, cond: () => S.grade > 2, title: '손가락의 상납',
+  { id: 'finger_income', fac: ['finger'], when: [0, 1], w: 1.5, cond: () => fingerTier(S.grade) >= 1, title: '아랫선의 상납',
+    text: '아랫사람들이 이번 주 몫을 들고 왔다. 봉투의 두께가 곧 서열이다.',
+    choices: [
+      { t: '받는다', def: true, fn() { const t = fingerTier(S.grade); gain(pay(t === 2 ? 20000000 : 2000000)); say('봉투의 일부는 다시 윗선으로 올라갈 것이다.'); } },
+      { t: '이번 주는 아랫사람들에게 돌려준다', fn() { say('아랫사람들이 고개를 깊이 숙였다. 충성은 돈으로 산다.'); merit(2); } },
+    ] },
+  { id: 'finger_tribute', fac: ['finger'], when: [1, 2], w: 1.5, cond: () => fingerTier(S.grade) === 0, title: '손가락의 상납',
     text: '"윗선에 올릴 몫이 모자라." 조직 서열은 절대적이다. 아래는 위를 먹여 살린다.',
     choices: [
       { t: '300만 안을 바친다', cost: 3000000, fn() { spend(3000000); merit(2); say('윗선이 고개를 끄덕였다. 서열이 조금 올라갔다.'); } },
@@ -1096,7 +1118,7 @@ EVENTS.push(
       ];
     }, text: '' },
   { id: 'finger_scout', when: [1, 2], w: 1.1,
-    cond: () => !AFF().locked && ['street', 'gang', 'fixer', 'assoc'].includes(faction()) && (S.grade <= 6 || (faction() === 'gang' && S.kills >= 2)),
+    cond: () => !AFF().locked && ['street', 'gang', 'fixer', 'assoc', 'wing'].includes(faction()) && (S.grade <= 6 || S.merit >= 10 || S.kills >= 4 || (faction() === 'gang' && S.kills >= 2)),
     title: '손가락의 손짓',
     build() {
       // 조직원이면 자기 조직 위의 손가락이 끌어올린다
@@ -1109,7 +1131,7 @@ EVENTS.push(
     }, text: '' },
   { id: 'gang_scout', fac: ['street'], when: [1, 2], w: 1.3, cond: () => !AFF().locked, title: '조직의 권유',
     build() {
-      const gf = pick(FINGER_NAMES);
+      const gf = pick(GANG_FINGERS);
       this.text = `하와이안 셔츠의 남자가 담배를 건넨다. "혼자 다니면 밤을 못 넘겨. 우리 식구가 되면 거주구역도 나눠 쓰고. 걱정 마, 우리 위엔 ${gf}가 있으니까."`;
       return [
         { t: `조직에 들어간다 — ${gf} 산하`, fn() { say('어깨에 첫 강화 문신을 새겼다.'); S.gangFinger = gf; changeAff('gang'); } },
@@ -1276,11 +1298,38 @@ EVENTS.push(
         { t: `전부 갚는다 (${won(S.debt)})`, req: () => S.money >= S.debt, reqText: '돈 부족', fn() { repayDebt(S.debt); say('조직원들이 정중히 모자를 들어 보이고 물러났다.'); } },
         { t: '맞서 싸운다', def: true, fn() {
           fight(n ? 'finger_exec' : 'thumb', { lethal: false,
-            win() { S.flags.collected = n + 1; S.debt = Math.ceil(S.debt * 1.5); S.debtDue = S.day + 2;
+            win() { favor('엄지'); S.flags.collected = n + 1; S.debt = Math.ceil(S.debt * 1.5); S.debtDue = S.day + 2;
               say(`추심원들을 쫓아냈다. 하지만 손가락은 잊지 않는다. 빚이 ${won(S.debt)}(으)로 불어났다 (${S.debtDue}일차까지).`, 'l-bad'); },
             lose() { say('눈을 떠보니 수술 자국이 남아 있었다. 빚은 "현물"로 정산되었다. (최대 체력 -10)', 'l-bad');
               S.maxHp = Math.max(20, S.maxHp - 10); S.hp = Math.min(S.hp, S.maxHp); S.debt = 0; S.debtDue = 0; S.flags.collected = 0; } });
         } },
+      ];
+    }, text: '' },
+);
+// 손가락의 신임 — 손가락의 일을 잘 해낼수록 쌓이고, 2 이상이면 입단 시험이 열린다
+function favor(f, n = 1) {
+  if (!f || !S || AFF().locked || faction() === 'finger') return;
+  S.favor = S.favor || {};
+  S.favor[f] = (S.favor[f] || 0) + n;
+  say(`${f}의 신임 +${n} (${S.favor[f]})${S.favor[f] === 2 ? ' — ' + f + '이(가) 당신을 눈여겨보기 시작했다.' : ''}`, 'l-sys');
+}
+const trialFinger = () => {
+  const f = Object.entries(S.favor || {}).filter(([, v]) => v >= 2).sort((a, b) => b[1] - a[1])[0];
+  return f ? f[0] : null;
+};
+EVENTS.push(
+  { id: 'finger_trial', when: [0, 1, 2], w: 3, cond: () => !AFF().locked && !['finger', 'head', 'twisted', 'color'].includes(faction()) && !!trialFinger(),
+    title: '손가락의 시험',
+    build() {
+      const f = trialFinger(), k = FINGER_KEYS[FINGER_NAMES.indexOf(f)];
+      this.text = `${f}의 간부가 직접 찾아왔다. "그동안의 일, 잘 봤다. 들어올 자격이 있는지 마지막으로 확인하지." 손가락에 들어가면 다시는 나올 수 없다는 소문이 있다. (${AFFS[k].passive})`;
+      return [
+        { t: `시험에 응한다 — ${f}의 시험관과 대련`, fn() {
+          fight('thumb', { lethal: false, name: `${f}의 시험관`, desc: `${f}에 들어올 자격을 가늠하는 조직원. 봐주지 않는다.`,
+            win() { say(`시험관이 고개를 끄덕였다. "환영한다." 이제 당신은 ${f}의 일원이다.`); S.favor[f] = 0; changeAff(k); },
+            lose() { say(`"아직이군." ${f}의 신임이 식었다.`, 'l-bad'); S.favor[f] = 0; } });
+        } },
+        { t: '정중히 사양한다', def: true, fn() { say(`"언제든 마음이 바뀌면." 간부는 미소 지으며 떠났다.`); S.favor[f] = 1; } },
       ];
     }, text: '' },
 );
@@ -1541,7 +1590,11 @@ function endTurn() {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
     print(`${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
     startTurn();
-    if (H().dailyPay) { say('월급날이다. 세금과 관리비가 빠져나간 뒤의 숫자를 확인한다.'); gain(pay(H().dailyPay)); }
+    // 월급은 30일마다. 날개에 막 들어왔다면 첫 월급날을 정한다
+    if (H().monthlyPay) {
+      if (!S.payDay) S.payDay = S.day + rnd(5, 30);
+      else if (S.day >= S.payDay) { say('월급날이다. 세금과 관리비가 빠져나간 뒤의 숫자를 확인한다.'); gain(pay(H().monthlyPay)); S.payDay += 30; }
+    } else S.payDay = 0;
     return;
   }
   startTurn();
@@ -1591,7 +1644,7 @@ function fight(key, opts = {}) {
   const d = ENEMIES[key];
   // 일반 적은 일수와 플레이어 위상에 따라 강해진다 (상위 출신이 너무 쉽게 쓸어버리지 않도록)
   const m = (1 + 0.07 * (S.day - 1)) * (d.elite ? 1 : 1 + Math.max(0, 6 - S.grade) * 0.12);
-  const E = { d, name: d.name, maxHp: Math.round(d.hp * m), maxStg: Math.round(d.stg * m), res: d.res,
+  const E = { d, name: opts.name || d.name, desc: opts.desc || d.desc, maxHp: Math.round(d.hp * m), maxStg: Math.round(d.stg * m), res: d.res,
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, isEnemy: true };
   E.hp = E.maxHp; E.stg = E.maxStg;
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
@@ -1925,7 +1978,7 @@ function renderCombat() {
   if (!C) return;
   const { P, E } = C;
   const resTxt = Object.entries(E.res).map(([k, v]) => `${k} ${v > 1 ? '취약' : v < 1 ? '내성' : '보통'}`).join(' · ');
-  $('#eBox').innerHTML = `<div class="nm">${E.name}</div><div class="desc">${E.d.desc}<br>저항: ${resTxt}${E.d.passive ? ` · 특성: ${E.d.passive}` : ''}</div>${barsHtml(E)}<div class="status">${statusHtml(E)}</div>`;
+  $('#eBox').innerHTML = `<div class="nm">${E.name}</div><div class="desc">${E.desc}<br>저항: ${resTxt}${E.d.passive ? ` · 특성: ${E.d.passive}` : ''}</div>${barsHtml(E)}<div class="status">${statusHtml(E)}</div>`;
   $('#intents').innerHTML = C.intents.length ? C.intents.map((ec, i) => {
     const pair = C.played.find(p => p.slot === i);
     return `<div class="intent"><div class="slot">예고 ${i + 1}</div><b>${ec.name}</b><div>${ec.dice.map(d => dieHtml(d)).join(' ')}</div>
