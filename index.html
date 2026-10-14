@@ -5770,6 +5770,129 @@ $('#rollBtn').onclick = async () => {
   $('#rollCountBtn').disabled = false;
   $('#rollCount').disabled = false;
 };
+/* =========================================================
+   삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
+   이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
+========================================================= */
+const SAVE_KEY = 'sht_life_v1';
+const stripTags = h => String(h).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+function chron(text) {
+  if (!S || S.phase === 'over') return;
+  const x = stripTags(text); if (!x) return;
+  S.chron = S.chron || [];
+  if (S.chron.length && S.chron[S.chron.length - 1].x === x) return;
+  S.chron.push({ d: S.day, t: S.turn, x, w: !!S.warp });
+  if (S.chron.length > 150) S.chron.splice(0, S.chron.length - 150);
+}
+// 금색(주요 사건) 줄과 전투 결과를 연대기에 남긴다. 날짜 머리말·열차 일지는 제외
+const _printChron = print;
+print = function (text, cls = '') {
+  _printChron(text, cls);
+  if (cls === 'l-day' && !/^(\d+일차 —|— |열차 안 [\d,]+일째 —)/.test(stripTags(text))) chron(text);
+};
+const _endCombatChron = endCombat;
+endCombat = function (win) {
+  if (C && S) chron(`${win ? '⚔ 승리' : '⚔ 패배'} — ${combatEnemies().map(e => e.name).join(', ')}`);
+  return _endCombatChron(win);
+};
+// 상세 기록을 플레이 기록에 함께 저장
+const _saveHistoryChron = saveHistory;
+saveHistory = function (reason) {
+  _saveHistoryChron(reason);
+  if (!S || !activeHistoryId) return;
+  const row = historyRows.find(r => r.id === activeHistoryId); if (!row) return;
+  Object.assign(row, {
+    hero: S.heroName || '', gender: S.gender || 'm', birth: S.birthLabel || '', loc: S.warp ? 'W사 워프 열차 안' : S.loc ? S.loc.label : '',
+    hp: `${S.hp}/${S.maxHp}`, press: S.press || 0, debt: S.debt || 0,
+    ego: S.ego ? `E.G.O 「${S.ego}」` : faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName || ''}」` : '',
+    relics: (S.relics || []).filter(id => RELICS[id]).map(id => RELICS[id].name),
+    deck: Object.entries(S.deck.reduce((m, id) => (m[id] = (m[id] || 0) + 1, m), {})).map(([id, n]) => `${CARDS[id] ? CARDS[id].name : id}${n > 1 ? ' ×' + n : ''}`),
+    chron: (S.chron || []).slice(-80),
+  });
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(historyRows)); } catch (_) {}
+};
+function historyDetailHtml(r) {
+  const e = escapeHistory;
+  const list = (r.chron || []).map(c => `<div><span class="dim">${c.w ? '열차 안' : c.d + '일차 ' + (TURNS[c.t] ? TURNS[c.t].name : '')}</span> — ${e(c.x)}</div>`).join('');
+  return `<h3>${e(r.hero ? r.hero + ' — ' : '')}${e(r.origin.replace(r.hero + ' — ', ''))} ${r.ended ? '<span class="l-bad">· 사망</span>' : '<span class="dim">· 기록 중</span>'}</h3>
+    <div class="dim" style="line-height:1.8">
+      ${r.gender ? (r.gender === 'f' ? '여성' : '남성') + ' · ' : ''}태어난 곳 ${e(r.birth || '?')} · 마지막 위치 ${e(r.loc || '?')}<br>
+      생존 ${e(r.day)}일차 ${e(r.turn)} · 소속 ${e(r.affiliation)} · ${e(r.rank)} · 실적 ${e(r.merit)} · 처치 ${e(r.kills)}<br>
+      체력 ${e(r.hp || '?')} · 정신 압박 ${e(r.press ?? '?')}% · 자금 ${won(+r.money || 0)}${r.debt ? ` · 빚 ${won(r.debt)}` : ''}${r.ego ? ' · ' + e(r.ego) : ''}
+      ${r.relics && r.relics.length ? `<br>유물: ${r.relics.map(e).join(', ')}` : ''}
+    </div>
+    ${r.reason ? `<p class="l-bad">${e(r.reason)}</p>` : ''}
+    <h4 style="margin:12px 0 4px">연대기</h4><div style="max-height:40vh;overflow:auto;font-size:13px;line-height:1.7">${list || '<span class="dim">남은 기록이 없다.</span>'}</div>
+    ${r.deck && r.deck.length ? `<h4 style="margin:12px 0 4px">마지막 덱</h4><div class="dim" style="font-size:12px">${r.deck.map(e).join(' · ')}</div>` : ''}
+    <br><button onclick="closeModal()">닫기</button>`;
+}
+function showHistoryDetail(id) { const r = historyRows.find(x => x.id === id); if (r) openModal(historyDetailHtml(r)); }
+const _renderHistoryChron = renderHistory;
+renderHistory = function () {
+  _renderHistoryChron();
+  document.querySelectorAll('#historyArea .history-row').forEach((el, i) => {
+    const r = historyRows[i]; if (!r) return;
+    el.insertAdjacentHTML('beforeend', `<button class="hist-more" data-hid="${r.id}" style="margin-top:4px;font-size:12px;padding:3px 10px">자세한 기록</button>`);
+  });
+  document.querySelectorAll('#historyArea .hist-more').forEach(b => b.onclick = () => showHistoryDetail(b.dataset.hid));
+  renderResume();
+};
+const _gameOverChron = gameOver;
+gameOver = function (reason) {
+  chron(`✝ 사망 — ${reason}`);
+  _gameOverChron(reason);
+  clearLife();
+  const id = activeHistoryId;
+  $('#over').insertAdjacentHTML('beforeend', ` <button id="overDetail">자세한 기록 보기</button>`);
+  $('#overDetail').onclick = () => showHistoryDetail(id);
+};
+
+// ---------- 이어하기 ----------
+let lastLifeSave = 0;
+function saveLife(force) {
+  if (!S || S.phase === 'over') return;
+  const now = Date.now(); if (!force && now - lastLifeSave < 2000) return; lastLifeSave = now;
+  try {
+    const tail = [...$('#log').children].slice(-60).map(d => [d.className, d.innerHTML]);
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ id: activeHistoryId, S, tail }, (k, v) => (typeof v === 'function' || k === '_h') ? undefined : v));
+  } catch (_) { /* 저장소가 막혀 있으면 이어하기 없이 진행 */ }
+}
+function clearLife() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
+function loadLife() { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && v.S && v.S.phase !== 'over' ? v : null; } catch (_) { return null; } }
+const _renderTopLife = renderTop;
+renderTop = function () { _renderTopLife(); saveLife(); };
+window.addEventListener('pagehide', () => saveLife(true));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveLife(true); });
+const _newGameLife = newGame;
+newGame = function (ch) { _newGameLife(ch); S.birthLabel = S.loc ? S.loc.label : ''; S.chron = []; chron(`탄생 — ${S.heroName || ''} · ${ch.name} · ${S.birthLabel}`); saveLife(true); };
+function resumeLife() {
+  const v = loadLife(); if (!v) return;
+  S = v.S; activeHistoryId = v.id;
+  const o = ORIGINS.find(x => x.id === S.ch.id); if (o && o.hooks) S.ch.hooks = o.hooks;
+  if (S.ch.colorCard) CARDS.col_sig = JSON.parse(JSON.stringify(S.ch.colorCard));
+  S._h = null; S.paused = false; S.speed = S.speed || 1; S.phase = 'day'; S.seenToday = S.seenToday || []; C = null;
+  $('#title').classList.add('hidden'); $('#over').classList.add('hidden');
+  $('#topbar').classList.remove('hidden'); $('#day').classList.remove('hidden'); $('#combat').classList.add('hidden');
+  $('#log').innerHTML = '';
+  for (const [cls, html] of v.tail || []) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; $('#log').appendChild(d); }
+  print(`— 이어하기 — ${S.heroName || S.ch.name}의 삶이 다시 흘러간다. (${S.warp ? '열차 안' : S.day + '일차 ' + TURNS[S.turn].name}의 처음부터)`, 'l-sys');
+  if (S.turn > 0 || S.warp) S.seenToday = S.seenToday.slice(0, -1);   // 중단된 사건 한 번은 다시 볼 수 있다
+  if (S.warp) S.warp.turns = Math.max(0, (S.warp.turns || 1) - 1);   // 이 턴을 다시 시작하므로 열차 시간도 되돌린다
+  startTurn();
+}
+function renderResume() {
+  const box = $('#resumeBox'); if (!box) return;
+  const v = loadLife();
+  if (!v) { box.innerHTML = ''; return; }
+  const s = v.S;
+  box.innerHTML = `<div class="history-row" style="border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-bottom:10px">
+    <b>진행 중인 삶</b> — ${escapeHistory(s.heroName || '')} · ${escapeHistory(s.ch.name)} · ${s.warp ? '워프 열차 안' : s.day + '일차 ' + TURNS[s.turn].name}
+    <div class="dim" style="font-size:12px">새로운 출신을 뽑아 시작하면 이 삶은 기록만 남고 끝난다.</div>
+    <button id="resumeBtn" style="margin-top:6px;border-color:var(--gold)">이어하기</button></div>`;
+  $('#resumeBtn').onclick = resumeLife;
+}
+$('#rollArea').insertAdjacentHTML('afterbegin', '<div id="resumeBox"></div>');
+renderResume();
 </script>
 </body>
 </html>
