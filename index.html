@@ -6246,6 +6246,45 @@ chooseEvent = function () {
   return _chooseEventWs();
 };
 
+/* ---------- 림버스 컴퍼니 광역기 (공격 가중치 2 이상) — 손가락·혈귀
+   기술명·기본/코인 위력은 각 인격 기준, 코인 수와 비용은 이 게임 방식으로 옮겼다 ---------- */
+Object.assign(CARDS, {
+  // 약지 — 거미집 약지 아비 / 약지 야수파 도슨트
+  lim_ring1: { name: "폐장 - 설치미술 제 1호 '여러분이 흩뿌린 살과 뼈가 객석이 되어'", cost: 4, mass: 'each', dice: [['참격', 3, 7], ['참격', 3, 11], ['참격', 3, 15]], onHit: { bleed: 2 }, desc: '필살기 · 광역-개별 · 적중 시 출혈 2 (거미집 약지 아비)' },
+  lim_ring2: { name: '네 피부 아래 맥동하는 붉은 색감을 거칠게', cost: 3, mass: 'each', dice: [['타격', 5, 8], ['타격', 5, 11], ['타격', 5, 14]], onHit: { bleed: 1, burn: 1 }, desc: '광역-개별 · 적중 시 출혈 1, 화상 1 (약지 야수파 도슨트)' },
+  // 소지 — 거미집 소지 제자
+  lim_pinky: { name: '무명참[無名斬]', cost: 3, mass: 'each', dice: [['참격', 6, 11], ['참격', 6, 16]], onHit: { bleed: 2 }, desc: '광역-개별 · 적중 시 출혈 2 (거미집 소지 제자)' },
+  // 중지 — 거미집 중지 아비
+  lim_mid2: { name: '가족을 위해 희생하는 딸램의 마음, 잊지 않고 갚아주지', cost: 4, mass: 'each', dice: [['타격', 16, 18], ['타격', 16, 20]], desc: '광역-개별 (거미집 중지 아비)' },
+  // 혈귀 — 라만차랜드 공주 / 왕자
+  gh_overture: { name: '오베르튜레', cost: 3, mass: 'each', dice: [['참격', 4, 7], ['참격', 4, 10], ['참격', 4, 13]], onHit: { bleed: 1 }, blood: 10, steal: [0.3, 10], desc: '경혈식 · 광역-개별 · 피 10 소모 · 입힌 피해의 30% 흡혈 (라만차랜드 왕자)' },
+  gh_ougi_finale: { name: '돈키호테류 경혈 오의 피날레', cost: 4, mass: 'each', dice: [['관통', 4, 9], ['관통', 4, 14], ['관통', 4, 19]], onHit: { bleed: 3 }, blood: 20, steal: [0.5, 20], desc: '경혈식 오의 · 광역-개별 · 피 20 소모 · 입힌 피해의 50% 흡혈 (라만차랜드 공주)' },
+});
+// 중지의 「전원, 처형이다!!」는 원작에서 공격 가중치 3 — 광역
+Object.assign(CARDS.sp_mid_exec, { mass: 'each', desc: '필살기 · 광역-개별 · 적중 시 출혈 5, 화상 5' });
+// 필살기(위상 9단계)
+SPECIALS.f_ring = ['lim_ring1']; SPECIAL_IDS.add('lim_ring1');
+// 하위 간부부터 쓰는 조직의 광역기 (조직을 떠나면 반납)
+const FINGER_AOE = { f_ring: 'lim_ring2', f_pinky: 'lim_pinky', f_middle: 'lim_mid2' };
+function syncFingerAoe() {
+  if (!S || S.phase === 'combat' || S.phase === 'over') return;
+  const want = faction() === 'finger' && fingerTier(S.grade) >= 1 ? FINGER_AOE[S.aff] : null;
+  const stale = S.deck.filter(id => Object.values(FINGER_AOE).includes(id) && id !== want);
+  if (stale.length) { S.deck = S.deck.filter(id => !stale.includes(id)); say(`조직의 기술을 반납했다 — ${[...new Set(stale)].map(id => CARDS[id].name).join(', ')}`, 'l-sys'); }
+  if (want && !S.deck.includes(want)) { S.deck.push(want); say(`★ 간부의 기술 — 「${CARDS[want].name}」 (${AFFS[S.aff].name})`, 'l-day'); }
+}
+const _renderTopFingerAoe = renderTop;
+renderTop = function () { _renderTopFingerAoe(); syncFingerAoe(); };
+// 혈귀 경혈식 습득 단계에 라만차랜드 광역기를 추가 (피 45 / 80)
+const _bloodGrowthLim = bloodGrowth;
+bloodGrowth = function () {
+  _bloodGrowthLim();
+  if (!S || !(faction() === 'vampire' || S.vampRank)) return;
+  for (const [id, need] of [['gh_overture', 45], ['gh_ougi_finale', 80]]) if ((S.blood || 0) >= need && !(S.ghLearned || []).includes(id)) {
+    S.ghLearned = [...(S.ghLearned || []), id]; S.deck.push(id); say(`🩸 경혈식 습득 — 「${CARDS[id].name}」`, 'l-day');
+  }
+};
+
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
