@@ -5855,6 +5855,18 @@ const REP_ASSASSINS = [
   { key: 'rep_middle', by: '중지', line: '"우리 아우가 너한테 맞았다더라." 중지의 문신을 한 무리가 길을 막는다. "장부에 적힌 건 갚아야지."' },
 ];
 const REP_ALL_FAC = [...new Set(Object.values(AFFS).map(a => a.faction))];
+// 평판이 좋으면 밤에 아무 문이나 두드려도 일단 들여준다 (주택 선택지)
+(() => {
+  const ni = EVENTS.find(e => e.id === 'night_in');
+  const i = ni.choices.findIndex(c => c.t.startsWith('남의 집 창문을 넘는다'));
+  ni.choices.splice(i < 0 ? ni.choices.length : i, 0, { t: '아무 문이나 두드린다 — 평판 덕에 들여준다 (무료) · 체력 30% 회복', req: () => (S.rep || 0) >= 40, reqText: '평판 신뢰 이상 필요',
+    fn() {
+      say(pick(['문틈으로 얼굴을 확인한 집주인이 고개를 끄덕였다. "당신이군요. 들어와요, 빨리."', '낯선 노부부가 문을 열었다. "얘기 들었어요. 오늘 밤은 여기서 보내요."', '체인을 건 채 문이 열렸다가, 곧 체인이 풀렸다. "당신이라면 괜찮겠지."']));
+      say('문이 잠겼다. 밤의 규칙상 이 안은 누구도 침범할 수 없다.');
+      heal(Math.round(S.maxHp * 0.3)); stress(-4);
+      if (Math.random() < 0.2) return 'knock';
+    } });
+})();
 const repOK = () => S && !S.warp && !S.exiled && faction() !== 'head';
 EVENTS.push(
   // ----- 긍정 (평판 신뢰 이상) -----
@@ -5865,9 +5877,6 @@ EVENTS.push(
   { id: 'rep_gift', when: [1, 2], w: 2, cond: () => repOK() && S.rep >= 30, vampOK: true, fac: REP_ALL_FAC, title: '감사의 선물',
     text: '언젠가 당신이 도운 사람이 찾아왔다. 따뜻한 국과 붕대, 그리고 꼬깃꼬깃한 지폐 몇 장.',
     choices: [{ t: '받는다 — 체력·정신 회복', def: true, fn() { heal(25); stress(-10); gain(pay(rnd(50000, 200000))); } }] },
-  { id: 'rep_shelter', when: [3], w: 2.5, cond: () => repOK() && S.rep >= 40 && !hasHome(), title: '골목의 보호',
-    text: '뒷골목의 밤이 다가온다. 동네 사람들이 문을 열어 준다. "오늘은 여기서 자요. 당신이라면 괜찮아."',
-    choices: [{ t: '신세를 진다 — 안전한 밤, 체력 회복', def: true, fn() { heal(30); stress(-8); say('문틈으로 청소부들의 발소리가 지나갔다. 아무도 문을 두드리지 않았다.'); } }] },
   { id: 'rep_workshop', when: [0, 1, 2], w: 1.5, cond: () => repOK() && S.rep >= 60, vampOK: true, fac: REP_ALL_FAC, title: '공방의 호의',
     text: '단골이 아닌데도 공방 주인이 당신을 알아본다. "당신 같은 사람이 우리 물건을 써야 소문이 나지." 시제품 하나를 내민다.',
     choices: [{ t: '받는다', def: true, fn() { const pool = Object.keys(CARDS).filter(id => CARDS[id].price && CARDS[id].price <= 3000000); const id = pick(pool); if (id) addCard(id); } }] },
