@@ -94,6 +94,9 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
 .roll-btn{font-size:17px;padding:14px 22px;border-color:var(--gold);color:var(--gold)}
 #rollResult{margin-top:16px}
 .birth-controls{display:flex;align-items:center;gap:8px}
+.hero-controls{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:10px}
+.hero-controls input,.hero-controls select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+.hero-controls input{width:11em}
 .birth-controls .roll-btn{min-width:0}
 #rollCountBtn{flex-shrink:0;padding:8px;font-size:13px}
 #rollSettings{margin-top:10px;color:var(--dim)}
@@ -280,6 +283,8 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       그리고 기억할 것 — <b style="color:var(--red)">오전 3시 13분부터 4시 34분까지, 뒷골목의 밤</b>에는 어떤 규칙도 당신을 지켜주지 않는다.
     </div>
     <div id="rollArea">
+      <div class="hero-controls"><label for="heroName">이름</label><input id="heroName" maxlength="12" placeholder="비워 두면 무작위" autocomplete="off">
+        <label for="heroGender">성별</label><select id="heroGender"><option value="m">남성</option><option value="f">여성</option></select></div>
       <div class="birth-controls"><button id="rollBtn" class="roll-btn">도시에 태어나기 — 무작위 출신 결정</button><button id="rollCountBtn" class="hidden" aria-label="한 번에 뽑을 출신 개수 설정" aria-expanded="false" aria-controls="rollSettings">×1</button></div>
       <div id="rollSettings" class="hidden"><label for="rollCount">한 번에 뽑기 </label><select id="rollCount"><option value="1">1명</option><option value="3">3명</option><option value="5">5명</option><option value="10">10명</option></select><span> · 나온 출신 중 하나를 선택합니다.</span></div>
       <div id="rollResult" aria-live="polite"></div><section id="historyArea" aria-label="최근 플레이 기록"></section>
@@ -995,7 +1000,7 @@ let activeHistoryId = null;
 function saveHistory(reason) {
   if (!S || !activeHistoryId) return;
   const previous = historyRows.find(r => r.id === activeHistoryId);
-  const row = {id:activeHistoryId, origin:S.ch.name, day:S.day, turn:TURNS[S.turn].name,
+  const row = {id:activeHistoryId, origin:(S.heroName ? S.heroName + ' — ' : '') + S.ch.name, day:S.day, turn:TURNS[S.turn].name,
     affiliation:affName(), rank:rankText(), merit:S.merit, kills:S.kills, money:S.money,
     ended:S.phase === 'over', reason:reason ?? previous?.reason ?? '', updated:new Date().toISOString()};
   historyRows = [row, ...historyRows.filter(r => r.id !== row.id)].slice(0, 7);
@@ -1151,7 +1156,7 @@ function renderTop() {
   $('#boardBtn').textContent = S.pendingContract ? '의뢰 게시판 (수락 1)' : '의뢰 게시판';
   if (S.warp) $('#sPay').innerHTML += ` <span class="l-bad">[워프 열차]</span>`;
   $('#sDebt').innerHTML = S.debt ? `빚 <b style="color:var(--red)">${won(S.debt)}</b> (${S.day > S.debtDue ? '연체!' : S.debtDue + '일차까지'})` : '';
-  $('#sRole').textContent = `${S.ch.name === affName() ? '' : S.ch.name + ' / '}${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
+  $('#sRole').textContent = `${S.heroName ? S.heroName + ' · ' : ''}${S.ch.name === affName() ? '' : S.ch.name + ' / '}${affName()}${AFF().locked ? ' 🔒' : ''}${S.ego ? ` · E.G.O 「${S.ego}」` : ''}` + (faction() === 'twisted' ? ' · 재해 등급' : faction() === 'vampire' || isFixer() ? '' : ' · 위상');
   const ps = $('#sPress');
   ps.innerHTML = mindImmune() ? '' : `정신 압박 <b style="color:${S.press >= 70 ? 'var(--red)' : S.press >= 40 ? 'var(--orange)' : 'var(--green)'}">${S.press || 0}%</b>`;
   $('#sGrade').textContent = rankText();
@@ -3877,7 +3882,7 @@ const WARP_LOG = [
     '{seat}번 칸 사람들이 둥글게 앉아 놀이를 시작했다. 배를 가르고, 서로에게 건넨다. 웃는다.',
     '저쪽 칸에서는 몇 년째 주먹을 휘두르는 무리가 있다. 할 일이 그것밖에 없으니까.',
     '피범벅의 바닥에 발자국으로 길이 생겼다. 몇 천 일 동안 같은 길을 걸었으니까.',
-    '{seat}번 좌석의 아이가 나를 "아저씨"라고 부른다. 그 아이도 열 살은 아닐 것이다.',
+    '{seat}번 좌석의 아이가 나를 "{elder}"라고 부른다. 그 아이도 열 살은 아닐 것이다.',
     '누군가 자기 눈알을 빼서 창밖을 보라고 내밀었다. 거기에도 아무것도 없었다.',
     '승객들이 서로의 뼈로 악기를 만들었다. 연주가 끝나면 뼈를 돌려준다. 예의다.',
     '단련하는 무리가 나를 불렀다. 거절했다. 아직은.',
@@ -3930,7 +3935,7 @@ const WARP_LOG_MARKS = [1, 3, 5, 7, 10, 20, 30, 50, 75];
 const warpLogStage = day => WARP_LOG.findIndex(s => day <= s.upto);
 function warpLine(day) {   // 열차 안 시간에 맞는 단계의 문장. 같은 문장은 다시 쓰지 않는다
   const w = S.warp; w.used = w.used || {};
-  const st = warpLogStage(day), who = S.ch.name + (affName() && affName() !== S.ch.name ? ` (${affName()})` : '');
+  const st = warpLogStage(day), who = (S.heroName ? `${S.heroName}, ` : '') + S.ch.name + (affName() && affName() !== S.ch.name ? ` (${affName()})` : '');
   const fresh = shuffle(WARP_LOG[st].lines.filter(l => !w.used[l]));
   let line = fresh[0];
   if (!line) {
@@ -3942,7 +3947,7 @@ function warpLine(day) {   // 열차 안 시간에 맞는 단계의 문장. 같�
     line = line || `${rnd(1, 300)}번 칸은 오늘도 조용하지 않다.`;
   }
   w.used[line] = 1;
-  return line.replace('{who}', who).replace('{seat}', rnd(1, 300));
+  return line.replace('{who}', who).replace('{seat}', rnd(1, 300)).replace('{elder}', S.gender === 'f' ? '아줌마' : '아저씨');
 }
 const warpLogLine = warpLine;
 function writeWarpLog() {
@@ -4680,6 +4685,32 @@ dmg = function (t, amount, type) {
 };
 const _endCombatAllies = endCombat;
 endCombat = function (win) { processAllyDeaths(); return _endCombatAllies(win); };
+/* ---------- 이름·성별 — 시작 화면에서 고른다. 여성이면 중지의 '형님'은 '누님'이 된다 ---------- */
+const HERO_NAMES = { m: ['현우', '다니엘', '미하일', '준', '레온', '카이', '이반', '태오', '마르코', '도현'], f: ['수아', '엘레나', '미아', '하린', '유나', '클레어', '세린', '안나', '마리', '지유'] };
+const heroGender = () => (S && S.phase !== 'over' && S.gender) || ($('#heroGender') && $('#heroGender').value) || 'm';
+(() => {
+  const mid = AFFS.f_middle, base = [...mid.ranks];
+  Object.defineProperty(mid, 'ranks', { get() { return heroGender() === 'f' ? base.map(r => r.replace('형님', '누님')) : base; } });
+  const oc = CARDS.officer_middle, ocName = oc.name;
+  Object.defineProperty(oc, 'name', { get() { return heroGender() === 'f' ? ocName.replace('형님', '누님') : ocName; } });
+  try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); if (v.name) $('#heroName').value = v.name; if (v.gender) $('#heroGender').value = v.gender; } catch (_) {}
+  const keep = () => { try { localStorage.setItem('sht_hero', JSON.stringify({ name: $('#heroName').value, gender: $('#heroGender').value })); } catch (_) {} };
+  $('#heroName').addEventListener('input', keep); $('#heroGender').addEventListener('change', keep);
+})();
+const _newGameHero = newGame;
+newGame = function (ch) {
+  const g = $('#heroGender') ? $('#heroGender').value : 'm', nm = ($('#heroName') ? $('#heroName').value : '').trim();
+  if (g === 'f' && ch.name) ch.name = ch.name.replace('형님', '누님');
+  _newGameHero(ch);
+  S.gender = g; S.heroName = nm || pick(HERO_NAMES[g]);
+  say(`이름: ${S.heroName} · ${g === 'f' ? '여성' : '남성'}`, 'l-sys');
+  renderTop();
+};
+// 전투에서 내 이름은 이름으로, 직함은 옆에
+const _fightHero = fight;
+fight = function (key, opts) { _fightHero(key, opts); if (C && S.phase === 'combat' && S.heroName && !C.P.heroSet) { C.P.title = C.P.name; C.P.name = S.heroName; C.P.heroSet = true; renderCombat(); } };
+const _renderCombatHero = renderCombat;
+renderCombat = function () { _renderCombatHero(); if (C && C.P.title) { const nm = $('#pBox .nm'); if (nm && !nm.querySelector('.hero-title')) nm.insertAdjacentHTML('beforeend', ` <span class="dim hero-title" style="font-size:12px">${C.P.title}</span>`); } };
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
     text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
