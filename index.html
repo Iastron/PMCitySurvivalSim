@@ -6330,7 +6330,8 @@ function limCard(id, name, type, base, coin, n, cost, extra = {}) {
 const FL = {
   f_thumb: [
     [['lf_th_thrust', '추력 집중', '참격', 5, 4, 2, 1, { src: '동부 엄지 솔다토 II' }], ['lf_th_iron', '철의 방어', '가드', 9, 6, 1, 1, { src: '동부 엄지 솔다토 II' }]],
-    [['lf_th_spada', '팔레르모 스파다', '참격', 3, 4, 3, 1, { src: '거미집 엄지 제자' }], ['lf_th_colpi', '콜피 소타니', '참격', 4, 4, 2, 1, { src: '거미집 엄지 제자' }],
+    [['lf_th_two', '이연참', '참격', 4, 4, 2, 1, { src: '동부 엄지 카포 IIII (뇌횡)' }], ['lf_th_three', '삼연격', '참격', 4, 4, 3, 2, { src: '동부 엄지 카포 IIII (뇌횡)' }],
+     ['lf_th_colpi', '콜피 소타니', '참격', 4, 4, 2, 1, { src: '거미집 엄지 제자' }],
      ['lf_th_cacc', '카치아토레', '참격', 5, 4, 2, 2, { onHit: { bleed: 2 }, desc: '적중 시 출혈 2', src: '거미집 엄지 제자' }]],
     [['lf_th_taglio', '콜피 디 탈리오', '참격', 3, 4, 3, 1, { src: '거미집 엄지 아비' }], ['lf_th_elef', '세치오나투라 디 엘레판테', '참격', 4, 3, 3, 2, { onHit: { bleed: 2 }, desc: '적중 시 출혈 2', src: '거미집 엄지 아비' }],
      ['lf_th_dispose', '처분', '참격', 5, 3, 3, 3, { onHit: { bleed: 3 }, desc: '적중 시 출혈 3', src: '거미집 엄지 아비' }], ['lf_th_fore', '예지', '회피', 3, 7, 1, 0, { src: '거미집 엄지 아비' }]],
@@ -6371,6 +6372,37 @@ function syncFingerLim() {
 }
 const _renderTopFingerLim = renderTop;
 renderTop = function () { _renderTopFingerLim(); syncFingerLim(); };
+
+// 팔레르모 — 보냐텔리 가문(발렌치나의 가문) 고유의 검술. 가문 사람이 가르쳐 줄 때만 배울 수 있다
+limCard('lf_th_spada', '팔레르모 스파다', '참격', 3, 4, 3, 1, { src: '보냐텔리 가문의 검술' });
+EVENTS.push({ id: 'th_bonatelli', fac: ['finger'], aff: ['f_thumb'], when: [0, 1, 2], w: 1.2, cond: () => fingerTier(S.grade) >= 1 && !S.flags.palermo && !S.flags.palermoRefused, title: '보냐텔리 가문',
+  text: '보냐텔리 가문의 문장을 단 카포가 술잔을 내려놓는다. "자네 검을 봤네. 쓸 만하더군. …팔레르모를 배워볼 생각은 없나? 우리 가문 사람이 아닌 자에게 이런 말을 하는 건 드문 일이야."',
+  choices: [
+    { t: '승낙한다 — 「팔레르모 스파다」를 배운다', def: true, fn() { S.flags.palermo = true; addCard('lf_th_spada'); say('"좋아. 손목부터 다시 잡지." 보냐텔리의 검술은 엄지의 예법만큼이나 엄격했다.', 'l-day'); merit(2); } },
+    { t: '정중히 사양한다', fn() { S.flags.palermoRefused = true; say('"아쉽군. 제안은 한 번뿐이네."'); } },
+  ] });
+// 이전 버전에서 엄지 기술로 받은 팔레르모는 회수 (가문에게 배운 경우 제외)
+const _renderTopPalermo = renderTop;
+renderTop = function () {
+  _renderTopPalermo();
+  if (!S || S.phase === 'combat' || S.flags.palermo || S.flags.palermoChecked) return;
+  S.flags.palermoChecked = true;
+  if (S.deck.includes('lf_th_spada')) { S.deck = S.deck.filter(id => id !== 'lf_th_spada'); say('「팔레르모 스파다」는 보냐텔리 가문의 검술이다. 배운 적 없는 검술은 손에 남지 않았다.', 'l-sys'); }
+};
+/* ---------- 천퇴성도 [天退星刀] — 호표탄·맹호표탄을 장전하는 뇌횡(동부 엄지 카포 IIII)의 칼.
+   받으면 뇌횡의 나머지 기술이 열린다. (탄환 장전 체계는 이 게임에 없어 탄환의 화상 효과를 기술에 반영) ---------- */
+limCard('tt_two', '이연참-폭 [爆]', '참격', 4, 4, 2, 1, { onHit: { burn: 2 }, desc: '호표탄 · 적중 시 화상 2', src: '천퇴성도' });
+limCard('tt_three', '삼연격-폭 [爆]', '참격', 4, 4, 3, 2, { onHit: { burn: 2 }, desc: '호표탄 · 적중 시 화상 2', src: '천퇴성도' });
+limCard('tt_kwaedo', '쾌도난마 [快刀亂麻]', '타격', 5, 4, 3, 3, { onHit: { burn: 3 }, desc: '호표탄 · 적중 시 화상 3', src: '천퇴성도' });
+limCard('tt_ultimate', '초절맹호살격난참 [超絶猛虎殺擊亂斬]', '타격', 3, 3, 4, 4, { onHit: { burn: 4, stg: 4 }, desc: '맹호표탄 · 적중 시 화상 4, 흐트러짐 피해 4', src: '천퇴성도' });
+limCard('tt_boil', '끓어오르는군.', '반격', 5, 4, 1, 1, { src: '천퇴성도' });
+const TENTAI_CARDS = ['tt_two', 'tt_three', 'tt_kwaedo', 'tt_ultimate', 'tt_boil'];
+EVENTS.push({ id: 'th_tentaisei', fac: ['finger'], aff: ['f_thumb'], when: [0, 1, 2], w: 0.9, cond: () => fingerTier(S.grade) >= 1 && S.day >= 4 && !S.flags.tentaisei, title: '천퇴성도',
+  text: '카포의 집무실. 탁자 위에 칼집에 든 대도(大刀)가 놓여 있다. 손잡이 아래로 탄창이 달려 있다. "천퇴성도. 호표탄과 맹호표탄을 장전해 쓰는 칼이다. 엄지의 예를 아는 자에게만 맡긴다."',
+  choices: [
+    { t: '받는다 — 천퇴성도 (뇌횡의 기술 5종 해금)', def: true, fn() { S.flags.tentaisei = true; TENTAI_CARDS.forEach(addCard); say('칼을 뽑자 탄창이 철컥 맞물렸다. 화약 냄새가 피어오른다.', 'l-day'); merit(2); } },
+    { t: '사양한다', fn() { S.flags.tentaisei = 'refused'; say('"그렇다면 다른 손에 맡기지."'); } },
+  ] });
 
 /* ---------- 신탁 단말기 - 카두세우스 — 헤르메스가 선사한 최고의 무기이자 저주.
    지령에 따라 금속 같은 액체가 무기로 변한다. 이것이 있어야 「Furioso-Replica」와 거미집 검지 아비의 기술을 쓸 수 있다.
