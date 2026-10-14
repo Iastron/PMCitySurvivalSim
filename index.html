@@ -3053,11 +3053,11 @@ Object.assign(CARDS, {
 function vampireRollBonus(P, d) {
   const first = S.vampRank === 1;
   if (!OFF(d[0])) return first ? 2 : 0;
-  return (first ? 3 : 1) + Math.min(4, S.thrallPow || 0) + Math.floor((S.blood || 0) / 5);
+  return (first ? 3 : 1) + Math.min(4, S.thrallPow || 0) + bloodAtk();
 }
 Object.assign(AFFS, {
   bloodkin: { name: '혈귀', faction: 'vampire', locked: true,
-    passive: '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 5마다 공격 +1(제한 없음), 피 10마다 최대 체력 +10, 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.',
+    passive: '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 10마다 공격 +1·최대 체력 +10 (피 상한 100, 권속 서열이 높을수록 효율이 크다), 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.',
     hooks: { vamp: 1, rollBonus: vampireRollBonus } },
 });
 EVENTS.push(
@@ -3215,7 +3215,7 @@ Object.assign(EVENTS.find(e => e.id === 'vp_pouch'), {
     ];
   } });
 // 권속의 힘은 권속 수가 아니라 권속이 된 자의 강함으로 (최대 +4)
-AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 5마다 공격 +1(제한 없음), 피 10마다 최대 체력 +10, 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.';
+AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 10마다 공격 +1·최대 체력 +10 (피 상한 100, 권속 서열이 높을수록 효율이 크다), 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.';
 AFFS.bloodkin.hooks.rollBonus = vampireRollBonus;
 
 /* ---------- 혈귀: 쓰러뜨린 사람을 어떻게 할 것인가 (권속 / 피주머니 / 섭취) ---------- */
@@ -4648,13 +4648,25 @@ for (const e of EVENTS.filter(e => e.warp && e.build && !['wp_arrival', 'wp_form
 
 /* ---------- 피의 축적 — 피 10마다 최대 체력 +10 (한 번 얻은 체력은 피를 써도 유지).
    체력이 낮을 때(35% 미만)는 피주머니가 먼저, 그다음 권속이 대신 맞는다 ---------- */
+const BLOOD_CAP = 100;
+// 권속 서열 효율: 제1·2권속 100% → 제9권속 30%
+const bloodEff = () => { const r = S.vampRank || 9; return r <= 2 ? 1 : 0.3 + 0.7 * (9 - r) / 7; };
+const bloodAtk = () => Math.floor(Math.min(BLOOD_CAP, S.blood || 0) / 10 * bloodEff());
 function bloodGrowth() {
   if (!S || !(faction() === 'vampire' || S.vampRank)) return;
-  const tier = Math.floor((S.blood || 0) / 10);
-  if (tier > (S.bloodTier || 0)) {
-    const n = tier - (S.bloodTier || 0); S.bloodTier = tier;
-    S.maxHp += 10 * n; S.hp += 10 * n;
-    say(`🩸 피가 몸에 스며든다 — 최대 체력 +${10 * n} (피 ${S.blood})`, 'l-day');
+  if ((S.blood || 0) > BLOOD_CAP) { S.blood = BLOOD_CAP; if (!S.flags.bloodFullSaid) { S.flags.bloodFullSaid = true; say('🩸 더는 담을 수 없다. 넘치는 피는 그대로 흘려보낸다. (피 상한 100)', 'l-sys'); } }
+  else if (S.blood < BLOOD_CAP) S.flags.bloodFullSaid = false;
+  const want = Math.floor(Math.floor((S.blood || 0) / 10) * 10 * bloodEff());
+  if (want > (S.bloodHp || 0)) {
+    const n = want - (S.bloodHp || 0); S.bloodHp = want; S.maxHp += n; S.hp += n;
+    say(`🩸 피가 몸에 스며든다 — 최대 체력 +${n} (피 ${S.blood})`, 'l-day');
+  }
+  // 충분히 피를 모은 고위 혈귀는 빛 +1
+  if (S.blood >= 80 && (S.vampRank || 9) <= 3 && !S.flags.bloodLight) { S.flags.bloodLight = true; S.lightBonus = (S.lightBonus || 0) + 1; say('🩸 피가 끓는다 — 최대 빛 +1', 'l-day'); }
+  // 경혈식 — 피를 모을수록 더 깊은 식을 쓴다
+  const learn = [['gh_whip', 0], ['gh_finale', 0], ['gh_split', 30], ['gh_sangre', 60]];
+  for (const [id, need] of learn) if ((S.blood || 0) >= need && !(S.ghLearned || []).includes(id)) {
+    S.ghLearned = [...(S.ghLearned || []), id]; S.deck.push(id); say(`🩸 경혈식 습득 — 「${CARDS[id].name}」`, 'l-day');
   }
 }
 const _renderTopBlood = renderTop;
@@ -5827,6 +5839,43 @@ renderTop = function () {
 };
 // 공방에서도 일부 광역 책장을 판다
 CARDS.aoe_shock.price = 3000000; CARDS.aoe_chorus.price = 8000000;
+/* ---------- 경혈식 — 피를 굳혀 결정화한 무기 (Limbus Company 라만차랜드 인격 기술 기준).
+   쓸 때 피를 소모하고, 적중 시 입힌 피해의 일부를 흡혈한다. 피가 모자라면 자신이 출혈한다 ---------- */
+Object.assign(CARDS, {
+  gh_whip:   { name: '아류 산초 경혈 6식 - 채찍', cost: 2, dice: [['관통', 4, 7], ['관통', 4, 10], ['관통', 4, 13]], onHit: { bleed: 2 }, blood: 5, steal: [0.5, 20], desc: '경혈식 · 피 5 소모 · 적중 시 출혈 2, 입힌 피해의 50% 흡혈(최대 20)' },
+  gh_split:  { name: '아류 산초 경혈 8식 - 갈라지도록', cost: 2, mass: 'each', dice: [['관통', 4, 10], ['관통', 4, 13]], onHit: { bleed: 1 }, blood: 8, steal: [0.3, 10], desc: '경혈식 · 광역-개별 · 피 8 소모 · 입힌 피해의 30% 흡혈(최대 10)' },
+  gh_sangre: { name: '산초류 경혈 오의 - 라 샹그레', cost: 4, dice: [['관통', 8, 13], ['관통', 8, 18], ['관통', 8, 23]], onHit: { bleed: 3 }, blood: 15, steal: [0.5, 20], desc: '경혈식 오의 · 피 15 소모 · 적중 시 출혈 3, 입힌 피해의 50% 흡혈(최대 20)' },
+  gh_finale: { name: '아류 산초 경혈 15식 - 피날레 준비', cost: 1, dice: [['방어', 6, 11], ['관통', 6, 11]], blood: 3, steal: [0.3, 10], desc: '경혈식 · 피 3 소모 · 막고 찌른다, 입힌 피해의 30% 흡혈' },
+});
+let __lastDealt = 0;
+const _dmgSteal = dmg;
+dmg = function (t, amount, type) { const before = t.hp; const r = _dmgSteal(t, amount, type); __lastDealt = Math.max(0, before - t.hp); return r; };
+const _applyHitSteal = applyHit;
+applyHit = function (card, atk, def) {
+  _applyHitSteal(card, atk, def);
+  const base = CARDS[card.id] || card, st = card.steal || base.steal;
+  if (st && C && atk === C.P && __lastDealt > 0) {
+    const v = Math.min(st[1], Math.round(__lastDealt * st[0]), atk.maxHp - atk.hp);
+    if (v > 0) { atk.hp += v; clog(`🩸 흡혈 +${v}`, 'l-good'); }
+  }
+};
+// 피 소모 — 카드를 낼 때. 모자라면 자신에게 출혈
+const _playCardBlood = playCard;
+playCard = function (hi) {
+  const id = C && C.hand[hi], c = id && CARDS[id];
+  const before = C ? C.hand.length : 0;
+  _playCardBlood(hi);
+  if (!c || !c.blood || !C || C.hand.length === before) return;
+  if ((S.blood || 0) >= c.blood) { S.blood -= c.blood; clog(`🩸 「${c.name}」 — 피 ${c.blood} 소모 (남은 피 ${S.blood})`, 'l-sys'); }
+  else { C.P.st.bleed += 5; clog(`🩸 피가 모자라 제 혈관을 짰다 — 출혈 5`, 'l-bad'); C.played[C.played.length - 1].bledInstead = true; }
+};
+// 배치를 취소하면 소모한 피를 돌려받는다
+const _unplayBlood = unplay;
+unplay = function (pi) {
+  const p = C && C.played[pi], c = p && CARDS[p.id];
+  _unplayBlood(pi);
+  if (c && c.blood && !p.bledInstead && !C.busy) S.blood = (S.blood || 0) + c.blood;
+};
 /* =========================================================
    평판 — 모든 삶 공통 (-100 ~ +100). 높으면 호의가 돌아오고, 매우 낮으면 협회·손가락의 암살자가 찾아온다.
    실적·도움·약탈·배신·금기 위반·벌점·악명 등에서 오르내린다
