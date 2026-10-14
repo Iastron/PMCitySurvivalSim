@@ -6210,14 +6210,18 @@ function wsCraft(k, q) {
   S.ws.crafted++; S.money -= cost;
   const maxQ = wsMaxQ(S.ws.lv);
   if (q === maxQ && q > 1 && Math.random() < 0.15) { print(`🔨 담금질에서 금이 갔다 — ${WS_Q[q]} ${t.n} 제작 실패. 재료비 ${won(cost)}가 날아갔다.`, 'l-bad'); stress(5); }
-  else { S.ws.stock.push(wsCard(k, q)); print(`🔨 완성 — 「${CARDS[wsCard(k, q)].name}」 (재료비 ${won(cost)}) · 진열대 ${S.ws.stock.length}/6`, 'l-good'); merit(q >= 4 ? 2 : 1); }
+  else {
+    let made = q;
+    if (q < 5 && Math.random() < 0.1) { made = q + 1; print(`✨ 손이 저절로 움직였다 — 기대 이상의 걸작! 「${WS_Q[q]}」가 아니라 「${WS_Q[made]}」 품질이 나왔다.`, 'l-day'); }
+    S.ws.stock.push(wsCard(k, made)); print(`🔨 완성 — 「${CARDS[wsCard(k, made)].name}」 (재료비 ${won(cost)}) · 진열대 ${S.ws.stock.length}/6`, 'l-good'); merit(made >= 4 ? 2 : 1);
+  }
   wsRender(); renderTop();
 }
 function wsRender() {
   const ws = S.ws, maxQ = wsMaxQ(ws.lv), next = ws.lv < 9 ? WS_LV_SOLD[ws.lv + 1] : null;
   let h = `<h3>🔨 ${ws.name} — ${ws.lv}등급</h3>
     <p class="dim">누적 판매 ${ws.sold}${next !== null ? ` · 다음 등급까지 ${next - ws.sold}개` : ' · 최고 등급'} · 매출 ${won(ws.revenue)} · 최고 품질 「${WS_Q[maxQ]}」<br>
-    오늘 남은 제작 ${wsCraftsLeft()}/${WS_CRAFT_PER_DAY} · 진열대 ${ws.stock.length}/6. 진열대에 물건이 있으면 낮 동안 손님이 찾아온다. 최고 품질은 15% 확률로 실패한다.</p>
+    오늘 남은 제작 ${wsCraftsLeft()}/${WS_CRAFT_PER_DAY} · 진열대 ${ws.stock.length}/6. 진열대에 물건이 있으면 낮 동안 손님이 찾아온다. 최고 품질은 15% 확률로 실패하고, 10% 확률로 한 단계 위의 걸작이 나온다.</p>
     <h4>제작</h4>`;
   const can = wsCraftsLeft() > 0 && ws.stock.length < 6 && S.phase === 'day' && !S.warp;
   for (const t of wsTypesOpen()) {
@@ -6230,11 +6234,24 @@ function wsRender() {
   const locked = WS_TYPES.filter(t => t.lv > ws.lv);
   if (locked.length) h += `<p class="dim" style="font-size:12px">잠김: ${locked.map(t => `${t.n}(${t.lv}등급)`).join(', ')}</p>`;
   h += '<h4>진열대</h4>' + (ws.stock.length ? ws.stock.map((id, i) => `<div class="fac-row"><div><b>${CARDS[id].name}</b><div class="dim">${diceText(CARDS[id])} · 판매가 약 ${won(CARDS[id].wsValue)}</div></div>
-    <div><button data-keep="${i}" ${S.phase === 'day' ? '' : 'disabled'}>직접 쓴다 (덱에 추가)</button></div></div>`).join('') : '<p class="dim">비어 있다.</p>');
+    <div><button data-whole="${i}" ${S.phase === 'day' ? '' : 'disabled'}>도매상에 넘긴다 (${won(Math.round(CARDS[id].wsValue * 0.6))})</button> <button data-keep="${i}" ${S.phase === 'day' ? '' : 'disabled'}>직접 쓴다</button></div></div>`).join('') : '<p class="dim">비어 있다.</p>');
+  const openOk = ws.stock.length && S.phase === 'day' && !S.warp && ws.openTurn !== S.day + ':' + S.turn;
+  h += `<p><button id="wsOpen" ${openOk ? '' : 'disabled'} style="border-color:var(--gold)">가게 문을 연다 — 지금 손님을 받는다 (시간대당 1번)</button>
+    <span class="dim" style="font-size:12px">값은 손님과 흥정한다. 도매는 시세의 60%지만 바로 팔린다. 둘 다 판매 수에 들어간다.</span></p>`;
   h += '<br><button id="wsClose">닫기</button>';
   openModal(h);
   $('#wsClose').onclick = closeModal;
   document.querySelectorAll('#modalBox [data-craft]').forEach(b => b.onclick = () => { const [k, q] = b.dataset.craft.split(':'); wsCraft(k, +q); });
+  document.querySelectorAll('#modalBox [data-whole]').forEach(b => b.onclick = () => {
+    const id = S.ws.stock.splice(+b.dataset.whole, 1)[0], v = Math.round(CARDS[id].wsValue * 0.6);
+    S.money += v; S.ws.sold++; S.ws.revenue += v; print(`🔨 「${CARDS[id].name}」를 도매상에 넘겼다. +${won(v)} (보유 ${won(S.money)})`, 'l-good'); wsLevelCheck(); wsRender(); renderTop();
+  });
+  if ($('#wsOpen')) $('#wsOpen').onclick = () => {
+    S.ws.openTurn = S.day + ':' + S.turn; closeModal();
+    print('🔨 가게 문을 열고 간판에 불을 켰다.', 'l-sys');
+    if (T && !T.awaiting) { T.pendingChain = 'ws_customer'; T.timeLeft = Math.max(T.timeLeft, 15); }
+    else { S.ws.pendingCustomer = true; print('지금 일을 마치면 손님이 들어올 것이다.', 'l-amb'); }
+  };
   document.querySelectorAll('#modalBox [data-keep]').forEach(b => b.onclick = () => { const id = S.ws.stock.splice(+b.dataset.keep, 1)[0]; addCard(id); print(`「${CARDS[id].name}」를 직접 쓰기로 했다. (판매 수에는 들어가지 않는다)`, 'l-sys'); wsRender(); renderTop(); });
 }
 $('#wsBtn').onclick = () => { if (isSmith()) wsRender(); };
@@ -6251,6 +6268,7 @@ EVENTS.find(e => e.id === 'ws_keep').cond = () => false;
 // 진열대에 물건이 있으면 낮 시간대마다 손님이 올 확률이 높다 (하루 최대 2명, 등급이 높을수록 더 자주)
 const _chooseEventWs = chooseEvent;
 chooseEvent = function () {
+  if (isSmith() && S.ws.pendingCustomer && S.ws.stock.length && S.phase === 'day') { S.ws.pendingCustomer = false; return EVENTS.find(e => e.id === 'ws_customer'); }
   if (isSmith() && !S.warp && !S.exiled && S.phase === 'day' && S.turn < 3 && S.ws.stock.length && (S.ws.custDay !== S.day || S.ws.custN < 2)
     && !(S.turn === 0 && S.flags.travelDay !== S.day) && Math.random() < 0.55 + S.ws.lv * 0.04) {
     if (S.ws.custDay !== S.day) { S.ws.custDay = S.day; S.ws.custN = 0; }
@@ -6557,8 +6575,27 @@ function saveLife(force) {
   const now = Date.now(); if (!force && now - lastLifeSave < 2000) return; lastLifeSave = now;
   try {
     const tail = [...$('#log').children].slice(-60).map(d => [d.className, d.innerHTML]);
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ id: activeHistoryId, S, tail }, (k, v) => (typeof v === 'function' || k === '_h') ? undefined : v));
+    const combat = C && S.phase === 'combat' ? combatSnapshot() : null;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ id: activeHistoryId, S, tail, combat }, (k, v) => (typeof v === 'function' || k === '_h') ? undefined : v));
   } catch (_) { /* 저장소가 막혀 있으면 이어하기 없이 진행 */ }
+}
+// 전투 상태 — 적·나의 수치와 상태, 손패·덱·버린 카드, 막 수, 동행. (사건별 승패 처리 함수는 저장할 수 없어 기본 보상으로 처리된다)
+function combatSnapshot() {
+  const en = combatEnemies().map(e => { const o = {}; for (const k in e) if (k !== 'd' && typeof e[k] !== 'function') o[k] = e[k]; return o; });
+  const back = C.played.map(p => p.id), refund = back.reduce((n, id) => n + (CARDS[id] ? CARDS[id].cost : 0), 0);
+  return { key: C.key, opts: C.opts, enemies: en, P: { ...C.P, light: Math.min(C.P.maxLight, C.P.light + (C.busy ? 0 : refund)) }, round: C.round, target: C.target,
+    hand: [...C.hand, ...(C.busy ? [] : back)], drawPile: C.drawPile, discard: [...C.discard, ...(C.busy ? back : [])], allies: C.allies || null };
+}
+function restoreCombat(cb) {
+  fight(cb.key, { ...cb.opts, enemies: cb.enemies.map(e => e.key), count: undefined });
+  if (!C) return;
+  cb.enemies.forEach((e, i) => { if (C.enemies[i]) Object.assign(C.enemies[i], e); });
+  Object.assign(C.P, cb.P);
+  Object.assign(C, { round: cb.round, target: cb.target, hand: cb.hand, drawPile: cb.drawPile, discard: cb.discard, played: [] });
+  if (cb.allies) C.allies = cb.allies;
+  C.E = combatEnemies()[C.target] && combatEnemies()[C.target].hp > 0 ? combatEnemies()[C.target] : combatEnemies().find(e => e.hp > 0);
+  clog('— 이어하기 — 전투가 멈췄던 그 자리에서 다시 시작된다.', 'l-sys');
+  renderCombat();
 }
 function clearLife() { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
 function loadLife() { try { const v = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return v && v.S && v.S.phase !== 'over' ? v : null; } catch (_) { return null; } }
@@ -6581,6 +6618,11 @@ function resumeLife() {
   $('#log').innerHTML = '';
   for (const [cls, html] of v.tail || []) { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; $('#log').appendChild(d); }
   print(`— 이어하기 — ${S.heroName || S.ch.name}의 삶이 다시 흘러간다. (${S.warp ? '열차 안' : S.day + '일차 ' + TURNS[S.turn].name}의 처음부터)`, 'l-sys');
+  if (v.combat) {   // 전투 중이었다면 그 전투로 돌아간다 (전투 전으로 되돌리는 꼼수 방지)
+    T = { timeLeft: TURN_TIME, queue: [], lineCd: 0, ambCd: 6, eventShown: true, awaiting: null, resolved: true };
+    restoreCombat(v.combat);
+    return;
+  }
   if (S.turn > 0 || S.warp) S.seenToday = S.seenToday.slice(0, -1);   // 중단된 사건 한 번은 다시 볼 수 있다
   if (S.warp) S.warp.turns = Math.max(0, (S.warp.turns || 1) - 1);   // 이 턴을 다시 시작하므로 열차 시간도 되돌린다
   startTurn();
@@ -6591,7 +6633,7 @@ function renderResume() {
   if (!v) { box.innerHTML = ''; return; }
   const s = v.S;
   box.innerHTML = `<div class="history-row" style="border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-bottom:10px">
-    <b>진행 중인 삶</b> — ${escapeHistory(s.heroName || '')} · ${escapeHistory(s.ch.name)} · ${s.warp ? '워프 열차 안' : s.day + '일차 ' + TURNS[s.turn].name}
+    <b>진행 중인 삶</b> — ${escapeHistory(s.heroName || '')} · ${escapeHistory(s.ch.name)} · ${s.warp ? '워프 열차 안' : s.day + '일차 ' + TURNS[s.turn].name}${v.combat ? ' · <span class="l-bad">전투 중</span>' : ''}
     <div class="dim" style="font-size:12px">새로운 출신을 뽑아 시작하면 이 삶은 기록만 남고 끝난다.</div>
     <button id="resumeBtn" style="margin-top:6px;border-color:var(--gold)">이어하기</button></div>`;
   $('#resumeBtn').onclick = resumeLife;
