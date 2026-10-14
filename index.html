@@ -6191,6 +6191,66 @@ renderTop = function () {
   if (o) $('#sPay').innerHTML += ` <span style="color:var(--gold)" title="${stripTags(bonusSummary())}">주사위 +${o}</span>`;
 };
 
+/* ---------- 공방 운영 메뉴 — 제작은 메뉴에서 (하루 2번), 진열대에 물건이 있으면 손님이 찾아온다 ---------- */
+const WS_CRAFT_PER_DAY = 2;
+$('#boardBtn').insertAdjacentHTML('afterend', ' <button id="wsBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">공방 운영</button>');
+const wsCraftsLeft = () => S.ws.craftDay === S.day ? WS_CRAFT_PER_DAY - (S.ws.crafted || 0) : WS_CRAFT_PER_DAY;
+function wsCraft(k, q) {
+  const t = WS_TYPES.find(x => x.k === k), cost = Math.round(t.price * WS_QMUL[q] * 0.4);
+  if (wsCraftsLeft() <= 0 || S.ws.stock.length >= 6 || S.money < cost) return;
+  if (S.ws.craftDay !== S.day) { S.ws.craftDay = S.day; S.ws.crafted = 0; }
+  S.ws.crafted++; S.money -= cost;
+  const maxQ = wsMaxQ(S.ws.lv);
+  if (q === maxQ && q > 1 && Math.random() < 0.15) { print(`🔨 담금질에서 금이 갔다 — ${WS_Q[q]} ${t.n} 제작 실패. 재료비 ${won(cost)}가 날아갔다.`, 'l-bad'); stress(5); }
+  else { S.ws.stock.push(wsCard(k, q)); print(`🔨 완성 — 「${CARDS[wsCard(k, q)].name}」 (재료비 ${won(cost)}) · 진열대 ${S.ws.stock.length}/6`, 'l-good'); merit(q >= 4 ? 2 : 1); }
+  wsRender(); renderTop();
+}
+function wsRender() {
+  const ws = S.ws, maxQ = wsMaxQ(ws.lv), next = ws.lv < 9 ? WS_LV_SOLD[ws.lv + 1] : null;
+  let h = `<h3>🔨 ${ws.name} — ${ws.lv}등급</h3>
+    <p class="dim">누적 판매 ${ws.sold}${next !== null ? ` · 다음 등급까지 ${next - ws.sold}개` : ' · 최고 등급'} · 매출 ${won(ws.revenue)} · 최고 품질 「${WS_Q[maxQ]}」<br>
+    오늘 남은 제작 ${wsCraftsLeft()}/${WS_CRAFT_PER_DAY} · 진열대 ${ws.stock.length}/6. 진열대에 물건이 있으면 낮 동안 손님이 찾아온다. 최고 품질은 15% 확률로 실패한다.</p>
+    <h4>제작</h4>`;
+  const can = wsCraftsLeft() > 0 && ws.stock.length < 6 && S.phase === 'day' && !S.warp;
+  for (const t of wsTypesOpen()) {
+    const btns = [maxQ, maxQ - 1].filter(q => q >= 1).map(q => {
+      const cost = Math.round(t.price * WS_QMUL[q] * 0.4);
+      return `<button data-craft="${t.k}:${q}" ${can && S.money >= cost ? '' : 'disabled'}>${WS_Q[q]} — ${won(cost)}</button>`;
+    }).join(' ');
+    h += `<div class="fac-row"><div><b>${t.n}</b> <span class="dim">(${t.cost}코스트 · 판매가 약 ${won(t.price * WS_QMUL[maxQ])})</span></div><div>${btns}</div></div>`;
+  }
+  const locked = WS_TYPES.filter(t => t.lv > ws.lv);
+  if (locked.length) h += `<p class="dim" style="font-size:12px">잠김: ${locked.map(t => `${t.n}(${t.lv}등급)`).join(', ')}</p>`;
+  h += '<h4>진열대</h4>' + (ws.stock.length ? ws.stock.map((id, i) => `<div class="fac-row"><div><b>${CARDS[id].name}</b><div class="dim">${diceText(CARDS[id])} · 판매가 약 ${won(CARDS[id].wsValue)}</div></div>
+    <div><button data-keep="${i}" ${S.phase === 'day' ? '' : 'disabled'}>직접 쓴다 (덱에 추가)</button></div></div>`).join('') : '<p class="dim">비어 있다.</p>');
+  h += '<br><button id="wsClose">닫기</button>';
+  openModal(h);
+  $('#wsClose').onclick = closeModal;
+  document.querySelectorAll('#modalBox [data-craft]').forEach(b => b.onclick = () => { const [k, q] = b.dataset.craft.split(':'); wsCraft(k, +q); });
+  document.querySelectorAll('#modalBox [data-keep]').forEach(b => b.onclick = () => { const id = S.ws.stock.splice(+b.dataset.keep, 1)[0]; addCard(id); print(`「${CARDS[id].name}」를 직접 쓰기로 했다. (판매 수에는 들어가지 않는다)`, 'l-sys'); wsRender(); renderTop(); });
+}
+$('#wsBtn').onclick = () => { if (isSmith()) wsRender(); };
+const _renderTopWsBtn = renderTop;
+renderTop = function () {
+  _renderTopWsBtn();
+  const on = isSmith() && S.phase !== 'over';
+  $('#wsBtn').classList.toggle('hidden', !on);
+  if (on) $('#wsBtn').textContent = `공방 운영 (${S.ws.lv}등급 · 진열 ${S.ws.stock.length})`;
+};
+// 제작·진열대 이벤트는 메뉴로 옮겼다
+EVENTS.find(e => e.id === 'ws_forge').cond = () => false;
+EVENTS.find(e => e.id === 'ws_keep').cond = () => false;
+// 진열대에 물건이 있으면 낮 시간대마다 손님이 올 확률이 높다 (하루 최대 2명, 등급이 높을수록 더 자주)
+const _chooseEventWs = chooseEvent;
+chooseEvent = function () {
+  if (isSmith() && !S.warp && !S.exiled && S.phase === 'day' && S.turn < 3 && S.ws.stock.length && (S.ws.custDay !== S.day || S.ws.custN < 2)
+    && !(S.turn === 0 && S.flags.travelDay !== S.day) && Math.random() < 0.55 + S.ws.lv * 0.04) {
+    if (S.ws.custDay !== S.day) { S.ws.custDay = S.day; S.ws.custN = 0; }
+    S.ws.custN++; return EVENTS.find(e => e.id === 'ws_customer');
+  }
+  return _chooseEventWs();
+};
+
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
