@@ -6334,7 +6334,7 @@ const FL = {
      ['lf_th_colpi', '콜피 소타니', '참격', 4, 4, 2, 1, { src: '거미집 엄지 제자' }],
      ['lf_th_cacc', '카치아토레', '참격', 5, 4, 2, 2, { onHit: { bleed: 2 }, desc: '적중 시 출혈 2', src: '거미집 엄지 제자' }]],
     [['lf_th_taglio', '콜피 디 탈리오', '참격', 3, 4, 3, 1, { src: '거미집 엄지 아비' }], ['lf_th_elef', '세치오나투라 디 엘레판테', '참격', 4, 3, 3, 2, { onHit: { bleed: 2 }, desc: '적중 시 출혈 2', src: '거미집 엄지 아비' }],
-     ['lf_th_dispose', '처분', '참격', 5, 3, 3, 3, { onHit: { bleed: 3 }, desc: '적중 시 출혈 3', src: '거미집 엄지 아비' }], ['lf_th_fore', '예지', '회피', 3, 7, 1, 0, { src: '거미집 엄지 아비' }]],
+     ['lf_th_dispose', '처분', '참격', 5, 3, 3, 3, { onHit: { bleed: 3 }, desc: '적중 시 출혈 3', src: '거미집 엄지 아비' }]],
   ],
   f_index: [
     [['lf_ix_order', '지령에 따라, 확실하게', '참격', 3, 4, 2, 1, { src: '검지 수행자:【쪽지】' }], ['lf_ix_perform', '지령을 수행하며 수행합니다', '참격', 4, 4, 2, 1, { src: '검지 수행자:【쪽지】' }],
@@ -6404,6 +6404,16 @@ EVENTS.push({ id: 'th_tentaisei', fac: ['finger'], aff: ['f_thumb'], when: [0, 1
     { t: '사양한다', fn() { S.flags.tentaisei = 'refused'; say('"그렇다면 다른 손에 맡기지."'); } },
   ] });
 
+// 「예지」 — 예지안(오딘의 눈)으로 쓰는 기술. 예지안을 가진 동안에만 쓸 수 있다
+limCard('lf_th_fore', '예지', '회피', 3, 7, 1, 0, { desc: '예지안으로 공격을 미리 본다', src: '예지안 · 거미집 엄지 아비' });
+const _renderTopFore = renderTop;
+renderTop = function () {
+  _renderTopFore();
+  if (!S || S.phase === 'combat' || S.phase === 'over') return;
+  const has = (S.relics || []).includes('odin'), inDeck = S.deck.includes('lf_th_fore');
+  if (has && !inDeck) { S.deck.push('lf_th_fore'); say('예지안이 열렸다 — 「예지」를 쓸 수 있다.', 'l-day'); }
+  else if (!has && inDeck) { S.deck = S.deck.filter(id => id !== 'lf_th_fore'); say('예지안 없이는 「예지」를 쓸 수 없다.', 'l-sys'); }
+};
 /* ---------- 신탁 단말기 - 카두세우스 — 헤르메스가 선사한 최고의 무기이자 저주.
    지령에 따라 금속 같은 액체가 무기로 변한다. 이것이 있어야 「Furioso-Replica」와 거미집 검지 아비의 기술을 쓸 수 있다.
    (기술명·위력: Limbus Company 「거미집 검지 아비」) ---------- */
