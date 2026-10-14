@@ -6595,6 +6595,121 @@ chooseEvent = function () {
 };
 
 /* =========================================================
+   12구 L사 둥지 — 로보토미 몰락 이후 공석. 반파된 채 사실상 무정부 상태.
+   손가락·작은 조직·날개가 되고 싶은 회사들이 빈자리를 넘보며 돌아다닌다.
+   청소부는 공석인 둥지에도 들어오지 않으므로 뒷골목의 밤은 없다 — 다만 경비대도, 질서도 없다
+========================================================= */
+const isLNest = () => isNest() && S.loc.n === 12;
+const L_COMPANIES = ['그레이 테일 물류', '에버린 제약', '노스브릿지 에너지', '하이웰 보안', '메릭 앤 선즈 중공업'];
+const L_FINGERS = ['엄지', '중지', '약지'];
+EVENTS.push(
+  { id: 'ln_turf', lnest: true, when: [0, 1, 2], w: 3, vampOK: true, fac: REP_ALL_FAC, title: 'L사 둥지 — 구역 표시',
+    build() {
+      const f = pick(L_FINGERS);
+      this.text = `반쯤 무너진 로보토미 지부 건물 벽에 ${f}의 문양이 새로 칠해져 있다. 그 아래에서 ${f}의 조직원들이 주민들에게 "보호비"를 걷고 있다. 공석인 둥지는 먼저 깃발을 꽂는 쪽의 것이다.`;
+      const mine = faction() === 'finger' && AFF().name === f;
+      return [
+        ...(mine ? [{ t: `같은 ${f}로서 걷는 일을 돕는다 — 상납 몫`, fn() { gain(pay(rnd(300000, 900000))); merit(2); rep(-2); } }] : []),
+        { t: '주민들 편에 선다 — 조직원들과 싸운다', fn() { fight(f === '엄지' ? 'thumb' : 'kong', { lethal: false, count: rnd(2, 3), name: `${f} 조직원`, noCow: true, win() { merit(2); rep(4, 'L사 둥지 주민들을 지켰다'); } }); } },
+        { t: '못 본 척 지나간다', def: true, fn() { say('주민 하나가 고개를 숙인 채 지폐를 건넸다. 이곳에는 신고할 경비대도 없다.'); stress(3); } },
+      ];
+    }, text: '' },
+  { id: 'ln_squat', lnest: true, when: [0, 1, 2], w: 2.5, vampOK: true, fac: REP_ALL_FAC, title: 'L사 둥지 — 점거',
+    text: '빈 사무동 하나를 작은 조직이 통째로 점거했다. 입구에 바리케이드, 창문마다 총구. "여긴 이제 우리 둥지다." 둥지를 가져 본 적 없는 자들이 둥지를 흉내 낸다.',
+    choices: [
+      { t: '점거 조직을 쓸어낸다 (보수는 건물을 노리는 회사가 낸다)', fn() { fight('kong', { lethal: true, count: rnd(3, 4), name: '점거 조직원', noCow: true, win() { gain(pay(rnd(1000000, 3000000))); merit(3); say('건물을 노리던 회사 사람이 봉투를 건넸다. "다음 주에 우리 간판이 걸릴 겁니다."'); } }); } },
+      { t: '통행료를 내고 지나간다 (20만 안)', cost: 200000, fn() { spend(200000); say('바리케이드가 잠깐 열렸다.'); } },
+      { t: '돌아간다', def: true, fn() { say('다른 길로 돌았다. 무너진 육교 아래로.'); } },
+    ] },
+  { id: 'ln_company', lnest: true, when: [0, 1], w: 2.5, vampOK: true, fac: REP_ALL_FAC, title: 'L사 둥지 — 날개가 되고 싶은 회사',
+    build() {
+      const co = pick(L_COMPANIES);
+      this.text = `「${co}」의 조사원들이 반파된 구역을 측량하고 있다. 특이점도 없는 중소기업이지만, L사의 빈자리를 차지하면 날개가 될 수 있다고 믿는다. 경쟁사 사람들과 이미 몇 번 총격전이 있었다고 한다.`;
+      return [
+        { t: `${co}의 호위를 맡는다 — 경쟁사 사병과 전투`, fn() { fight('fixer_vet', { lethal: false, name: '경쟁사 사병', noCow: true, win() { gain(pay(rnd(2000000, 5000000))); merit(3); say(`"${co}는 당신을 기억하겠습니다. 우리가 날개가 되면."`); } }); } },
+        { t: '측량 자료를 경쟁사에 판다', fn() { gain(pay(rnd(800000, 2000000))); rep(-3, '정보를 팔았다'); say('경쟁사는 후하게 쳐줬다. 오늘 밤 누군가의 측량 기사가 사라질 것이다.'); } },
+        { t: '관여하지 않는다', def: true, fn() { say('날개의 자리는 특이점이 정한다. 측량으로 정해지는 게 아니다.'); } },
+      ];
+    }, text: '' },
+  { id: 'ln_ruins', lnest: true, when: [0, 1, 2], w: 2, vampOK: true, fac: REP_ALL_FAC, title: 'L사 둥지 — 지부의 잔해',
+    text: '무너진 로보토미 지부. 격리실이었던 방들의 문이 뒤틀려 있다. 벽에는 "FACE THE FEAR, BUILD THE FUTURE"가 반쯤 지워진 채 남아 있다. 고철 수집꾼들이 먼저 다녀간 흔적.',
+    choices: [
+      { t: '잔해를 뒤진다 — 쓸 만한 부품', fn() { if (Math.random() < 0.65) { say('멀쩡한 전력 부품을 찾았다. 고철상이 좋은 값을 쳐줄 것이다.'); gain(pay(rnd(200000, 800000))); } else { say('어둠 속에서 무언가가 움직였다. 고철 수집꾼들이었다. 이쪽도 굶주렸다.', 'l-bad'); fight('rat', { lethal: false, count: 3, name: '고철 수집꾼', noCow: true }); } } },
+      { t: '격리실 안쪽으로 들어간다', fn() { say('공기가 무겁다. 이유 없이 숨이 막힌다. 오래 머물 곳이 아니다.', 'l-bad'); stress(10); merit(1); } },
+      { t: '입구에서 돌아선다', def: true, fn() { say('몰락한 날개의 무덤은 함부로 파헤치는 게 아니다.'); } },
+    ] },
+  { id: 'ln_vigilante', lnest: true, when: [1, 2], w: 2, vampOK: true, fac: REP_ALL_FAC, title: 'L사 둥지 — 자경단',
+    text: '남아 있는 주민들이 자경단을 꾸렸다. 쇠파이프와 녹슨 공방 무기. 경비대가 사라진 둥지에서, 자기 골목은 자기가 지킨다. 대장이 당신을 훑어본다. "도와줄 거요, 아니면 지나갈 거요?"',
+    choices: [
+      { t: '오늘 밤 경계를 돕는다 — 자경단 거점에서 묵을 수 있다', fn() { S.flags.lnestVigil = S.day; rep(3, 'L사 둥지 자경단을 도왔다'); merit(1); say('"고맙소. 밤에 거점으로 오시오. 문은 열어 두겠소."'); } },
+      { t: '지나간다', def: true, fn() { say('대장은 말없이 길을 비켜 주었다.'); } },
+    ] },
+  // 밤 — 청소부는 없다. 그러나 질서도 없다
+  { id: 'ln_night', chainOnly: true, when: [3], w: 0, title: 'L사 둥지의 밤',
+    text: '공석인 둥지에도 청소부는 들어오지 않는다. 대신 경비대도, 가로등도 없다. 무너진 건물들 사이로 손가락과 조직들의 손전등이 오간다. 이곳의 밤은 사람이 위험하다.',
+    build() {
+      return [
+        ...(S.flags.lnestVigil === S.day ? [{ t: '자경단 거점에서 묵는다 — 체력 35% 회복', def: true, fn() { say('교대로 경계를 섰다. 총성이 두 번 들렸지만, 거점까지는 오지 않았다.'); heal(Math.round(S.maxHp * 0.35)); stress(-4); } }] : []),
+        { t: '폐건물 구석에서 잔다 — 체력 25% 회복 (습격 위험)', def: S.flags.lnestVigil !== S.day, fn() {
+          if (Math.random() < 0.35) { say('발소리. 손전등 불빛이 얼굴을 비췄다. 빈 둥지를 털고 다니는 조직이다.', 'l-bad'); fight('kong', { lethal: false, count: rnd(2, 3), name: '야간 약탈조', noCow: true }); }
+          else { say('무너진 천장 사이로 별이 보였다. 아무도 오지 않았다.'); heal(Math.round(S.maxHp * 0.25)); }
+        } },
+        { t: '뒷골목으로 내려간다 — 뒷골목의 밤 (청소부)', fn() { moveZone('뒷골목'); return faction() === 'head' ? 'night_head' : faction() === 'twisted' ? 'tw_night' : 'night'; } },
+      ];
+    } },
+);
+// L사 둥지에서는 낮에 이곳만의 사건이 자주 일어나고, 밤은 L사 둥지의 밤이 된다
+const _chooseEventLNest = chooseEvent;
+chooseEvent = function () {
+  if (isLNest() && S.phase === 'day') {
+    if (S.turn === 3 && faction() !== 'vampire' && !S.seenToday.includes('ln_night')) return EVENTS.find(e => e.id === 'ln_night');
+    if (S.turn < 3 && !(S.turn === 0 && S.day >= 2 && S.flags.travelDay !== S.day) && Math.random() < 0.6) {
+      const pool = EVENTS.filter(e => e.lnest && e.when.includes(S.turn) && !S.seenToday.includes(e.id));
+      if (pool.length) { let r = Math.random() * pool.reduce((a, e) => a + e.w, 0); for (const e of pool) { r -= e.w; if (r <= 0) return e; } return pool[0]; }
+    }
+  }
+  return _chooseEventLNest();
+};
+// L사 둥지 이벤트는 일반 풀에서 빼 둔다
+EVENTS.filter(e => e.lnest).forEach(e => { e.cond = () => false; });
+// 둥지에 들어설 때 / 밤 묘사
+const _moveZoneL = moveZone;
+moveZone = function (to) { _moveZoneL(to); if (to === '둥지' && isLNest()) print('검문소는 비어 있다. 깨진 유리, 반쯤 무너진 사무동, 벽마다 덧칠된 손가락과 조직들의 문양. 주인 없는 둥지다.', 'l-amb'); };
+const L_NIGHT_AMB = ['멀리서 총성. 누군가의 깃발이 오늘 밤 내려간다.', '손전등 불빛 셋이 무너진 육교를 건넌다.', '청소부의 기계음은 둥지의 벽 너머에서 멈춘다. 이곳의 위험은 사람이다.', '불 꺼진 로보토미 간판이 바람에 삐걱인다.'];
+const _ambientPoolL = ambientPool;
+ambientPool = () => (isLNest() && S.turn === 3 ? L_NIGHT_AMB : _ambientPoolL());
+
+/* ---------- 둥지와 뒷골목의 사건 분포 — 협회·고등급 공방은 둥지 안, 손가락·환상체는 뒷골목에 자주. 뒤틀림은 어디서든 ---------- */
+const ZONE_ASSOC = ['zwei', 'hana', 'star_hunt', 'license', 'assoc_offer', 'color_grant', 'hana_offer'];
+const ZONE_FINGER = ['thumb', 'index_errand'];
+const zoneKind = e => {
+  if (ZONE_ASSOC.includes(e.id)) return 'assoc';
+  if (ZONE_FINGER.includes(e.id)) return 'finger';
+  if (e.id.startsWith('city_sighting_')) { const t = CITY_ANOMALY_TYPES.find(x => 'city_sighting_' + x.id === e.id); return t && t.kind === '환상체' ? 'abno' : null; }
+  if (e.id.startsWith('city_') && ENEMIES[e.id.slice(5)] && ENEMIES[e.id.slice(5)].abnormality) return 'abno';
+  return null;
+};
+const ZONE_MUL = { assoc: [1.8, 0.35], finger: [0.25, 1.8], abno: [0.25, 1.8] };   // [둥지, 뒷골목]
+for (const e of EVENTS) {
+  const k = zoneKind(e); if (!k) continue;
+  const desc = Object.getOwnPropertyDescriptor(e, 'w'), base = desc && desc.get ? desc.get : (v => () => v)(e.w);
+  Object.defineProperty(e, 'w', { configurable: true, get() { const b = base.call(this); if (!S || S.exiled || S.warp || !S.loc || !S.loc.n) return b; return b * ZONE_MUL[k][isNest() ? 0 : 1]; } });
+}
+// 명품(고등급) 공방은 둥지 안에만 있다 — 뒷골목에서는 진열대에서 숨긴다 (구매 번호는 그대로 유지)
+const _cityRenderZone = cityRender;
+cityRender = function () {
+  _cityRenderZone();
+  if (!S || S.exiled || S.warp || isNest()) return;
+  let hid = 0;
+  document.querySelectorAll('#modalBox button[data-act^="card:"]').forEach(b => {
+    const id = S.stock[+b.dataset.act.split(':')[1]];
+    if (id && CARDS[id].premium) { b.closest('.fac-row').remove(); hid++; }
+  });
+  const h4 = [...document.querySelectorAll('#modalBox h4')].find(x => x.textContent.startsWith('공방'));
+  if (hid && h4) h4.insertAdjacentHTML('afterend', '<p class="dim" style="font-size:12px">명품 공방은 둥지 안에 있다. 둥지로 들어가면 고급 장비를 볼 수 있다.</p>');
+};
+
+/* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
 ========================================================= */
