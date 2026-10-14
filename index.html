@@ -5771,6 +5771,147 @@ $('#rollBtn').onclick = async () => {
   $('#rollCount').disabled = false;
 };
 /* =========================================================
+   평판 — 모든 삶 공통 (-100 ~ +100). 높으면 호의가 돌아오고, 매우 낮으면 협회·손가락의 암살자가 찾아온다.
+   실적·도움·약탈·배신·금기 위반·벌점·악명 등에서 오르내린다
+========================================================= */
+const REP_TIERS = [[-60, '공적', 'var(--red)'], [-25, '악명', 'var(--orange)'], [25, '무명', 'var(--dim)'], [60, '신뢰', 'var(--green)'], [101, '명망', 'var(--gold)']];
+const repTier = (v = S.rep || 0) => REP_TIERS.find(t => v < t[0]) || REP_TIERS[REP_TIERS.length - 1];
+function rep(n, why) {
+  if (!S || !n) return;
+  const before = S.rep || 0, after = Math.max(-100, Math.min(100, before + n));
+  if (after === before) return;
+  S.rep = after;
+  if (Math.abs(n) >= 2) say(`평판 ${n > 0 ? '+' : ''}${n}${why ? ' — ' + why : ''} (${after}, ${repTier(after)[1]})`, n > 0 ? 'l-sys' : 'l-bad');
+  const tb = repTier(before)[1], ta = repTier(after)[1];
+  if (tb !== ta) print(`✦ 평판이 바뀌었다 — ${tb} → <b>${ta}</b>`, n > 0 ? 'l-day' : 'l-day');
+}
+// 시작 평판: 출신에 따라
+const _newGameRep = newGame;
+newGame = function (ch) {
+  _newGameRep(ch);
+  S.rep = ({ color: 30, grade1: 20, watcher: 10, claw: -10, arbiter: 0, rat: -10, orphan: 0, gang_boss: -15, taboo_hunter: 5 })[ch.id] ?? 0;
+};
+// 실적과 함께 평판도 조금씩
+const _meritRep = merit;
+merit = function (n) { _meritRep(n); if (n > 0 && S) rep(Math.max(1, Math.round(n / 2))); else if (n < 0) rep(n); };
+if (typeof infamy === 'function') { const _inf = infamy; infamy = function (n, why) { _inf(n, why); if (n > 0) rep(-2 * n); }; }
+if (typeof tabooHit === 'function') { const _tab = tabooHit; tabooHit = function (...a) { rep(-6, '금기 위반'); return _tab(...a); }; }
+if (typeof wPenalty === 'function') { const _wp = wPenalty; wPenalty = function (n, why) { rep(-n, '사내 벌점'); return _wp(n, why); }; }
+// 선택지의 성격으로 평판이 움직인다 (도움 ↑ / 약탈·배신 ↓ / 도망 ↓)
+const REP_GOOD = /돕|구한|구해|나눠|지킨|다독|진정시킨|돌려준|돌려준다|기부|위로|보호한|규정대로|숨겨 준|안아/;
+const REP_BAD = /훔치|빼앗|뇌물|협박|배신|버린|버려|짓밟|약탈|강탈|갈취|챙긴다|등친|죽인다|처리한다 —/;
+const _chooseRep = choose;
+choose = function (i, auto = false) {
+  const aw = T && T.awaiting, c = aw && aw.choices[auto ? defaultEventChoice(aw.choices) : i];
+  const ok = c && avail(c) && !headCannotFlee(c);
+  _chooseRep(i, auto);
+  if (!ok || !S) return;
+  const txt = stripTags(c.t);
+  if (c.flee) rep(-1);
+  else if (REP_BAD.test(txt)) rep(-3, '소문이 돈다');
+  else if (REP_GOOD.test(txt)) rep(2, '좋은 소문');
+};
+// 매일 — 빚을 연체하면 평판 하락, 극단적인 평판은 아주 천천히 잊힌다
+const _startTurnRep = startTurn;
+startTurn = function () {
+  _startTurnRep();
+  if (!S || S.turn !== 0 || S.flags.repDay === S.day) return;
+  S.flags.repDay = S.day;
+  if (S.debt > 0 && S.day > S.debtDue) rep(-2, '빚 연체');
+  if (Math.abs(S.rep || 0) > 40 && S.day % 3 === 0) S.rep += S.rep > 0 ? -1 : 1;
+};
+// 상단 바
+const _renderTopRep = renderTop;
+renderTop = function () {
+  _renderTopRep();
+  if (!S || S.rep === undefined) return;
+  const [, name, color] = repTier();
+  $('#sPay').innerHTML += ` <span style="color:${color}">평판 ${S.rep} · ${name}</span>`;
+};
+
+// ---------- 암살자들 (협회·손가락) — 기술명은 Library of Ruina·Limbus Company 기준 ----------
+Object.assign(ENEMIES, {
+  rep_shi: { elite: true, name: '시 협회 암살자', desc: '의뢰받은 목숨만을 가져간다. 당신의 이름이 의뢰서에 올랐다.', hp: 150, stg: 70, slots: 2, light: 5, lightRegen: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1.2 }, reward: [3000000, 6000000],
+    pool: [{ name: '비검', dice: [['참격', 2, 6], ['참격', 3, 7]] }, { name: '섬격', dice: [['참격', 5, 9], ['참격', 5, 8], ['참격', 4, 7]] },
+      { name: '극검', dice: [['참격', 6, 12]], onHit: { para: 1 } }, { name: '사의 경계', dice: [['참격', 1, 4, { maxBonus: 45 }]] }] },
+  rep_thumb: { elite: true, name: '엄지 처형조', desc: '엄지의 규율은 예외를 두지 않는다. 카포의 명령으로 당신을 처리하러 왔다.', hp: 170, stg: 80, slots: 3, light: 5, lightRegen: 2,
+    res: { 참격: 1, 관통: 0.9, 타격: 1 }, reward: [4000000, 8000000],
+    pool: [{ name: '즉결심판', dice: [['회피', 3, 7], ['참격', 4, 7], ['관통', 6, 11]] }, { name: '화력 집중', dice: [['관통', 9, 21], ['관통', 4, 8]], onHit: { bleed: 1 } },
+      { name: '총검술', dice: [['방어', 3, 7], ['타격', 5, 7], ['관통', 4, 6]] }, { name: '계급과 존중', dice: [['참격', 4, 8]], onHit: { bleed: 2 } }] },
+  rep_index: { elite: true, name: '검지 대행자', desc: '지령이 내려왔다. 당신의 이름이 적힌 지령이.', hp: 160, stg: 80, slots: 2, light: 5, lightRegen: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [3000000, 7000000],
+    pool: [{ name: '엄숙한 대행', dice: [['방어', 3, 7], ['관통', 7, 9], ['관통', 3, 7]] }, { name: '섬멸', dice: [['참격', 5, 10], ['참격', 5, 10]] },
+      { name: '사슬 묶기', dice: [['타격', 4, 8], ['관통', 3, 8]], onHit: { para: 1 } }, { name: '다중 베기', dice: [['참격', 3, 7], ['타격', 1, 4]] }] },
+  rep_middle: { elite: true, name: '중지 앙갚음조', desc: '중지는 받은 것을 반드시 돌려준다. 당신은 그들의 장부에 올랐다.', hp: 180, stg: 80, slots: 2, light: 5, lightRegen: 2,
+    res: { 참격: 1, 관통: 1, 타격: 0.9 }, reward: [3000000, 6000000],
+    pool: [{ name: '발길질', dice: [['타격', 4, 7], ['타격', 4, 7], ['타격', 4, 7]], onHit: { bleed: 1, burn: 1 } },
+      { name: '뒤통수 조심!', dice: [['타격', 8, 12], ['타격', 8, 12]], onHit: { bleed: 2, para: 1 } }, { name: '되갚기', dice: [['방어', 5, 9]] }] },
+});
+const REP_ASSASSINS = [
+  { key: 'rep_shi', by: '시 협회', line: '골목이 너무 조용하다. 뒤를 돌아보니 검은 옷의 해결사가 이미 칼을 뽑고 있다. "의뢰입니다. 개인적인 감정은 없습니다."' },
+  { key: 'rep_thumb', by: '엄지', line: '총구 세 개. 엄지의 문양. "카포께서 너를 정리하라 하셨다. 예의를 갖춰 죽어라."' },
+  { key: 'rep_index', by: '검지', line: '흰 코트의 대행자가 지령서를 펼친다. "지령: 오늘, 이 사람의 숨을 거둘 것." 그는 당신의 얼굴과 종이를 번갈아 본다.' },
+  { key: 'rep_middle', by: '중지', line: '"우리 아우가 너한테 맞았다더라." 중지의 문신을 한 무리가 길을 막는다. "장부에 적힌 건 갚아야지."' },
+];
+const REP_ALL_FAC = [...new Set(Object.values(AFFS).map(a => a.faction))];
+const repOK = () => S && !S.warp && !S.exiled && faction() !== 'head';
+EVENTS.push(
+  // ----- 긍정 (평판 신뢰 이상) -----
+  { id: 'rep_tip', when: [0, 1, 2], w: 2, cond: () => repOK() && S.rep >= 30, vampOK: true, fac: REP_ALL_FAC, title: '호의의 제보',
+    text: '모르는 사람이 쪽지를 건넨다. "당신 얘기 들었어요. 이건 갚는 거예요." 쪽지에는 오늘 밤 거래될 물건의 위치가 적혀 있다.',
+    choices: [{ t: '쪽지를 따라간다', def: true, fn() { gain(pay(rnd(300000, 1500000))); merit(1); say('주인 없는 물건이었다. 적어도 오늘 밤에는.'); } },
+      { t: '정중히 돌려준다', fn() { say('그는 웃었다. "역시 소문대로네요."'); rep(2); } }] },
+  { id: 'rep_gift', when: [1, 2], w: 2, cond: () => repOK() && S.rep >= 30, vampOK: true, fac: REP_ALL_FAC, title: '감사의 선물',
+    text: '언젠가 당신이 도운 사람이 찾아왔다. 따뜻한 국과 붕대, 그리고 꼬깃꼬깃한 지폐 몇 장.',
+    choices: [{ t: '받는다 — 체력·정신 회복', def: true, fn() { heal(25); stress(-10); gain(pay(rnd(50000, 200000))); } }] },
+  { id: 'rep_shelter', when: [3], w: 2.5, cond: () => repOK() && S.rep >= 40 && !hasHome(), title: '골목의 보호',
+    text: '뒷골목의 밤이 다가온다. 동네 사람들이 문을 열어 준다. "오늘은 여기서 자요. 당신이라면 괜찮아."',
+    choices: [{ t: '신세를 진다 — 안전한 밤, 체력 회복', def: true, fn() { heal(30); stress(-8); say('문틈으로 청소부들의 발소리가 지나갔다. 아무도 문을 두드리지 않았다.'); } }] },
+  { id: 'rep_workshop', when: [0, 1, 2], w: 1.5, cond: () => repOK() && S.rep >= 60, vampOK: true, fac: REP_ALL_FAC, title: '공방의 호의',
+    text: '단골이 아닌데도 공방 주인이 당신을 알아본다. "당신 같은 사람이 우리 물건을 써야 소문이 나지." 시제품 하나를 내민다.',
+    choices: [{ t: '받는다', def: true, fn() { const pool = Object.keys(CARDS).filter(id => CARDS[id].price && CARDS[id].price <= 3000000); const id = pick(pool); if (id) addCard(id); } }] },
+  { id: 'rep_recommend', when: [0, 1], w: 1.5, cond: () => repOK() && S.rep >= 60 && isFixer(), title: '추천장',
+    text: '하나 협회 창구 직원이 서류 한 장을 내민다. "평판이 좋으시네요. 지역 대표로 추천이 들어왔습니다."',
+    choices: [{ t: '감사히 받는다 — 실적 +3', def: true, fn() { merit(3); } }] },
+
+  // ----- 부정 (평판 악명 이하) -----
+  { id: 'rep_refused', when: [0, 1, 2], w: 2, cond: () => repOK() && S.rep <= -25, vampOK: true, fac: REP_ALL_FAC, title: '문전박대',
+    text: '상점 주인이 당신을 보자 셔터를 내린다. 옆 가게도, 그 옆 가게도. 결국 뒷거래 상인에게 웃돈을 주고 물건을 산다.',
+    choices: [{ t: '웃돈을 낸다', def: true, fn() { const v = Math.min(S.money, pay(rnd(100000, 400000))); if (v) spend(v, true); stress(4); } },
+      { t: '셔터를 걷어찬다', fn() { rep(-2); stress(-3); say('셔터가 우그러졌다. 소문은 더 나빠질 것이다.'); } }] },
+  { id: 'rep_report', when: [0, 1, 2], w: 1.8, cond: () => repOK() && S.rep <= -25, vampOK: true, fac: REP_ALL_FAC, title: '고발',
+    text: '누군가 당신을 고발했다. 사실인 것도, 아닌 것도 섞여 있다. 벌금 고지서가 날아든다.',
+    choices: [{ t: '벌금을 낸다', def: true, fn() { const v = pay(rnd(300000, 1500000)); spend(v, true); } },
+      { t: '무시한다 — 실적 -2', fn() { merit(-2); } }] },
+  { id: 'rep_vandal', when: [2, 3], w: 1.5, cond: () => repOK() && S.rep <= -25 && hasHome(), title: '낙서',
+    text: '거처 문 앞에 붉은 글씨가 휘갈겨져 있다. 당신의 이름과, 당신이 했다는 일들.',
+    choices: [{ t: '지운다', def: true, fn() { stress(6); } }, { t: '그대로 둔다', fn() { stress(3); rep(-1); } }] },
+  { id: 'rep_bounty', when: [1, 2, 3], w: 2, cond: () => repOK() && S.rep <= -40, vampOK: true, fac: REP_ALL_FAC, title: '현상금',
+    text: '현상금 전단에 당신의 얼굴이 실렸다. 돈 냄새를 맡은 해결사 사무소가 먼저 찾아왔다.',
+    choices: [{ t: '맞선다', def: true, fn() { fight('fixer_vet', { lethal: true, noCow: true, name: '현상금 사냥꾼 사무소', hpMul: 1.2, win() { merit(2); rep(-2, '사냥꾼을 쓰러뜨렸다'); } }); } },
+      { t: '도망친다', flee: true, fn() { if (Math.random() < 0.6) say('간신히 따돌렸다. 전단은 계속 붙어 있을 것이다.'); else { say('등 뒤로 칼날이 스쳤다.', 'l-bad'); hurt(15); } } }] },
+  { id: 'rep_assassin', when: [1, 2, 3], w: 3, cond: () => repOK() && S.rep <= -60 && S.flags.assassinDay !== S.day, vampOK: true, fac: REP_ALL_FAC, title: '암살자',
+    build() {
+      const a = pick(REP_ASSASSINS.filter(x => !(faction() === 'finger' && AFF().name === x.by) && !(S.aff === 'shi' && x.by === '시 협회')));
+      this.text = `${a.line}<br><span class="dim">${a.by}에서 보낸 암살자다. 평판이 바닥까지 떨어진 자에게는 누군가 반드시 값을 매긴다.</span>`;
+      S.flags.assassinDay = S.day;
+      return [
+        { t: `맞선다 — ${ENEMIES[a.key].name} (강적)`, def: true, fn() {
+          fight(a.key, { lethal: true, noCow: true, hpMul: 1 + Math.max(0, -S.rep - 60) / 80, power: Math.floor((9 - S.grade) / 3),
+            win() { merit(3); say(`${a.by}은(는) 이 일을 잊지 않을 것이다. 다음엔 더 많이 올 것이다.`, 'l-bad'); rep(-3); } });
+        } },
+        { t: '돈으로 산다 — 의뢰를 취소시킨다 (평판 비례)', cost: 0, fn() {
+          const v = pay(5000000 + Math.max(0, -S.rep - 60) * 300000);
+          if (S.money >= v) { spend(v); rep(10, '목숨값을 치렀다'); say('암살자는 돈을 세어 보고 칼을 거뒀다. "다음 의뢰는 받지 않겠습니다. 이번만은."'); }
+          else { say('가진 돈으로는 모자랐다. 암살자가 고개를 젓는다.', 'l-bad'); fight(a.key, { lethal: true, noCow: true }); }
+        } },
+        { t: '도망친다', flee: true, fn() { if (Math.random() < 0.35) say('뒷골목을 세 번 꺾어 겨우 따돌렸다. 오늘은.'); else { say('도망칠 수 없었다.', 'l-bad'); fight(a.key, { lethal: true, noCow: true }); } } },
+      ];
+    }, text: '' },
+);
+
+/* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
 ========================================================= */
