@@ -6534,6 +6534,67 @@ const _renderTopTraitor = renderTop;
 renderTop = function () { _renderTopTraitor(); if (S && S.flags.traitorAff && !S.flags.traitorDone) $('#sPay').innerHTML += ` <span class="l-bad">${AFFS[S.flags.traitorAff].name}의 배신자 · 추격 ${S.flags.traitorWins || 0}/5</span>`; };
 
 /* =========================================================
+   둥지와 뒷골목 — 둥지 안에는 뒷골목의 밤이 없다. 낮에는 같은 구의 둥지와 뒷골목을 자유롭게 오갈 수 있다.
+   둥지에 거처가 없으면 밤에는 숙박비를 내거나 거리에서 밤을 보내거나, 뒷골목으로 내려간다
+========================================================= */
+const isNest = () => !!(S && !S.warp && !S.exiled && S.loc && S.loc.area === '둥지');
+const nestResident = () => S.ownHome === 'nest' || ['wing', 'head'].includes(faction());
+Object.defineProperty(TURNS[3], 'name', { get() { return isNest() ? '둥지의 밤' : '뒷골목의 밤'; } });
+Object.defineProperty(TURNS[3], 'time', { get() { return isNest() ? '심야' : '03:13 ~ 04:34'; } });
+function moveZone(to) {
+  if (!S.loc || !S.loc.n) return;
+  S.loc = { ...S.loc, area: to, label: cityLabel(S.loc.n, to) }; S.cityLoc = S.loc;
+  print(to === '둥지' ? `📍 ${S.loc.label} — 검문을 지나 둥지 안으로 들어왔다. 거리가 깨끗하고, 공기가 다르다.` : `📍 ${S.loc.label} — 둥지의 벽을 나서자 골목의 냄새가 밀려온다.`, 'l-day');
+  renderTop();
+}
+const canMoveZone = () => S && S.phase === 'day' && S.turn < 3 && !S.warp && !S.exiled && S.loc && S.loc.n && (!T || !T.awaiting || T.awaiting.ev.id !== 'travel_method');
+$('#boardBtn').insertAdjacentHTML('afterend', ' <button id="zoneBtn" class="hidden" style="padding:3px 9px;font-size:13px">둥지로</button>');
+$('#zoneBtn').onclick = () => { if (canMoveZone()) moveZone(isNest() ? '뒷골목' : '둥지'); };
+const _renderTopZone = renderTop;
+renderTop = function () {
+  _renderTopZone();
+  const ok = canMoveZone();
+  $('#zoneBtn').classList.toggle('hidden', !ok);
+  if (ok) $('#zoneBtn').textContent = isNest() ? '뒷골목으로 내려간다' : '둥지로 들어간다';
+};
+// 아침 이동 메뉴에도
+(() => {
+  const tc = EVENTS.find(e => e.id === 'travel_choice'), ob = tc.build;
+  tc.build = function () {
+    const ch = ob.call(this);
+    if (!S.loc || !S.loc.n) return ch;
+    const to = isNest() ? '뒷골목' : '둥지';
+    return [ch[0], { t: `같은 구의 ${to === '둥지' ? '둥지로 들어간다' : '뒷골목으로 내려간다'} — 시간을 쓰지 않는다`, fn() { moveZone(to); return nextEvent(); } }, ...ch.slice(1)];
+  };
+})();
+// 둥지의 밤
+const NEST_NIGHT_AMB = ['가로등이 꺼지지 않는다. 경비 드론이 일정한 간격으로 지나간다.', '둥지의 벽 너머에서 희미하게 기계음이 들린다. 여기까지는 오지 않는다.',
+  '늦게까지 불이 켜진 사무실 창문들. 깃털들은 아직 퇴근하지 못했다.', '편의점 점원이 하품을 한다. 밤에도 문을 여는 가게가 있다는 것이 둥지다.', '분수대의 물소리. 뒷골목에서는 들을 수 없는 소리다.'];
+const _ambientPoolNest = ambientPool;
+ambientPool = () => (isNest() && S.turn === 3 ? NEST_NIGHT_AMB : _ambientPoolNest());
+const NEST_HOTEL = 300000;
+EVENTS.push({ id: 'nest_night', chainOnly: true, when: [3], w: 0, title: '둥지의 밤',
+  build() {
+    const res = nestResident();
+    this.text = `둥지 안에는 뒷골목의 밤이 없다. 청소부는 벽을 넘지 않는다. ${res ? '거처의 불을 켰다.' : '하지만 둥지에 거처가 없는 사람에게 밤은 비싸다.'}`;
+    const down = { t: '뒷골목으로 내려간다 — 뒷골목의 밤 (청소부)', fn() { moveZone('뒷골목'); return faction() === 'head' ? 'night_head' : faction() === 'twisted' ? 'tw_night' : 'night'; } };
+    return [
+      ...(res ? [{ t: '거처에서 잔다 — 체력 50% 회복', def: true, fn() { say('창밖은 밤새 밝았다. 아무 일도 일어나지 않았다.'); heal(Math.round(S.maxHp * 0.5)); stress(-6); } }]
+        : [{ t: `둥지 호텔에 묵는다 (${won(NEST_HOTEL)}) — 체력 40% 회복`, cost: NEST_HOTEL, fn() { spend(NEST_HOTEL); say('바스락거리는 시트. 아침까지 한 번도 깨지 않았다.'); heal(Math.round(S.maxHp * 0.4)); stress(-5); } }]),
+      { t: '불 꺼지지 않는 거리를 걷는다 — 정신 압박 감소', def: !res, fn() {
+        if (!res && Math.random() < 0.3) { say('경비대가 신분증을 요구했다. 거주권이 없다는 것을 확인하자 둥지 밖으로 안내했다.', 'l-bad'); moveZone('뒷골목'); return faction() === 'head' ? 'night_head' : 'night'; }
+        say('밤에도 문을 연 카페에 앉았다. 둥지의 밤은 조용하다.'); stress(-8); heal(10);
+      } },
+      down,
+    ];
+  }, text: '' });
+const _chooseEventNest = chooseEvent;
+chooseEvent = function () {
+  if (S.turn === 3 && isNest() && S.phase === 'day' && faction() !== 'vampire' && !S.seenToday.includes('nest_night')) return EVENTS.find(e => e.id === 'nest_night');
+  return _chooseEventNest();
+};
+
+/* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
 ========================================================= */
