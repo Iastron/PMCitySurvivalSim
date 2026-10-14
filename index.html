@@ -5006,8 +5006,7 @@ function endTurn() {
 
 function promoModal() {
   S.promoCards--;
-  const pool = S.grade <= 5 ? SHOP_POOL() : DROP_POOL();
-  const opts = shuffle(pool).slice(0, 3);
+  const opts = lootPicks(3);
   S.pausedByModal = !S.paused; if (!S.paused) setSpeed(0);
   openModal(`<h3>승급 보상 — 카드 1장을 선택하세요</h3>
     <p class="dim" style="font-size:13px">${rankText()}에 어울리는 장비가 손에 들어왔다.${S.grade <= 5 ? ' (명품 공방 장비 포함)' : ''}</p>
@@ -5579,8 +5578,22 @@ function libraryRewardCards(key) {
     return id;
   });
 }
+// 전리품 등급 — 카드 가격으로 하급(50만 미만)·중하급(500만 미만)·상급(5000만 미만)·최상급으로 나눈다.
+// 위상이 낮으면 하급 위주, 높으면 하급은 나오지 않고 상급·최상급 위주
+const lootTier = id => { const p = CARDS[id].price || 0; return CARDS[id].premium || p >= 50000000 ? 3 : p >= 5000000 ? 2 : p >= 500000 ? 1 : 0; };
+const LOOT_W = [[6, 3, 1, 0], [1, 5, 3, 0.5], [0, 1, 5, 2], [0, 0, 3, 6]];
+function lootPicks(n = 3) {
+  const band = S.grade >= 7 ? 0 : S.grade >= 5 ? 1 : S.grade >= 3 ? 2 : 3, w = LOOT_W[band];
+  const pool = SHOP_POOL().filter(id => w[lootTier(id)] > 0), out = [];
+  while (out.length < n && pool.length) {
+    let r = Math.random() * pool.reduce((a, id) => a + w[lootTier(id)], 0), i = 0;
+    for (; i < pool.length - 1; i++) { r -= w[lootTier(pool[i])]; if (r <= 0) break; }
+    out.push(pool.splice(i, 1)[0]);
+  }
+  return out;
+}
 function rewardModal(rare, cardPool = null, title = '전리품 — 카드 1장을 선택하세요') {
-  const opts = cardPool ? [...cardPool] : shuffle(DROP_POOL()).slice(0, 3);
+  const opts = cardPool ? [...cardPool] : lootPicks(3);
   if (!cardPool && rare && Math.random() < 0.5) opts[0] = 'ego';
   S.pausedByModal = !S.paused; if (!S.paused) setSpeed(0);
   openModal(`<h3>${title}</h3>
