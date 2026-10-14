@@ -6341,6 +6341,34 @@ function syncFingerLim() {
 const _renderTopFingerLim = renderTop;
 renderTop = function () { _renderTopFingerLim(); syncFingerLim(); };
 
+/* ---------- 신탁 단말기 - 카두세우스 — 헤르메스가 선사한 최고의 무기이자 저주.
+   지령에 따라 금속 같은 액체가 무기로 변한다. 이것이 있어야 「Furioso-Replica」와 거미집 검지 아비의 기술을 쓸 수 있다.
+   (기술명·위력: Limbus Company 「거미집 검지 아비」) ---------- */
+limCard('cd_blood', '얼어붙은 피를 삼백삼십 휘감아', '타격', 3, 4, 3, 1, { src: '카두세우스' });
+limCard('cd_clap', '소리 없이 손뼉 쳐 즐기고, 목소리 없이 슬피 꿰뚫어', '관통', 4, 4, 2, 2, { onHit: { bleed: 2 }, desc: '적중 시 출혈 2', src: '카두세우스' });
+limCard('cd_fall', '날 세워 칼을 웃거라, 낙엽 향 나듯 폭포를 울거라', '참격', 4, 3, 3, 2, { onHit: { bleed: 1 }, desc: '적중 시 출혈 1', src: '카두세우스' });
+limCard('cd_whim', '예측할 수 없는 변덕으로', '회피', 4, 10, 1, 1, { src: '카두세우스' });
+CARDS.cd_furioso = { name: 'Furioso-Replica', cost: 5, mass: 'each', dice: [['참격', 3, 6], ['관통', 3, 9], ['타격', 3, 12], ['참격', 3, 15], ['관통', 3, 18]], onHit: { bleed: 1 },
+  desc: '광역-개별 · 지령이 빚은 무기들이 차례로 쏟아진다. 적중 시 출혈 1 (카두세우스 — 거미집 검지 아비)' };
+const CADUCEUS_CARDS = ['cd_blood', 'cd_clap', 'cd_fall', 'cd_whim', 'cd_furioso'];
+EVENTS.push({ id: 'ix_caduceus', when: [0, 1, 2], w: 1.5, cond: () => S.ch.id === 'index_oracle' && S.aff === 'f_index' && !S.flags.caduceus && S.day >= 3 && !S.warp && !S.exiled, title: '헤르메스의 하사',
+  text: '단말기가 처음 듣는 비프음을 낸다. 지령이 아니다. 하사(下賜)다. 상자 안에는 무선호출기와, 사슬로 이어진 금빛 원통 손잡이 한 쌍. 손잡이 속에서 검은 금속 같은 액체가 출렁인다. "신탁 단말기 - 카두세우스." 받으면 지령이 내리는 대로 어떤 무기든 쥘 수 있다. 그리고 지령을 거스를 때마다 비프음은 빨라질 것이다.',
+  choices: [
+    { t: '받는다 — 카두세우스 (Furioso-Replica 외 기술 5종)', def: true, fn() {
+      S.flags.caduceus = true; CADUCEUS_CARDS.forEach(addCard);
+      say('손잡이를 쥐자 액체가 칼의 형태를 갖췄다. 단말기 화면에 다음 지령이 떠오른다.', 'l-day'); stress(6);
+    } },
+    { t: '상자를 닫는다', fn() { say('비프음이 한참 동안 멈추지 않았다.', 'l-bad'); stress(10); S.flags.caduceusRefused = (S.flags.caduceusRefused || 0) + 1; } },
+  ] });
+// 검지를 떠나면 카두세우스는 회수된다
+const _renderTopCad = renderTop;
+renderTop = function () {
+  _renderTopCad();
+  if (!S || !S.flags.caduceus || S.phase === 'combat' || S.phase === 'over' || S.aff === 'f_index') return;
+  S.flags.caduceus = false; S.deck = S.deck.filter(id => !CADUCEUS_CARDS.includes(id));
+  say('단말기의 화면이 꺼졌다. 손잡이 속 액체가 굳어 버렸다. 검지는 하사품을 회수해 갔다.', 'l-bad');
+};
+
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
