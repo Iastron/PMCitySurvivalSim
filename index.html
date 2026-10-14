@@ -539,7 +539,7 @@ const AFFS = {
     hooks: { onClashWin(P, E) { E.st.bleed += 1; clog('일격필살 — 출혈 +1', 'l-sys'); } }, cards: ['shi_ambush', 'shi_death'] },
   liu:     { name: '리우 협회', faction: 'assoc', fixer: true, passive: '리우의 불길 — 화상 상태인 적에게 공격 위력 +1.',
     hooks: { rollBonus(P, d, E) { return OFF(d[0]) && E.st.burn > 0 ? 1 : 0; } }, cards: ['liu_fist', 'liu_blaze'] },
-  f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지 카포', '엄지 소토카포'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
+  f_thumb: { name: '엄지', ranks: ['엄지 솔다토', '엄지 카포', '엄지 언더보스'], faction: 'finger', home: true, passive: '위계 — 매 막 시작 시 힘 1.',
     hooks: { roundStart(P) { P.st.str += 1; } }, cards: ['th_load', 'th_manner'] },
   f_index: { name: '검지', ranks: ['검지 수행자', '검지 전령', '검지 대행자'], faction: 'finger', home: true, passive: '지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.',
     hooks: { roundStart(P) { const k = pick(['str', 'end', 'prot']); P.st[k] += 2; clog(`지령 — ${STATUS_NAME[k]} +2`, 'l-sys'); } }, cards: ['ix_order', 'ix_will'] },
