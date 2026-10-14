@@ -5159,7 +5159,9 @@ function startRound() {
     if (e.staggered) continue;
     const pool = shuffle([...e.d.pool, ...(e.extra || [])]);
     if (e.priorityCard && pool.includes(e.priorityCard)) { pool.splice(pool.indexOf(e.priorityCard), 1); pool.unshift(e.priorityCard); }
-    for (let i = 0; i < e.d.slots; i++) {
+    // 급이 낮은 적(정예가 아닌 적)은 한 막에 최대 2개, 셋 이상 무리로 나오면 1개의 기술만 쓴다
+    const slots = e.d.elite || e.d.boss ? e.d.slots : Math.min(e.d.slots, foes.length >= 3 ? 1 : 2);
+    for (let i = 0; i < slots; i++) {
       const c = pool.find(x => ecost(x) <= e.light); if (!c) break;
       C.intents.push(c); C.intentOwners.push(e); e.light -= ecost(c);
       pool.push(pool.splice(pool.indexOf(c), 1)[0]);
