@@ -5978,6 +5978,106 @@ EVENTS.push(
 );
 
 /* =========================================================
+   공방 운영 — 공방 견습 장인 출신은 자기 공방을 연다. 무기를 직접 만들어 팔고,
+   많이 팔수록 공방 등급(1~9)이 올라 만들 수 있는 무기 종류와 품질이 늘어난다.
+   9등급 공방의 최고급 무기는 1급 해결사·특색도 거금을 주고 산다
+========================================================= */
+const WS_TYPES = [
+  { k: 'dagger', n: '단검', lv: 1, cost: 1, price: 400000, dice: [['관통', 3, 6], ['참격', 3, 6]], hit: { bleed: 1 } },
+  { k: 'mace', n: '메이스', lv: 1, cost: 1, price: 500000, dice: [['타격', 4, 8]], hit: {} },
+  { k: 'sword', n: '장검', lv: 2, cost: 2, price: 800000, dice: [['참격', 5, 9], ['참격', 4, 7]], hit: {} },
+  { k: 'spear', n: '창', lv: 3, cost: 2, price: 900000, dice: [['관통', 6, 11]], hit: { bleed: 1 } },
+  { k: 'pistol', n: '권총', lv: 4, cost: 1, price: 1200000, dice: [['관통', 4, 8], ['관통', 4, 8]], hit: { burn: 1 } },
+  { k: 'hammer', n: '망치', lv: 5, cost: 2, price: 1300000, dice: [['타격', 8, 14]], hit: { para: 1 } },
+  { k: 'twin', n: '쌍검', lv: 6, cost: 2, price: 1600000, dice: [['참격', 4, 7], ['참격', 4, 7], ['참격', 4, 7]], hit: { bleed: 1 } },
+  { k: 'great', n: '대검', lv: 7, cost: 3, price: 1800000, dice: [['참격', 10, 16], ['참격', 6, 10]], hit: {} },
+  { k: 'gauntlet', n: '건틀릿', lv: 8, cost: 2, price: 2000000, dice: [['타격', 5, 9], ['타격', 5, 9], ['방어', 5, 9]], hit: { para: 1 } },
+];
+const WS_Q = ['', '조잡한', '쓸 만한', '고급', '명품', '최고급'];
+const WS_QMUL = [0, 1, 3, 10, 40, 120];
+const WS_LV_SOLD = [0, 0, 2, 5, 9, 14, 20, 27, 35, 45];   // 등급 n에 필요한 누적 판매 수
+const wsMaxQ = lv => lv >= 9 ? 5 : lv >= 7 ? 4 : lv >= 5 ? 3 : lv >= 3 ? 2 : 1;
+const wsCard = (k, q) => `wsw_${k}_${q}`;
+for (const t of WS_TYPES) for (let q = 1; q <= 5; q++) {
+  const hit = { ...t.hit };
+  if (q >= 3) for (const x in hit) hit[x] += 1;
+  if (q >= 4 && !hit.bleed && !hit.burn) hit.bleed = 2;
+  if (q === 5) { hit.stg = 6; }
+  CARDS[wsCard(t.k, q)] = { name: `공방제 ${t.n} [${WS_Q[q]}]`, cost: t.cost, dice: t.dice.map(([ty, a, b]) => [ty, a + (q - 1) * 2, b + (q - 1) * 3]),
+    onHit: Object.keys(hit).length ? hit : undefined, wsValue: t.price * WS_QMUL[q],
+    desc: `직접 만든 무기 · 판매가 약 ${won(t.price * WS_QMUL[q])}` + (Object.keys(hit).length ? ' · 적중 시 ' + Object.entries(hit).map(([x, v]) => x === 'stg' ? `흐트러짐 피해 ${v}` : `${STATUS_NAME[x]} ${v}`).join(', ') : '') };
+}
+const isSmith = () => !!(S && S.ws);
+const wsTypesOpen = () => WS_TYPES.filter(t => t.lv <= S.ws.lv);
+function wsLevelCheck() {
+  while (S.ws.lv < 9 && S.ws.sold >= WS_LV_SOLD[S.ws.lv + 1]) {
+    S.ws.lv++;
+    const opened = WS_TYPES.filter(t => t.lv === S.ws.lv).map(t => t.n);
+    print(`★ 공방 등급 ${S.ws.lv} — 「${S.ws.name}」${opened.length ? ` · 새 무기: ${opened.join(', ')}` : ''} · 최고 품질: ${WS_Q[wsMaxQ(S.ws.lv)]}`, 'l-day');
+    if (S.ws.lv === 9) print('도시 전체에 이름이 났다. 1급 해결사와 특색이 당신의 공방 앞에 줄을 선다.', 'l-day');
+    rep(3, '공방의 명성');
+  }
+}
+const _newGameWs = newGame;
+newGame = function (ch) {
+  _newGameWs(ch);
+  if (ch.id === 'artisan') {
+    S.ws = { name: `${S.heroName} 공방`, lv: 1, sold: 0, revenue: 0, stock: [] };
+    say(`뒷골목 구석에 작은 공방을 차렸다 — 「${S.ws.name}」. 무기를 만들어 팔수록 공방 등급이 오른다.`, 'l-day');
+  }
+};
+const _renderTopWs = renderTop;
+renderTop = function () { _renderTopWs(); if (isSmith()) $('#sPay').innerHTML += ` <span style="color:var(--gold)">공방 ${S.ws.lv}등급 · 재고 ${S.ws.stock.length}/6 · 판매 ${S.ws.sold}</span>`; };
+
+EVENTS.push(
+  // 제작
+  { id: 'ws_forge', when: [0, 1, 2], w: 4, cond: () => isSmith() && !S.warp && !S.exiled && S.ws.stock.length < 6, vampOK: true, fac: REP_ALL_FAC, title: '공방 작업',
+    build() {
+      const maxQ = wsMaxQ(S.ws.lv), types = shuffle(wsTypesOpen()).slice(0, 3);
+      this.text = `「${S.ws.name}」 (${S.ws.lv}등급). 화로에 불을 넣었다. 오늘은 무엇을 두드릴까. 재료비는 먼저 나간다. 최고 품질로 만들수록 실패할 수도 있다. (재고 ${S.ws.stock.length}/6)`;
+      const make = (t, q) => ({ t: `${WS_Q[q]} ${t.n} — 재료비 ${won(Math.round(t.price * WS_QMUL[q] * 0.4))}${q === maxQ && q > 1 ? ' · 실패 위험' : ''}`, cost: Math.round(t.price * WS_QMUL[q] * 0.4), fn() {
+        spend(Math.round(t.price * WS_QMUL[q] * 0.4));
+        if (q === maxQ && q > 1 && Math.random() < 0.15) { say('담금질에서 금이 갔다. 재료가 날아갔다.', 'l-bad'); stress(5); return; }
+        S.ws.stock.push(wsCard(t.k, q)); merit(q >= 4 ? 2 : 1);
+        say(`완성 — 「${CARDS[wsCard(t.k, q)].name}」. 진열대에 올렸다. (재고 ${S.ws.stock.length}/6)`, 'l-good');
+      } });
+      return [...types.map(t => make(t, maxQ)), ...types.slice(0, 1).filter(() => maxQ > 1).map(t => make(t, maxQ - 1)),
+        { t: '오늘은 쉰다', def: true, fn() { say('화로의 불을 낮췄다.'); heal(10); } }];
+    }, text: '' },
+  // 손님
+  { id: 'ws_customer', when: [0, 1, 2], w: 5, cond: () => isSmith() && !S.warp && !S.exiled && S.ws.stock.length > 0, vampOK: true, fac: REP_ALL_FAC, title: '공방 손님',
+    build() {
+      const id = pick(S.ws.stock), q = +id.split('_')[2], card = CARDS[id];
+      const who = q >= 5 ? pick(['1급 해결사', '특색 해결사', '손가락 상위 간부']) : q >= 4 ? pick(['2급 해결사', '3급 해결사', '날개 전투 요원']) : q >= 3 ? pick(['4급 해결사', '5급 해결사', '조직 보스'])
+        : q >= 2 ? pick(['6급 해결사', '사무소 해결사', '뒷골목 조직 간부']) : pick(['8급 해결사', '뒷골목 쥐', '견습 해결사']);
+      const offer = Math.round(card.wsValue * (0.9 + Math.random() * 0.5) * (1 + (S.rep || 0) / 200));
+      this.text = `${who}가 진열대 앞에 멈춰 섰다. 「${card.name}」를 이리저리 휘둘러 본다. "${q >= 5 ? '소문 듣고 왔지. 이 정도면 내 목숨을 맡길 만하군.' : q >= 4 ? '손에 착 붙는데.' : '이거 얼마요?'}" 제시가: ${won(offer)}`;
+      const sell = (price, extra) => () => {
+        S.ws.stock.splice(S.ws.stock.indexOf(id), 1); S.ws.sold++; S.ws.revenue += price; gain(price);
+        if (extra) say(extra); merit(q >= 4 ? 3 : 1); if (q >= 5) rep(2, '최고급 무기의 소문'); wsLevelCheck();
+      };
+      return [
+        { t: `판다 — ${won(offer)}`, def: true, fn: sell(offer, `${who}가 무기를 들고 나갔다. 거리 어딘가에서 당신의 무기가 피를 묻힐 것이다.`) },
+        { t: '값을 올려 부른다 (+30%, 실패하면 손님이 떠난다)', fn() {
+          if (Math.random() < 0.55) sell(Math.round(offer * 1.3), '"…좋아. 그만한 값은 하겠지."')();
+          else say(`${who}가 혀를 차고 나갔다.`, 'l-bad');
+        } },
+        { t: '팔지 않는다', fn() { say('"다음에 오지."'); } },
+      ];
+    }, text: '' },
+);
+// 재고를 직접 쓸 수도 있다 — 도시 시설 대신 이벤트로: 재고가 쌓였을 때 가끔
+EVENTS.push({ id: 'ws_keep', when: [0, 1, 2], w: 1.2, cond: () => isSmith() && !S.warp && S.ws.stock.length >= 3, vampOK: true, fac: REP_ALL_FAC, title: '진열대',
+  build() {
+    const best = [...S.ws.stock].sort((a, b) => CARDS[b].wsValue - CARDS[a].wsValue)[0];
+    this.text = `진열대를 정리한다. 가장 잘 나온 것은 「${CARDS[best].name}」. 팔지 않고 내가 써도 된다.`;
+    return [
+      { t: `직접 쓴다 — 덱에 추가 (판매 수에는 들어가지 않는다)`, fn() { S.ws.stock.splice(S.ws.stock.indexOf(best), 1); addCard(best); } },
+      { t: '진열대에 그대로 둔다', def: true, fn() { say('잘 팔리기를.'); } },
+    ];
+  }, text: '' });
+
+/* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
 ========================================================= */
