@@ -6726,6 +6726,46 @@ cityRender = function () {
   if (hid && h4) h4.insertAdjacentHTML('afterend', '<p class="dim" style="font-size:12px">명품 공방은 둥지 안에 있다. 둥지로 들어가면 고급 장비를 볼 수 있다.</p>');
 };
 
+/* ---------- 협회·손가락 패시브 재정비 — 소속마다 1~2개. 이름과 효과는 Library of Ruina·Limbus Company 해당 인격의 패시브를
+   이 게임의 상태(힘·인내·보호·출혈·화상·마비·파열)로 옮긴 것. 원작에 패시브가 밝혀지지 않은 협회는 업무를 바탕으로 했다 ---------- */
+const weakTo = (E, d) => !!(E && E.res && (E.res[d[0]] || 1) > 1);
+const PASSIVES = {
+  zwei: ['당신의 방패 — 매 막 보호 1, 체력이 절반 미만이면 보호 +2. · 호흡 — 합에서 이기면 체력 1 회복.', {
+    roundStart(P) { P.st.prot += 1 + (P.hp < P.maxHp / 2 ? 2 : 0); }, onClashWin(P) { if (P.hp < P.maxHp) P.hp += 1; } }],
+  shi: ['사선발악 — 체력이 절반 미만이면 공격 위력 +2. · 한점 노리기 — 출혈 상태인 적에게 관통 공격 위력 +1.', {
+    rollBonus(P, d, E) { return (OFF(d[0]) && P.hp < P.maxHp / 2 ? 2 : 0) + (d[0] === '관통' && E && E.st.bleed > 0 ? 1 : 0); } }],
+  liu: ['발화 — 공격이 적중하면 화상 1. · 뜨거운 기세 — 화상 6 이상인 적에게 공격 위력 +2.', {
+    hitStatus: { burn: 1 }, rollBonus(P, d, E) { return OFF(d[0]) && E && E.st.burn >= 6 ? 2 : 0; } }],
+  hana: ['해결사 업무 총괄 — 의뢰 보수 +30%. · 4괘 — 매 막 보호 1·인내 1.', {
+    payBonus: 0.3, roundStart(P) { P.st.prot += 1; P.st.end += 1; } }],
+  tres: ['발명품 심사 — 공방 카드 30% 할인.', { shopDiscount: 0.3 }],
+  cinq: ['고귀한 결투 — 상대가 하나뿐이면 공격 위력 +2. · 흘리기 — 회피 주사위 위력 +2.', {
+    rollBonus(P, d) { return (OFF(d[0]) && C && combatEnemies().filter(e => e.hp > 0).length === 1 ? 2 : 0) + (d[0] === '회피' ? 2 : 0); } }],
+  seven: ['약점 파악 — 약점·취약 속성으로 공격하면 위력 +2. · 관찰 — 매 막 시작 시 대상에게 마비 1.', {
+    rollBonus(P, d, E) { return OFF(d[0]) && weakTo(E, d) ? 2 : 0; }, roundStart(P, E) { if (E) E.st.para += 1; } }],
+  eight: ['외곽 항해 — 외곽의 괴물 상대 공격 위력 +3.', {
+    rollBonus(P, d) { return OFF(d[0]) && C && OUTSKIRTS_MONSTERS.includes(C.E.key || C.key) ? 3 : 0; } }],
+  devjat: ['신속 배달 — 첫 막에 보호 4. · 배달부의 퇴로 — 도주 성공률 상승.', {
+    roundStart(P) { if (C.round === 1) P.st.prot += 4; }, flee: 0.9 }],
+  dieci: ['깨달음의 빛 — 피해를 받은 다음 막에 힘 1 (체력 25% 이상 잃었다면 3). · 유적 탐사 — 진짜 유물 발견 확률 상승.', {
+    roundStart(P) { const lost = (P.prevHp ?? P.hp) - P.hp; P.prevHp = P.hp; if (lost > 0) P.st.str += lost >= P.maxHp * 0.25 ? 3 : 1; }, relicFind: 0.2 }],
+  oufi: ['거래 중개 — 전투 보상 안 +25%. · 규정 위반 제재 — 사채 이자 없음.', { moneyMul: 1.25, noInterest: true }],
+  f_thumb: ['위계 — 매 막 힘 1. · 총검술 — 공격이 적중하면 화상 1 (작열 추진탄).', {
+    roundStart(P) { P.st.str += 1; }, hitStatus: { burn: 1 } }],
+  f_index: ['지령 — 매 막 무작위로 힘·인내·보호 중 하나 +2.', {
+    roundStart(P) { const k = pick(['str', 'end', 'prot']); P.st[k] += 2; clog(`지령 — ${STATUS_NAME[k]} +2`, 'l-sys'); } }],
+  f_middle: ['중지는 잊지 않아 — 나에게 피해를 준 적에게 공격 위력 +2 (앙갚음). · 복수 — 체력이 절반 이하이면 공격 위력 +2.', {
+    rollBonus(P, d, E) { return OFF(d[0]) ? (E && E.hurtMe ? 2 : 0) + (P.hp <= P.maxHp / 2 ? 2 : 0) : 0; } }],
+  f_ring: ['혈점묘파 — 적이 받는 출혈 피해 2배. · 여러 점 — 전투 시작 시 적 둘에게 무작위로 출혈·화상·마비·파열 2.', {
+    enemyBleedMul: 2, roundStart() { if (C.round !== 1) return; shuffle(combatEnemies().filter(e => e.hp > 0)).slice(0, 2).forEach(e => { const k = pick(['bleed', 'burn', 'para', 'rupture']); e.st[k] = (e.st[k] || 0) + 2; clog(`여러 점 — ${e.name}에게 ${STATUS_NAME[k]} 2`, 'l-sys'); }); } }],
+  f_pinky: ['결전의 예 — 공격 주사위끼리 동률이면 승리. · 정검[整劍] — 첫 막에 힘 2.', {
+    tieWin: true, roundStart(P) { if (C.round === 1) P.st.str += 2; } }],
+};
+for (const [k, [passive, hooks]] of Object.entries(PASSIVES)) if (AFFS[k]) Object.assign(AFFS[k], { passive, hooks });
+// 중지의 앙갚음 — 나에게 피해를 준 적을 기억한다
+const _dmgGrudge = dmg;
+dmg = function (t, amount, type) { const before = t.hp; const r = _dmgGrudge(t, amount, type); if (C && t === C.P && t.hp < before && C.E) C.E.hurtMe = true; return r; };
+
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
