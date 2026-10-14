@@ -6369,6 +6369,59 @@ renderTop = function () {
   say('단말기의 화면이 꺼졌다. 손잡이 속 액체가 굳어 버렸다. 검지는 하사품을 회수해 갔다.', 'l-bad');
 };
 
+/* ---------- 손가락의 명령 거부 — 강하게 거부하면 처형조가 온다. 검지는 지령을 거부하는 순간 전투.
+   이기면 배신자로 지목되어 조직에서 쫓겨나고, 지면 죽는다. 처형조는 위상에 맞춰 강해진다 ---------- */
+Object.assign(ENEMIES, {
+  rep_ring: { elite: true, name: '약지 처분조', desc: '약지는 작품을 망친 자를 재료로 쓴다. 당신은 이제 다음 전시의 재료다.', hp: 160, stg: 75, slots: 2, light: 5, lightRegen: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [3000000, 6000000],
+    pool: [{ name: '강렬한 덧칠', dice: [['타격', 6, 13], ['타격', 6, 20]] }, { name: '혈점묘화', dice: [['관통', 8, 16]], onHit: { bleed: 3 } },
+      { name: '야수파 - 포악한 전개', dice: [['타격', 4, 7], ['타격', 4, 10], ['타격', 4, 13]], onHit: { bleed: 1 } }, { name: '붓 털기', dice: [['방어', 10, 14]] }] },
+  rep_pinky: { elite: true, name: '소지 처단조', desc: '소지는 결전으로 답한다. 조직을 거스른 자와의 결전.', hp: 170, stg: 80, slots: 2, light: 5, lightRegen: 2,
+    res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [3000000, 6000000],
+    pool: [{ name: '무명참[無名斬]', dice: [['참격', 6, 11], ['참격', 6, 16]], onHit: { bleed: 2 } }, { name: '일격', dice: [['참격', 8, 22]] }, { name: '거리 재기', dice: [['회피', 4, 14]] }] },
+});
+const DEFY_SQUAD = { f_thumb: 'rep_thumb', f_index: 'rep_index', f_middle: 'rep_middle', f_ring: 'rep_ring', f_pinky: 'rep_pinky' };
+const DEFY_LINE = {
+  f_thumb: '카포의 사람들이 문을 막아섰다. "명령을 거부했다고? 엄지에서 그 말의 뜻은 하나뿐이다."',
+  f_index: '단말기의 비프음이 미친 듯이 빨라진다. 흰 정장의 대행자들이 골목 양쪽에서 걸어온다. "지령을 거부한 자는 지령의 대상이 됩니다."',
+  f_middle: '"형제가 등을 돌렸다." 중지의 장부에 당신의 이름이 붉게 적혔다. 형제였던 자들이 몰려온다.',
+  f_ring: '도슨트가 당신을 보며 붓을 고쳐 쥔다. "아쉽네요. 좋은 재료가 되겠어요."',
+  f_pinky: '소지의 동료가 칼을 뽑는다. "말로 끝날 일이 아니지. 결전이다."',
+};
+function fingerDefy(why) {
+  const aff = S.aff, key = DEFY_SQUAD[aff]; if (!key) return;
+  const top = fingerTier(S.grade), name = AFFS[aff].name;
+  say(DEFY_LINE[aff], 'l-bad');
+  fight(key, { lethal: true, noCow: true, count: top >= 2 ? 2 : 1, hpMul: 0.7 + (9 - S.grade) * 0.12, power: Math.floor((9 - S.grade) / 2),
+    win() {
+      say(`처형조를 물리쳤다. ${name}은(는) 당신을 배신자로 지목했다. 더는 조직에 머물 수 없다.`, 'l-bad');
+      S.flags.fingerTraitor = name; S.prevAff = S.aff; S.aff = 'street'; S._h = null; rep(-15, `${name}의 배신자`);
+      chron(`✝ ${name}을(를) 거역하고 처형조를 물리쳤다 — 배신자가 되었다 (${why})`);
+      renderTop();
+    } });
+}
+// 검지의 지령 — 거부하면 즉시 전투
+(() => {
+  const ix = EVENTS.find(e => e.id === 'index');
+  ix.choices = ix.choices.filter(c => !c.t.startsWith('지령을 미룬다'));
+  ix.choices.push({ t: '지령을 거부한다 — 검지가 지령의 대상으로 삼는다 (전투)', fn() { fingerDefy('지령 거부'); } });
+  // 일상의 지령(단추·빈 봉투)과 전령 지령에도 거부 선택지
+  for (const id of ['fg_index_buttons', 'fg_index_wait', 'ix_courier_route']) {
+    const e = EVENTS.find(x => x.id === id); if (!e) continue;
+    const ob = e.build, bc = e.choices;
+    e.build = function () { const ch = ob ? ob.call(this) : [...bc]; return [...ch, { t: '지령을 거부한다 (전투)', fn() { fingerDefy('지령 거부'); } }]; };
+  }
+  // 상부의 명령 — 정면으로 거부하면 전투, 세 번 미루면 전투
+  const fd = EVENTS.find(e => e.id === 'finger_duty');
+  const delay = fd.choices.find(c => c.t === '미룬다');
+  if (delay) delay.fn = function () {
+    S.flags.dutyDelay = (S.flags.dutyDelay || 0) + 1;
+    if (S.flags.dutyDelay >= 3) { say('세 번째로 명령을 미뤘다. 상부의 인내가 끝났다.', 'l-bad'); S.flags.dutyDelay = 0; fingerDefy('명령을 세 번 미룸'); }
+    else { say(`명령을 미룬 대가로 경고를 받았다. (미룸 ${S.flags.dutyDelay}/3)`, 'l-bad'); hurt(15); }
+  };
+  fd.choices.push({ t: '명령을 정면으로 거부한다 — 처형조가 온다 (전투)', fn() { fingerDefy('명령 거부'); } });
+})();
+
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
