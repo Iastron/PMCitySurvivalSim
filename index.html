@@ -3048,11 +3048,11 @@ Object.assign(CARDS, {
 function vampireRollBonus(P, d) {
   const first = S.vampRank === 1;
   if (!OFF(d[0])) return first ? 2 : 0;
-  return (first ? 3 : 1) + Math.min(4, S.thrallPow || 0) + Math.min(2, Math.floor((S.blood || 0) / 5));
+  return (first ? 3 : 1) + Math.min(4, S.thrallPow || 0) + Math.floor((S.blood || 0) / 5);
 }
 Object.assign(AFFS, {
   bloodkin: { name: '혈귀', faction: 'vampire', locked: true,
-    passive: '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 5마다 공격 +1(최대 +2), 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.',
+    passive: '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 5마다 공격 +1(제한 없음), 피 10마다 최대 체력 +10, 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.',
     hooks: { vamp: 1, rollBonus: vampireRollBonus } },
 });
 EVENTS.push(
@@ -3210,7 +3210,7 @@ Object.assign(EVENTS.find(e => e.id === 'vp_pouch'), {
     ];
   } });
 // 권속의 힘은 권속 수가 아니라 권속이 된 자의 강함으로 (최대 +4)
-AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 5마다 공격 +1(최대 +2), 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.';
+AFFS.bloodkin.passive = '혈귀 — 적중 시 흡혈 1. 기본 공격 위력 +1(제1권속은 +3, 방어·회피 +2). 모은 피 5마다 공격 +1(제한 없음), 피 10마다 최대 체력 +10, 권속의 힘만큼 공격 위력 상승(최대 +4). 권속 서열은 바뀌지 않는다.';
 AFFS.bloodkin.hooks.rollBonus = vampireRollBonus;
 
 /* ---------- 혈귀: 쓰러뜨린 사람을 어떻게 할 것인가 (권속 / 피주머니 / 섭취) ---------- */
@@ -4641,6 +4641,45 @@ for (const e of EVENTS.filter(e => e.warp && e.build && !['wp_arrival', 'wp_form
   e.build = function () { const ch = ob.call(this); if (trainForm() && Math.random() < 0.4) { const l = formReactLine(); if (l) this.text += `<br><span class="l-bad">${l}</span>`; } return ch; };
 }
 
+/* ---------- 피의 축적 — 피 10마다 최대 체력 +10 (한 번 얻은 체력은 피를 써도 유지).
+   체력이 낮을 때(35% 미만)는 피주머니가 먼저, 그다음 권속이 대신 맞는다 ---------- */
+function bloodGrowth() {
+  if (!S || !(faction() === 'vampire' || S.vampRank)) return;
+  const tier = Math.floor((S.blood || 0) / 10);
+  if (tier > (S.bloodTier || 0)) {
+    const n = tier - (S.bloodTier || 0); S.bloodTier = tier;
+    S.maxHp += 10 * n; S.hp += 10 * n;
+    say(`🩸 피가 몸에 스며든다 — 최대 체력 +${10 * n} (피 ${S.blood})`, 'l-day');
+  }
+}
+const _renderTopBlood = renderTop;
+renderTop = function () { _renderTopBlood(); if (S && S.phase !== 'combat') bloodGrowth(); };
+function processAllyDeaths() {
+  if (!C || !C.allies) return;
+  for (const a of C.allies) if (a.hp <= 0 && !a.dead) {
+    a.dead = true;
+    if (a.kind === 'mate') { clog(`✝ ${a.name}이(가) 쓰러졌다.`, 'l-bad'); continue; }
+    if (a.kind === 'thrall') { S.thralls = Math.max(0, (S.thralls || 0) - 1); S.thrallPow = Math.max(0, (S.thrallPow || 0) - Math.round(a.pow)); clog(`✝ ${a.name}이(가) 쓰러졌다. 다시 일어나지 않는다. (권속 ${S.thralls})`, 'l-bad'); }
+    else { S.pouches = Math.max(0, (S.pouches || 0) - 1); S.pouchYield = Math.max(0, (S.pouchYield || 0) - Math.round(a.yield)); clog(`✝ ${a.name}이(가) 말라붙었다. (피주머니 ${S.pouches})`, 'l-bad'); }
+  }
+}
+const _dmgShield = dmg;
+dmg = function (t, amount, type) {
+  if (C && t === C.P && C.allies && t.hp < t.maxHp * 0.35 && amount > 0) {
+    const live = C.allies.filter(a => a.hp > 0 && (a.kind === 'pouch' || a.kind === 'thrall'));
+    const sh = live.find(a => a.kind === 'pouch') || live.find(a => a.kind === 'thrall');
+    if (sh) {
+      const v = Math.max(1, Math.round(amount * ((t.res && t.res[type]) || 1)));
+      sh.hp -= v;
+      clog(`🛡 ${sh.name}이(가) ${sh.kind === 'pouch' ? '앞으로 끌려 나와' : '몸을 던져'} 대신 맞았다 — ${v} 피해 (${Math.max(0, sh.hp)}/${sh.maxHp})`, 'l-sys');
+      if (sh.hp <= 0) processAllyDeaths();
+      return;
+    }
+  }
+  return _dmgShield(t, amount, type);
+};
+const _endCombatAllies = endCombat;
+endCombat = function (win) { processAllyDeaths(); return _endCombatAllies(win); };
 const FINGER_DAILY = [
   { id: 'fg_meal', when: [2], title: '조직의 저녁 식탁',
     text: '오늘 돌아온 사람들이 같은 식탁에 앉았다. 빈자리는 굳이 세지 않는다. 주방 당번이 국을 더 먹을 사람을 찾는다.',
@@ -4842,7 +4881,9 @@ function rejectHeadFlight(index) {
 function showEvent(ev) {
   ev = ev || chooseEvent();
   S.seenToday.push(ev.id);
-  const choices = ev.build ? ev.build() : ev.choices;
+  let choices = ev.build ? ev.build() : ev.choices;
+  if (faction() === 'head' && !choices.some(c => c.flee) && choices.some(c => /맞선|싸운|전투|처단|제압|덤빈|강적/.test(c.t)))
+    choices = [...choices, { t: '도망친다', flee: true, fn() {} }];
   T.awaiting = { ev, choices };
   T.eventShown = true;
   const box = $('#event');
