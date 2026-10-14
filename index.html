@@ -5075,7 +5075,8 @@ function fight(key, opts = {}) {
   const P = { name: faction() === 'twisted' ? `뒤틀림 「${S.ch.twistName}」` : S.ch.colorName ? `특색 「${S.ch.colorName}」` : (AFF().locked || S.ch.id === 'color') ? S.ch.name : affName(), hp: S.hp, maxHp: S.maxHp, maxStg: S.maxStg, stg: S.maxStg, res: {},
     st: mkSt(), next: mkSt(), staggered: false, sr: 0, emo: 0, emoLv: 0, maxLight: Math.max(S.ch.light || 3, AFF().light || 0, S.colorBadge ? 5 : 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), light: Math.max(S.ch.light || 3, AFF().light || 0, S.colorBadge ? 5 : 0) + (S.ego ? 1 : 0) + (S.lightBonus || 0), lastStandUsed: false };
   if (S.twistForm === 'index_puppet' && faction() === 'twisted') { P.maxLight = Math.max(7, P.maxLight); P.light = 4; }
-  const keys = (opts.enemies || Array(Math.max(1, Math.min(3, Math.floor(opts.count || 1)))).fill(key)).slice(0, 3);
+  if (key === 'sweeper' && !opts.enemies && !opts.count) opts = { ...opts, count: rnd(2, 4) };   // 청소부는 무리 지어 다닌다
+  const keys = (opts.enemies || Array(Math.max(1, Math.min(4, Math.floor(opts.count || 1)))).fill(key)).slice(0, 4);
   if (!keys.length) keys.push(key);
   keys[0] = key;
   const enemies = keys.map((enemyKey, index) => {
@@ -5337,16 +5338,36 @@ function useYanPrescript(index) {
 async function resolveMassAttack(card) {
   const P = C.P;
   if (P.hp <= 0 || P.staggered) return;
-  const die = card.dice[0];
-  const attack = roll(P, die, C.E);
+  if (card.onUse) applyFx(card.onUse, P, C.E);
+  const intentOf = enemy => C.intents.findIndex((_, i) => C.intentOwners[i] === enemy && !C.cancelledIntents.has(i));
+  if (card.mass === 'each') {   // 광역-개별
+    clog('광역-개별 「' + card.name + '」', 'l-choice');
+    for (const enemy of combatEnemies().filter(e => e.hp > 0)) {
+      C.E = enemy;
+      const index = intentOf(enemy), ed = index < 0 || enemy.staggered ? [] : C.intents[index].dice;
+      let won = false;
+      for (let k = 0; k < card.dice.length; k++) {
+        if (enemy.hp <= 0 || P.hp <= 0 || P.staggered) break;
+        const die = card.dice[k], a = roll(P, die, enemy), d = ed[k] ? roll(enemy, ed[k], P) : 0;
+        await wait(300);
+        clog(`→ ${enemy.name}: ${a} vs ${d}`, 'l-amb');
+        if (a > d) { dmg(enemy, a, die[0]); applyHit(dieHitCard(card, die), P, enemy); relicOnHit(enemy); won = true; }
+        renderCombat();
+      }
+      if (won && index >= 0) C.cancelledIntents.add(index);
+    }
+    return;
+  }
+  // 광역-합산
+  const attack = card.dice.reduce((n, die) => n + roll(P, die, C.E), 0), die = card.dice[card.dice.length - 1];
   if (P.hp <= 0) return;
   for (const enemy of combatEnemies().filter(e => e.hp > 0)) {
     C.E = enemy;
-    const index = C.intents.findIndex((_, i) => C.intentOwners[i] === enemy && !C.cancelledIntents.has(i));
+    const index = intentOf(enemy);
     const defense = index < 0 || enemy.staggered ? 0 : C.intents[index].dice.reduce((n, d) => n + roll(enemy, d, P), 0);
     if (enemy.hp <= 0) continue;
     await wait(420);
-    clog('광역 합산 「' + card.name + '」 → ' + enemy.name + ': ' + attack + ' vs ' + defense, 'l-choice');
+    clog('광역-합산 「' + card.name + '」 → ' + enemy.name + ': ' + attack + ' vs ' + defense, 'l-choice');
     if (attack > defense) {
       dmg(enemy, attack, die[0]); applyHit(dieHitCard(card, die), P, enemy); relicOnHit(enemy);
       if (index >= 0) C.cancelledIntents.add(index);
@@ -5770,6 +5791,42 @@ $('#rollBtn').onclick = async () => {
   $('#rollCountBtn').disabled = false;
   $('#rollCount').disabled = false;
 };
+/* ---------- 광역 책장 — Library of Ruina 기준 (기술명·주사위). 비용은 이 게임의 빛 체계에 맞춰 정했다 ---------- */
+Object.assign(CARDS, {
+  aoe_shock:     { name: '열화된 충격파', cost: 3, mass: 'each', dice: [['타격', 3, 8], ['타격', 3, 8], ['타격', 4, 9]], onUse: { prot: 3 }, desc: '광역-개별 · 사용 시 이번 막 보호 3 (철학의 층 지정사서)' },
+  aoe_thirst:    { name: '영원한 갈증', cost: 4, mass: 'each', dice: [['참격', 6, 9], ['참격', 8, 19]], onHit: { healSelf: 3 }, desc: '광역-개별 · 적중 시 체력 3 회복 (엘레나)' },
+  aoe_whirl:     { name: '휘몰아치기-애', cost: 4, mass: 'each', dice: [['참격', 3, 7], ['참격', 8, 20]], onHit: { burn: 2 }, desc: '필살기 · 광역-개별 · 적중 시 화상 2 (샤오)' },
+  aoe_purge:     { name: '척결', cost: 4, mass: true, dice: [['타격', 12, 23]], onHit: { para: 1 }, desc: '필살기 · 광역-합산 · 적중 시 허약(마비 1) (글로리아)' },
+  aoe_despair:   { name: '작열하는 절망', cost: 4, mass: 'each', dice: [['관통', 14, 20]], onHit: { burn: 3 }, desc: '광역-개별 · 적중 시 화상 3 (필립)' },
+  aoe_rage:      { name: '광폭한 칼날', cost: 4, mass: 'each', dice: [['관통', 4, 9], ['참격', 4, 9], ['참격', 6, 10]], onHit: { bleed: 3 }, desc: '광역-개별 · 적중 시 출혈 3 (R사 묘 — 혈청 R)' },
+  aoe_mind:      { name: '정신 분쇄', cost: 3, mass: 'each', dice: [['관통', 4, 8], ['타격', 4, 8], ['타격', 5, 10]], onHit: { stg: 6 }, desc: '광역-개별 · 적중 시 흐트러짐 피해 6 (R사 루돌프 — 혈청 R)' },
+  aoe_split:     { name: '대절단-가로', cost: 5, mass: true, dice: [['참격', 28, 42]], onHit: { bleed: 5 }, desc: '광역-합산 · 적중 시 출혈 5 (붉은안개 E.G.O)' },
+  aoe_chorus:    { name: '절정의 합창', cost: 4, mass: 'each', dice: [['타격', 6, 11], ['타격', 5, 10]], onHit: { para: 1 }, desc: '광역-개별 · 적중 시 마비 1 (브레멘)' },
+  aoe_crescendo: { name: '크레센도', cost: 4, mass: 'each', dice: [['관통', 6, 10], ['참격', 9, 22]], desc: '광역-개별 (아르갈리아)' },
+});
+// 필살기에도 광역을 — 리우: 휘몰아치기-애, 검지: 척결
+SPECIALS.liu.push('aoe_whirl'); SPECIALS.f_index.push('aoe_purge'); SPECIAL_IDS.add('aoe_whirl'); SPECIAL_IDS.add('aoe_purge');
+// 모든 삶은 광역 책장 하나를 들고 시작한다 (소속에 맞게)
+const startAoe = () => {
+  const f = faction();
+  if (f === 'vampire') return 'aoe_thirst';
+  if (f === 'twisted') return 'aoe_despair';
+  if (S.aff === 'claw') return 'aoe_rage';
+  if (f === 'color') return 'aoe_crescendo';
+  return 'aoe_shock';
+};
+const _newGameAoe = newGame;
+newGame = function (ch) { _newGameAoe(ch); const id = startAoe(); if (!S.deck.includes(id)) S.deck.push(id); if (S.aff === 'claw' && !S.deck.includes('aoe_mind')) S.deck.push('aoe_mind'); };
+// 뒤틀리거나 E.G.O를 발현하면 그에 맞는 광역기를 얻는다
+const _renderTopAoe = renderTop;
+renderTop = function () {
+  _renderTopAoe();
+  if (!S || S.phase === 'combat' || S.phase === 'over') return;
+  if (faction() === 'twisted' && !S.deck.includes('aoe_despair')) { S.deck.push('aoe_despair'); say('뒤틀린 몸에서 불길이 번진다 — 「작열하는 절망」을 얻었다.', 'l-day'); }
+  if (S.ego && !S.flags.egoAoe) { S.flags.egoAoe = true; const id = pick(['aoe_split', 'aoe_chorus', 'aoe_crescendo']); S.deck.push(id); say(`E.G.O가 공명한다 — 「${CARDS[id].name}」을(를) 얻었다.`, 'l-day'); }
+};
+// 공방에서도 일부 광역 책장을 판다
+CARDS.aoe_shock.price = 3000000; CARDS.aoe_chorus.price = 8000000;
 /* =========================================================
    평판 — 모든 삶 공통 (-100 ~ +100). 높으면 호의가 돌아오고, 매우 낮으면 협회·손가락의 암살자가 찾아온다.
    실적·도움·약탈·배신·금기 위반·벌점·악명 등에서 오르내린다
