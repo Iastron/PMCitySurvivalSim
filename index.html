@@ -6422,6 +6422,44 @@ function fingerDefy(why) {
   fd.choices.push({ t: '명령을 정면으로 거부한다 — 처형조가 온다 (전투)', fn() { fingerDefy('명령 거부'); } });
 })();
 
+/* ---------- 배신자 추격 — 거역한 손가락은 끝까지 쫓아온다. 막아낼수록 더 강한 추격대가 오고,
+   다섯 번을 막아내면 상위 간부가 직접 나선다. 그마저 쓰러뜨리면 추격이 멈춘다. 외곽까지는 쫓아오지 않는다 ---------- */
+const _fingerDefyT = fingerDefy;
+fingerDefy = function (why) { S.flags.traitorAff = S.aff; S.flags.traitorWins = 0; S.flags.traitorNext = S.day + 1; _fingerDefyT(why); };
+const TRAITOR_LINES = {
+  f_thumb: ['골목 끝에 검은 정장 셋. 엄지의 문양이 박힌 총구가 당신을 향한다. "카포께서 아직 너를 잊지 않으셨다."', '창문 너머로 붉은 레이저 점이 가슴에 맺힌다.'],
+  f_index: ['단말기를 든 대행자들이 사방에서 걸어온다. "지령: 배신자를 처리할 것. 오늘 안에."', '흰 정장이 군중 속에 섞여 있다. 그들의 단말기가 동시에 울린다.'],
+  f_middle: ['"장부에 적힌 빚은 갚아야지." 중지의 형제들이 쇠파이프를 끌며 다가온다.', '골목마다 중지의 문신. 앙갚음은 끝나지 않는다.'],
+  f_ring: ['"당신 피는 무슨 색일까요?" 약지의 화가들이 붓과 칼을 함께 들고 있다.', '벽에 당신의 초상화가 걸려 있다. 붉은 물감으로.'],
+  f_pinky: ['소지의 검객이 길을 막는다. "결전에서 도망칠 수는 없다."', '등 뒤에서 칼집 소리가 난다.'],
+};
+EVENTS.push({ id: 'traitor_hunt', when: [0, 1, 2, 3], w: 6, vampOK: true, fac: REP_ALL_FAC,
+  cond: () => S.flags.traitorAff && !S.flags.traitorDone && S.day >= (S.flags.traitorNext || 0) && !S.warp && !S.exiled && S.aff !== S.flags.traitorAff, title: '추격자',
+  build() {
+    const aff = S.flags.traitorAff, wins = S.flags.traitorWins || 0, name = AFFS[aff].name, final = wins >= 5;
+    this.text = final
+      ? `${name}의 상위 간부가 직접 왔다. 아랫사람들은 길을 비키고 물러섰다. "다섯 번이나 우리 사람을 묻었군. 이제 내가 끝낸다."`
+      : `${pick(TRAITOR_LINES[aff])}<br><span class="dim">${name}의 추격대 (${wins + 1}번째) — 막아낼수록 더 강한 자들이 온다.</span>`;
+    const go = () => fight(DEFY_SQUAD[aff], { lethal: true, noCow: true, count: final ? 1 : Math.min(3, 1 + Math.floor(wins / 2)),
+      name: final ? `${name} 상위 간부` : undefined, hpMul: (0.8 + (9 - S.grade) * 0.1) * (final ? 2.2 : 1 + wins * 0.15), power: Math.floor((9 - S.grade) / 2) + wins + (final ? 3 : 0),
+      win() {
+        S.flags.traitorWins = wins + 1; S.flags.traitorNext = S.day + rnd(2, 3); merit(final ? 8 : 2);
+        if (final) { S.flags.traitorDone = true; say(`${name}의 상위 간부가 쓰러졌다. ${name}은(는) 더 이상 사람을 보내지 않는다. 대신 당신의 이름은 손가락 전체에 퍼졌다.`, 'l-day'); chron(`${name}의 추격을 끝냈다 — 상위 간부를 쓰러뜨렸다`); rep(-5); }
+        else say(`추격대를 물리쳤다. ${name}은(는) 다음엔 더 많이 보낼 것이다.`, 'l-bad');
+      } });
+    return [
+      { t: final ? `맞선다 — ${name} 상위 간부 (최종)` : '맞선다', def: true, fn: go },
+      { t: '도망친다', flee: true, fn() {
+        if (Math.random() < (final ? 0.15 : 0.45)) { say('골목을 몇 번이나 꺾어 겨우 따돌렸다. 오늘은.'); S.flags.traitorNext = S.day + 1; stress(6); }
+        else { say('따돌리지 못했다.', 'l-bad'); go(); }
+      } },
+      { t: '외곽으로 달아난다 — 외곽 열차 (20만 안)', cost: TRAVEL_OS_COST, fn() { spend(TRAVEL_OS_COST); leaveCity(`${name}의 추격대를 뿌리치고 외곽 열차에 올랐다. 그들도 도시의 경계 너머까지는 따라오지 않는다.`); } },
+    ];
+  }, text: '' });
+// 상단 바에 추격 표시
+const _renderTopTraitor = renderTop;
+renderTop = function () { _renderTopTraitor(); if (S && S.flags.traitorAff && !S.flags.traitorDone) $('#sPay').innerHTML += ` <span class="l-bad">${AFFS[S.flags.traitorAff].name}의 배신자 · 추격 ${S.flags.traitorWins || 0}/5</span>`; };
+
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
