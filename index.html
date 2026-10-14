@@ -2945,7 +2945,7 @@ const RED_MIST_POOL = [
   { name: '기합', cost: 2, dice: [['방어', 8, 12], ['타격', 5, 7]], onUse: { nextStr: 3 } },
   { name: '대절단-세로', cost: 5, dice: [['참격', 20, 39]] },
 ];
-const GREATER_SPLIT_H = { name: '대절단-가로', cost: 6, dice: [['참격', 28, 42]], onHit: { bleed: 5 } };
+const GREATER_SPLIT_H = { name: '대절단-가로', cost: 6, mass: true, dice: [['참격', 28, 42]], onHit: { bleed: 5 } };
 const redMistRound = e => {
   e.priorityCard = null;
   if (e.hp <= 0) return;
@@ -2982,7 +2982,7 @@ Object.assign(ENEMIES.binah_lib, { light: 6, lightRegen: 3, pool: [
   { name: '열화된 사슬', cost: 2, dice: [['타격', 8, 14]], onHit: { para: 1 } },
   { name: '열화된 자물쇠', cost: 2, dice: [['타격', 9, 20], ['방어', 4, 8]] },
   { name: '열화된 기둥', cost: 3, dice: [['참격', 7, 11], ['참격', 6, 9], ['방어', 4, 8]], onHit: { bleed: 3 } },
-  { name: '열화된 충격파', cost: 3, dice: [['타격', 3, 8], ['타격', 3, 8], ['타격', 4, 9]], onUse: { prot: 3 } },
+  { name: '열화된 충격파', cost: 3, mass: 'each', dice: [['타격', 3, 8], ['타격', 3, 8], ['타격', 4, 9]], onUse: { prot: 3 } },
 ] });
 // 조율자 (온전한 특이점) — 적으로 나오는 조율자와 조율자 출신 플레이어 카드
 const ARBITER_POOL = [
@@ -4664,7 +4664,7 @@ function bloodGrowth() {
   // 충분히 피를 모은 고위 혈귀는 빛 +1
   if (S.blood >= 80 && (S.vampRank || 9) <= 3 && !S.flags.bloodLight) { S.flags.bloodLight = true; S.lightBonus = (S.lightBonus || 0) + 1; say('🩸 피가 끓는다 — 최대 빛 +1', 'l-day'); }
   // 경혈식 — 피를 모을수록 더 깊은 식을 쓴다
-  const learn = [['gh_whip', 0], ['gh_finale', 0], ['gh_split', 30], ['gh_sangre', 60]];
+  const learn = [['gh_whip', 0], ['gh_finale', 0], ['gh_split', 0], ['gh_sangre', 60]];
   for (const [id, need] of learn) if ((S.blood || 0) >= need && !(S.ghLearned || []).includes(id)) {
     S.ghLearned = [...(S.ghLearned || []), id]; S.deck.push(id); say(`🩸 경혈식 습득 — 「${CARDS[id].name}」`, 'l-day');
   }
@@ -5818,27 +5818,20 @@ Object.assign(CARDS, {
 });
 // 필살기에도 광역을 — 리우: 휘몰아치기-애, 검지: 척결
 SPECIALS.liu.push('aoe_whirl'); SPECIALS.f_index.push('aoe_purge'); SPECIAL_IDS.add('aoe_whirl'); SPECIAL_IDS.add('aoe_purge');
-// 모든 삶은 광역 책장 하나를 들고 시작한다 (소속에 맞게)
-const startAoe = () => {
-  const f = faction();
-  if (f === 'vampire') return 'aoe_thirst';
-  if (f === 'twisted') return 'aoe_despair';
-  if (S.aff === 'claw') return 'aoe_rage';
-  if (f === 'color') return 'aoe_crescendo';
-  return 'aoe_shock';
-};
+// 기본 지급은 원작에서 그 세력이 쓰는 기술만 — 발톱: R 혈청(R사 기술). 혈귀는 경혈식으로 대신한다.
+// 인물 고유의 책장(비나·엘레나·필립·아르갈리아·붉은안개·브레멘)은 그 인물을 넘어서야(도서관 접대 등) 얻는다.
 const _newGameAoe = newGame;
-newGame = function (ch) { _newGameAoe(ch); const id = startAoe(); if (!S.deck.includes(id)) S.deck.push(id); if (S.aff === 'claw' && !S.deck.includes('aoe_mind')) S.deck.push('aoe_mind'); };
-// 뒤틀리거나 E.G.O를 발현하면 그에 맞는 광역기를 얻는다
+newGame = function (ch) { _newGameAoe(ch); if (S.aff === 'claw') for (const id of ['aoe_rage', 'aoe_mind']) if (!S.deck.includes(id)) S.deck.push(id); };
+// 이전 버전에서 기본으로 받은 인물 고유 광역기는 회수한다
+const AOE_REVOKE = ['aoe_shock', 'aoe_thirst', 'aoe_despair', 'aoe_crescendo', 'aoe_split', 'aoe_chorus'];
+function revokeLoreAoe() {
+  if (!S || S.phase === 'combat' || S.flags.aoeRevoked) return;
+  S.flags.aoeRevoked = true;
+  const had = S.deck.filter(id => AOE_REVOKE.includes(id));
+  if (had.length) { S.deck = S.deck.filter(id => !AOE_REVOKE.includes(id)); print(`이 삶과 인연이 없는 책장이 사라졌다 — ${[...new Set(had)].map(id => CARDS[id].name).join(', ')}`, 'l-sys'); }
+}
 const _renderTopAoe = renderTop;
-renderTop = function () {
-  _renderTopAoe();
-  if (!S || S.phase === 'combat' || S.phase === 'over') return;
-  if (faction() === 'twisted' && !S.deck.includes('aoe_despair')) { S.deck.push('aoe_despair'); say('뒤틀린 몸에서 불길이 번진다 — 「작열하는 절망」을 얻었다.', 'l-day'); }
-  if (S.ego && !S.flags.egoAoe) { S.flags.egoAoe = true; const id = pick(['aoe_split', 'aoe_chorus', 'aoe_crescendo']); S.deck.push(id); say(`E.G.O가 공명한다 — 「${CARDS[id].name}」을(를) 얻었다.`, 'l-day'); }
-};
-// 공방에서도 일부 광역 책장을 판다
-CARDS.aoe_shock.price = 3000000; CARDS.aoe_chorus.price = 8000000;
+renderTop = function () { _renderTopAoe(); revokeLoreAoe(); };
 /* ---------- 경혈식 — 피를 굳혀 결정화한 무기 (Limbus Company 라만차랜드 인격 기술 기준).
    쓸 때 피를 소모하고, 적중 시 입힌 피해의 일부를 흡혈한다. 피가 모자라면 자신이 출혈한다 ---------- */
 Object.assign(CARDS, {
@@ -6352,6 +6345,8 @@ function resumeLife() {
   const o = ORIGINS.find(x => x.id === S.ch.id); if (o && o.hooks) S.ch.hooks = o.hooks;
   if (S.ch.colorCard) CARDS.col_sig = JSON.parse(JSON.stringify(S.ch.colorCard));
   S._h = null; S.paused = false; S.speed = S.speed || 1; S.phase = 'day'; S.seenToday = S.seenToday || []; C = null;
+  ['librarian', 'roland_lib', 'gebura_lib', 'binah_lib'].forEach(k => libraryRewardCards(k));   // 도서관 보상 카드 재등록
+  S.deck = S.deck.filter(id => CARDS[id]);
   $('#title').classList.add('hidden'); $('#over').classList.add('hidden');
   $('#topbar').classList.remove('hidden'); $('#day').classList.remove('hidden'); $('#combat').classList.add('hidden');
   $('#log').innerHTML = '';
