@@ -5331,7 +5331,7 @@ function gainEmo(n) {
   }
 }
 
-const dieHtml = (d, v) => `<span class="die t-${d[0]}">${d[0]} ${v !== undefined ? `<b>${v}</b>` : `${d[1]}-${d[2]}`}</span>`;
+const dieHtml = (d, v) => `<span class="die t-${d[0]}">${d[3] && d[3].counter ? '반격 ' : ''}${d[0]} ${v !== undefined ? `<b>${v}</b>` : `${d[1]}-${d[2]}`}</span>`;
 function diceText(c) { return c.dice ? c.dice.map(d => `${d[0]} ${d[1]}-${d[2]}`).join(', ') : (c.desc || ''); }
 
 function dieHitCard(card, die) {
@@ -5639,7 +5639,7 @@ function renderCombat() {
   }
   $('#intents').innerHTML = C.intents.length ? C.intents.map((ec, i) => {
     const pair = C.played.find(p => p.slot === i);
-    return `<div class="intent"><div class="slot">${C.intentOwners[i] ? C.intentOwners[i].name + ' · ' : ''}예고 ${i + 1} · 빛 ${ecost(ec)}</div><b>${ec.name}</b><div>${ec.dice.map(d => dieHtml(d)).join(' ')}</div>
+    return `<div class="intent"><div class="slot">${C.intentOwners[i] ? C.intentOwners[i].name + ' · ' : ''}예고 ${i + 1} · 빛 ${ecost(ec)}</div><b>${ec.name}</b><div>${ec.dice.map(d => dieHtml(d) + dieFxHtml(d)).join(' ')}</div>
       ${ec.desc ? `<div class="dim" style="font-size:11px">${ec.desc}</div>` : ''}
       <div class="vs">${pair ? `합: <b>${CARDS[pair.id].name}</b>` : '<span class="l-bad">막는 카드 없음 → 일방 공격</span>'}</div></div>`;
   }).join('') : '<div class="dim">적이 행동하지 않는다.</div>';
@@ -6169,8 +6169,8 @@ cardHtml = function (id, attr = '', cant = false) {
   const c = CARDS[id];
   const line = d => {
     const b = S && S.phase !== 'over' ? passiveDieBonus(d) : 0;
-    if (!b) return `<div>${dieHtml(d)}</div>`;
-    return `<div>${dieHtml(d)} <span style="color:var(--gold);font-size:11px">→ ${Math.max(0, d[1] + b)}-${Math.max(0, d[2] + b)}</span></div>`;
+    if (!b) return `<div>${dieHtml(d)}${dieFxHtml(d)}</div>`;
+    return `<div>${dieHtml(d)} <span style="color:var(--gold);font-size:11px">→ ${Math.max(0, d[1] + b)}-${Math.max(0, d[2] + b)}</span>${dieFxHtml(d)}</div>`;
   };
   return `<div class="card ${cant ? 'cant' : ''}" ${attr}>
     <div class="cost">${c.cost}</div>
@@ -6321,10 +6321,10 @@ bloodGrowth = function () {
    중지 작은 아우·작은 형님, 거미집 중지 아비, 약지 점묘파·야수파 스튜던트, 약지 야수파 도슨트, 거미집 약지 아비).
    특정 무기·유물·동반자가 있어야 하는 기술(레바테인의 '포장을 뜯어볼까', 'Furioso-Replica', 파시아 등)은 넣지 않았다.
    코인은 주사위 하나씩으로, 코인 수·비용은 이 게임 방식으로 옮겼다 ---------- */
-const LT = { 가드: '방어', 반격: '방어' };
+const LT = { 가드: '방어' };
 function limCard(id, name, type, base, coin, n, cost, extra = {}) {
-  const ty = LT[type] || type;
-  CARDS[id] = { name, cost, dice: Array.from({ length: n }, (_, k) => [ty, base, base + coin * (k + 1)]), ...extra,
+  const counter = type === '반격', ty = counter ? (extra.counterType || '타격') : (LT[type] || type);
+  CARDS[id] = { name, cost, dice: Array.from({ length: n }, (_, k) => counter ? [ty, base, base + coin * (k + 1), { counter: true }] : [ty, base, base + coin * (k + 1)]), ...extra,
     desc: [extra.desc, extra.src].filter(Boolean).join(' · ') };
 }
 const FL = {
@@ -6338,7 +6338,7 @@ const FL = {
   ],
   f_index: [
     [['lf_ix_order', '지령에 따라, 확실하게', '참격', 3, 4, 2, 1, { src: '검지 수행자:【쪽지】' }], ['lf_ix_perform', '지령을 수행하며 수행합니다', '참격', 4, 4, 2, 1, { src: '검지 수행자:【쪽지】' }],
-     ['lf_ix_cloth', '지령이 하사한 지령으로 만들어진 천', '반격', 3, 3, 1, 1, { src: '검지 수행자:【쪽지】' }]],
+     ['lf_ix_cloth', '지령이 하사한 지령으로 만들어진 천', '반격', 3, 3, 1, 1, { counterType: '참격', src: '검지 수행자:【쪽지】' }]],
     [], [],
   ],
   f_middle: [
@@ -6766,6 +6766,97 @@ for (const [k, [passive, hooks]] of Object.entries(PASSIVES)) if (AFFS[k]) Objec
 const _dmgGrudge = dmg;
 dmg = function (t, amount, type) { const before = t.hp; const r = _dmgGrudge(t, amount, type); if (C && t === C.P && t.hp < before && C.E) C.E.hurtMe = true; return r; };
 
+/* =========================================================
+   주사위 규칙 (Library of Ruina 방식)
+   - 주사위마다 효과: [유형, 최소, 최대, { onHit: 적중 시, onWin: 합 승리 시, counter: 반격 주사위 }]
+   - 회피 주사위: 합에서 지지 않으면 부서지지 않고 다음 주사위에 다시 쓰인다
+   - 방어 주사위: 합에서 더 높으면 부서지지 않고 다시 쓰인다
+   - 반격 주사위: 카드를 낼 때는 굴리지 않고 대기. 상대의 남은 주사위나 일방 공격에 맞선다. 이기면 다시 쓸 수 있다
+   - 쓰이지 않은 회피·방어·반격 주사위는 이번 막 동안 대기 주사위로 남아 일방 공격을 막는다
+========================================================= */
+const FX_NAME = { stg: '흐트러짐 피해', flat: '피해', heal: '체력 회복', str: '다음 막 힘', prot: '다음 막 보호', end: '다음 막 인내' };
+const fxText = o => Object.entries(o).map(([k, v]) => `${STATUS_NAME[k] || FX_NAME[k] || k} ${v}`).join(', ');
+function dieFxHtml(d) {
+  const x = d[3]; if (!x) return '';
+  const parts = [];
+  if (x.onHit) parts.push(`적중 시 ${fxText(x.onHit)}`);
+  if (x.onWin) parts.push(`합 승리 시 ${fxText(x.onWin)}`);
+  if (x.maxBonus) parts.push(`최대값이면 위력 +${x.maxBonus}`);
+  return parts.length ? ` <span class="dim" style="font-size:11px">${parts.join(' · ')}</span>` : '';
+}
+const isDefDie = d => d[0] === '방어' || d[0] === '회피';
+const isCounter = d => !!(d[3] && d[3].counter);
+function dieWin(u, d, foe) {   // 주사위의 '합 승리 시' 효과
+  const w = d[3] && d[3].onWin; if (!w) return;
+  for (const [k, v] of Object.entries(w)) {
+    if (k === 'stg') stgDmg(foe, v);
+    else if (k === 'heal') u.hp = Math.min(u.maxHp, u.hp + v);
+    else if (k === 'str' || k === 'prot' || k === 'end') u.next[k] += v;
+    else foe.st[k] = (foe.st[k] || 0) + v;
+  }
+  clog(`→ 합 승리 효과: ${fxText(w)}`, u === C.P ? 'l-good' : 'l-bad');
+}
+// 한 쌍의 주사위 합. 승자를 돌려준다 (P / E / null)
+function clashPair(a, pc, b, ec) {
+  const w = clashDie(a, pc, b, ec);
+  if (w === C.P) dieWin(C.P, a, C.E); else if (w === C.E) dieWin(C.E, b, C.P);
+  return w;
+}
+// 남은 주사위는 대기열로 (회피·방어·반격만)
+function keepReserve(u, dice, card) { u.reserve = u.reserve || []; for (const d of dice) if (isDefDie(d) || isCounter(d)) u.reserve.push({ d, card }); }
+clash = async function (pc, ec) {
+  const { P, E } = C;
+  clog(`⚔ 합: 「${pc.name}」 vs 「${ec.name}」`, 'l-choice');
+  if (pc.onUse) applyFx(pc.onUse, P, E);
+  if (ec.onUse) applyFx(ec.onUse, E, P);
+  let pd = pc.dice.filter(d => !isCounter(d)), ed = ec.dice.filter(d => !isCounter(d));
+  const pc2 = pc.dice.filter(isCounter), ec2 = ec.dice.filter(isCounter);   // 반격 주사위
+  while (true) {
+    if (dead()) return;
+    if (P.staggered) { pd = []; } if (E.staggered) { ed = []; }
+    // 한쪽 주사위가 떨어지면 반격 주사위가 나선다
+    if (!pd.length && ed.length && pc2.length && !P.staggered) { pd.push(pc2.shift()); clog('반격!', 'l-good'); }
+    if (!ed.length && pd.length && ec2.length && !E.staggered) { ed.push(ec2.shift()); clog('적의 반격!', 'l-bad'); }
+    if (!pd.length && !ed.length) break;
+    // 한쪽만 남은 경우: 공격 주사위는 일방 공격, 회피·방어·반격은 대기 주사위로
+    if (!ed.length) { const rest = pd.splice(0); for (const d of rest) { if (isDefDie(d) || isCounter(d)) keepReserve(P, [d], pc); else { await wait(380); oneSide(P, d, pc, E); renderCombat(); if (dead()) return; } } continue; }
+    if (!pd.length) { const rest = ed.splice(0); for (const d of rest) { if (isDefDie(d) || isCounter(d)) keepReserve(E, [d], ec); else { await wait(380); oneSide(E, d, ec, P); renderCombat(); if (dead()) return; } } continue; }
+    const a = pd.shift(), b = ed.shift();
+    await wait(420);
+    const winner = clashPair(a, pc, b, ec);
+    if (winner === P && a[3]?.destroyNext && ed.length) { ed.shift(); clog('잠금 — 상대의 다음 주사위 파괴', 'l-good'); }
+    if (winner === E && b[3]?.destroyNext && pd.length) { pd.shift(); clog('잠금 — 내 다음 주사위 파괴', 'l-bad'); }
+    // 부서지지 않은 회피·방어·반격 주사위는 다시 쓴다
+    if (winner === P && (isDefDie(a) || isCounter(a)) && !P.staggered) { pd.unshift(a); clog(`${isCounter(a) ? '반격 ' : ''}${a[0]} 주사위가 부서지지 않았다 — 다시 쓴다`, 'l-sys'); }
+    if (winner === E && (isDefDie(b) || isCounter(b)) && !E.staggered) { ed.unshift(b); clog(`적의 ${isCounter(b) ? '반격 ' : ''}${b[0]} 주사위가 부서지지 않았다`, 'l-sys'); }
+    renderCombat();
+  }
+  keepReserve(P, pc2, pc); keepReserve(E, ec2, ec);
+};
+// 일방 공격 — 받는 쪽에 대기 주사위가 있으면 그 주사위로 맞선다
+const _oneSideDice = oneSide;
+oneSide = function (atk, die, card, def) {
+  if (!OFF(die[0])) { keepReserve(atk, [die], card); clog(`${atk.name}의 ${isCounter(die) ? '반격 ' : ''}${die[0]} 주사위 — 대기`, 'l-amb'); return; }
+  if (isCounter(die)) { keepReserve(atk, [die], card); clog(`${atk.name}의 반격 주사위 — 대기`, 'l-amb'); return; }
+  const r = def.reserve && def.reserve.length && !def.staggered ? def.reserve.shift() : null;
+  if (!r) return _oneSideDice(atk, die, card, def);
+  clog(`${def.name}의 대기 주사위 「${r.card.name}」 ${dieHtml(r.d)}가 맞선다`, 'l-sys');
+  const enemy = atk === C.P ? def : atk; C.E = enemy;
+  const w = atk === C.P ? clashPair(die, card, r.d, r.card) : clashPair(r.d, r.card, die, card);
+  if (w === def && !def.staggered) def.reserve.unshift(r);   // 이긴 대기 주사위는 남는다
+};
+// 막이 시작되면 대기 주사위는 사라진다
+const _startRoundDice = startRound;
+startRound = function () { if (C) for (const u of [C.P, ...combatEnemies()]) u.reserve = []; _startRoundDice(); };
+// 원작 책장의 주사위별 효과 반영
+Object.assign(CARDS.sp_hana_jin, { dice: [['관통', 7, 10], ['참격', 8, 11, { onHit: { flat: 5 } }], ['방어', 6, 9]], onHit: undefined, desc: '필살기 · 2번째 주사위 적중 시 대상에게 피해 5' });
+Object.assign(CARDS.sp_hana_last, { dice: [['참격', 7, 11], ['관통', 7, 11], ['타격', 7, 10], ['타격', 6, 9, { counter: true }]], desc: '필살기 · 모든 주사위 위력 +2 반영, 반격 타격' });
+Object.assign(CARDS.sp_zwei_rev, { dice: [['회피', 1, 10, { onWin: { str: 1 } }], ['관통', 4, 5], ['관통', 3, 4]], desc: '필살기 · 선회피 — 회피에 성공하면 다음 막 힘 1' });
+Object.assign(CARDS.sp_seven_mou, { dice: [['참격', 5, 9, { onWin: { str: 1 } }], ['타격', 5, 9, { onWin: { str: 1 } }], ['참격', 3, 8, { onWin: { para: 2 } }]], desc: '필살기 · 3연타 폭딜' });
+Object.assign(CARDS.sp_seven_fle, { dice: [['관통', 5, 13, { onWin: { stg: 4, para: 1 } }]], onHit: undefined, desc: '필살기' });
+Object.assign(CARDS.sp_liu_blaze, { dice: [['참격', 7, 11, { onHit: { burn: 2 } }], ['타격', 6, 11, { onHit: { burn: 2 } }], ['참격', 3, 8, { counter: true }]], onHit: undefined, desc: "필살기 · '화상 1 부여' 2번 발동, 반격 참격" });
+Object.assign(CARDS.sp_shi_geuk, { dice: [['참격', 6, 12, { onHit: { para: 1 } }]], onHit: undefined, desc: '필살기 · 무장 해제(마비 1)' });
+Object.assign(CARDS.sp_mid_hair, { dice: [['타격', 10, 22, { onHit: { bleed: 5, burn: 5 } }]], onHit: undefined, desc: '필살기' });
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
