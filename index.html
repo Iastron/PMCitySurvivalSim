@@ -7123,6 +7123,7 @@ resolveRoundInner = async function () {
   acts.sort((x, y) => y.spd - x.spd || x.side - y.side);
   for (const act of acts) {
     if (encounterOver()) break;
+    C.finesse = null;
     if (act.kind === 'mass') { if (!P.staggered) await resolveMassAttack(CARDS[act.p.id]); continue; }
     if (act.kind === 'free') {
       if (P.staggered) continue;
@@ -7149,6 +7150,12 @@ resolveRoundInner = async function () {
     const i = act.i, ec = C.intents[i], enemy = C.intentOwners[i], pair = C.played.find(p => p.slot === i);
     C.E = enemy;
     await wait(300);
+    if (enemy.d.finesse && enemy.hp > 0 && !enemy.staggered && !C.cancelledIntents.has(i)) {   // 기량 — 대상이 더 느리면 속도 차이 2당 위력 +1 (최대 5)
+      const tg = C.intentTargets?.[i] || P, mine = C.intentSpd?.[i] || 0;
+      const theirs = pair ? (pair.spd || 0) : tg === P ? (P.speedDice && P.speedDice.length ? Math.min(...P.speedDice) : 0) : (tg.acted || tg.staggered ? 0 : tg.spd || 0);
+      const b = Math.min(5, Math.floor((mine - theirs) / 2));
+      if (b > 0) { C.finesse = { u: enemy, b }; clog(`✦ 기량 — ${enemy.name}의 속도 ${mine} vs ${theirs}, 모든 주사위 위력 +${b}`, 'l-bad'); }
+    }
     if (enemy.hp <= 0 || enemy.staggered || C.cancelledIntents.has(i)) {
       C.cancelledIntents.add(i);
       if (pair) await attackAlone(CARDS[pair.id], enemy.hp > 0 ? enemy : combatEnemies().find(e => e.hp > 0));
@@ -7226,11 +7233,13 @@ renderCombat = function () {
   }).join('');
 };
 
-// 최강 — 붉은안개
+// 최강·기량 — 붉은안개
 for (const k of ['gebura_lib', 'rift_redmist']) {
-  Object.assign(ENEMIES[k], { strongest: true, speed: [4, 8] });
-  ENEMIES[k].passive += ' · 최강 — 자신의 속도 주사위 중 가장 낮은 값을 가진 주사위들의 값이 최대가 된다.';
+  Object.assign(ENEMIES[k], { strongest: true, finesse: true, speed: [4, 8] });
+  ENEMIES[k].passive += ' · 최강 — 자신의 속도 주사위 중 가장 낮은 값을 가진 주사위들의 값이 최대가 된다. · 기량 — 전투 책장 사용 시, 대상의 속도가 자신의 속도보다 더 낮으면 모든 주사위의 위력이 속도 차이 2당 1 증가 (최대 5).';
 }
+const _rollFinesse = roll;
+roll = function (u, die, foe) { const v = _rollFinesse(u, die, foe); return C && C.finesse && C.finesse.u === u ? v + C.finesse.b : v; };
 // 신속·속박을 쓰는 패시브
 if (AFFS.devjat) {
   AFFS.devjat.passive = '신속 배달 — 첫 막에 보호 4·신속 3. · 배달부의 퇴로 — 도주 성공률 상승.';
