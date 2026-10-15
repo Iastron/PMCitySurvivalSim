@@ -5700,7 +5700,7 @@ function showHelp() {
   <b>위상의 힘</b> — 승급할 때마다 최대 체력 +12, 흐트러짐 +5, 완치, 카드 1장 선택. 6급·3급에 최대 빛 +1. 위상이 높을수록 모든 주사위 위력 상승(1급 +4).
   위상이 크게 높으면 쥐·하급 조직원 같은 하찮은 상대는 싸우기 전에 물러납니다(압도). 뒤틀림·청소부·강적은 항상 덤빕니다.<br>
   <b>성장</b> — 의뢰와 전투로 실적을 쌓으면 하나 협회 승급 심사로 등급이 오릅니다. 등급이 오를수록 보수가 늘어납니다.<br>
-  <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
+  <b>도시 시설</b> — 낮 동안 상단의 「도시 시설」에서 공방·강화시술·재단사·주택/둥지 이주권·경호 고용·<b>동료 고용</b>(해결사 7일 계약, 최대 3명 — 모든 전투에 함께 나서 합을 겨룸)·HP 앰플·기억 파쇄를 이용할 수 있습니다. (밤에는 닫힘)<br>
   <b>안(眼)</b> — 원화와 비슷한 가치입니다. 둥지 중상위층의 월급이 400만 안 정도입니다.<br>
   <b>정신 압박</b> — 부상·패배·공포로 쌓이고 회복·휴식으로 줄어듭니다. 100%가 되면 자신과 마주하게 됩니다.<br>
   · 직시하면 <b>E.G.O 개화</b>(전용 카드·능력 강화)를 시도하고, 실패하면 <b>뒤틀림</b>이 됩니다. 두 번 외면해도 뒤틀립니다. E.G.O 개화는 어렵고, 뒤틀림은 쉽습니다.<br>
@@ -6981,7 +6981,7 @@ const combatAllies = () => C && C.allies ? C.allies.filter(a => a.hp > 0 && !a.d
 const pSpeedRange = () => { const rp = rankPower(); return [1 + Math.floor(rp / 2), 4 + rp]; };
 const pSpeedCount = P => Math.min(5, 3 + (rankPower() >= 3 ? 1 : 0) + (P.emoLv >= 3 ? 1 : 0)) + (S.redMist ? 1 + (P.emoLv >= 3 ? 1 : 0) : 0);   // 붉은안개: 속도 3
 const eSpeedRange = e => e.d.speed || (e.d.boss ? [4, 8] : e.d.elite ? [3, 7] : [1, 5]);
-const allySpeedRange = a => a.kind === 'mate' ? (/CCA/.test(a.name) ? [3, 7] : [2, 6]) : [2, 5 + Math.floor((a.pow || 0) / 2)];
+const allySpeedRange = a => a.spdRange ? a.spdRange : a.kind === 'mate' ? (/CCA/.test(a.name) ? [3, 7] : [2, 6]) : [2, 5 + Math.floor((a.pow || 0) / 2)];
 function rollSpeed(u, [lo, hi], n) {
   const mod = (u.st.haste || 0) - (u.st.bind || 0); u.st.haste = 0; u.st.bind = 0;
   let v = Array.from({ length: n }, () => ({ v: Math.max(1, rnd(lo, hi) + mod) }));
@@ -7401,6 +7401,82 @@ stgDmg = function (t, n) { _stgDmgRMP(t, n); if (C && S.redMist && t === C.P && 
 // 상태창에 붉은안개 지속 능력 표시
 const _passiveTextRM = passiveText;
 passiveText = function () { return _passiveTextRM() + (S.redMist ? `<br><span style="color:var(--red)">[붉은안개]</span> ${RM_PASSIVE}` : ''); };
+/* ---------- 동료 고용 — 도시 시설에서 안을 내고 해결사를 7일 계약으로 고용한다 (최대 3명).
+   고용한 해결사는 모든 전투에 함께 나서 합을 겨룬다. 체력은 전투가 끝나도 이어지고 하루마다 40% 회복한다.
+   쓰러지면 계약은 끝난다. 2급 이상은 평판이 「신뢰」 이상이어야 계약해 준다 ---------- */
+const HIRE_MAX = 3, HIRE_DAYS = 7;
+const HIRE_PRICE = { 9: 500000, 8: 800000, 7: 1200000, 6: 2000000, 5: 3500000, 4: 6000000, 3: 10000000, 2: 30000000, 1: 100000000 };
+const HIRE_SKILLS = { 참격: ['베기', '연속 베기', '역베기'], 관통: ['찌르기', '꿰뚫기', '연속 찌르기'], 타격: ['내려치기', '후려치기', '짓누르기'] };
+function makeHire(g) {
+  const L = 10 - g, type = pick(['참격', '관통', '타격']);
+  return { id: 'h' + Date.now() + Math.floor(Math.random() * 1000), g, name: `${pick([...HERO_NAMES.m, ...HERO_NAMES.f].filter(n => n !== S.heroName && !(S.hires || []).some(h => h.name.startsWith(n + ' '))))} (${g}급 해결사)`,
+    maxHp: 40 + L * 18, hp: 40 + L * 18, atk: [3 + L * 2, 7 + L * 3], type, skill: pick(HIRE_SKILLS[type]),
+    spdRange: [1 + Math.floor(L / 3), 4 + Math.floor(L / 2)], until: S.day + HIRE_DAYS, healDay: S.day };
+}
+const hireOk = g => g >= 3 || (S.rep || 0) >= 25;
+// 매일: 체력 회복, 계약 만료
+function hireTick() {
+  if (!S || !S.hires || !S.hires.length || S.phase === 'combat') return;
+  for (const h of [...S.hires]) {
+    if (h.healDay !== S.day) { h.hp = Math.min(h.maxHp, h.hp + Math.round(h.maxHp * 0.4) * (S.day - h.healDay)); h.healDay = S.day; }
+    if (S.day > h.until) { S.hires.splice(S.hires.indexOf(h), 1); say(`📄 ${h.name}의 계약이 끝났다. "다음에 또 불러." 사무소로 돌아갔다.`, 'l-sys'); }
+  }
+}
+const _renderTopHire = renderTop;
+renderTop = function () { hireTick(); _renderTopHire(); };
+// 전투에 합류 (워프 열차 안에는 따라오지 못한다)
+const _fightHire = fight;
+fight = function (key, opts = {}) {
+  _fightHire(key, opts);
+  if (!C || S.phase !== 'combat' || S.warp || !S.hires || !S.hires.length || C.hiresIn) return;
+  C.hiresIn = true;
+  const add = S.hires.filter(h => h.hp > 0).map(h => ({ kind: 'mate', hireId: h.id, name: h.name, maxHp: h.maxHp, hp: h.hp, atk: h.atk, type: h.type, skill: h.skill, spdRange: h.spdRange }));
+  if (!add.length) return;
+  C.allies = [...(C.allies || []), ...add];
+  clog(`🤝 고용한 동료 — ${add.map(a => a.name).join(', ')}`, 'l-sys');
+  for (const a of add) allyUnit(a);
+  retargetIntents(); renderCombat();
+};
+// 전투가 끝나면 체력을 계약서에 옮긴다. 쓰러진 동료는 계약 종료
+const _endCombatHire = endCombat;
+endCombat = function (win) {
+  if (C && C.allies && S.hires) for (const a of C.allies) {
+    const h = a.hireId && S.hires.find(x => x.id === a.hireId); if (!h) continue;
+    h.hp = Math.max(0, a.hp);
+    if (h.hp <= 0) { S.hires.splice(S.hires.indexOf(h), 1); say(`✝ 고용한 동료 ${h.name}이(가) 쓰러졌다. 계약은 거기서 끝났다.`, 'l-bad'); }
+  }
+  return _endCombatHire(win);
+};
+// 도시 시설에 「동료 고용」
+const _cityRenderHire = cityRender;
+cityRender = function () {
+  _cityRenderHire();
+  if (!S || S.exiled || S.warp || faction() === 'vampire' || faction() === 'twisted' || S.turn === 3) return;
+  const etc = [...document.querySelectorAll('#modalBox h4')].find(x => x.textContent === '기타'); if (!etc) return;
+  const hires = S.hires || [];
+  let h = `<h4>동료 고용 — 해결사 사무소 중개 <span class="dim" style="font-size:12px">(${hires.length}/${HIRE_MAX} · ${HIRE_DAYS}일 계약)</span></h4>`;
+  h += hires.map(x => `<div class="fac-row"><div><b>${x.name}</b><div class="dim">체력 ${x.hp}/${x.maxHp} · ${x.type} ${x.atk[0]}-${x.atk[1]} 「${x.skill}」 · 속도 ${x.spdRange.join('~')} · ${x.until}일차까지</div></div>
+    <button data-hire-ext="${x.id}" ${S.money < HIRE_PRICE[x.g] ? 'disabled' : ''}>연장 ${won(HIRE_PRICE[x.g])}</button> <button data-hire-fire="${x.id}">해고</button></div>`).join('');
+  h += [9, 8, 7, 6, 5, 4, 3, 2, 1].map(g => {
+    const L = 10 - g, ok = hires.length < HIRE_MAX && hireOk(g) && S.money >= HIRE_PRICE[g];
+    return `<div class="fac-row"><div><b>${g}급 해결사</b><div class="dim">체력 ${40 + L * 18} · 공격 ${3 + L * 2}-${7 + L * 3} · 속도 ${1 + Math.floor(L / 3)}~${4 + Math.floor(L / 2)}${hireOk(g) ? '' : ' · <span class="l-bad">평판 「신뢰」 이상 필요</span>'}</div></div>
+      <button data-hire="${g}" ${ok ? '' : 'disabled'}>${won(HIRE_PRICE[g])}</button></div>`;
+  }).join('');
+  etc.insertAdjacentHTML('beforebegin', h);
+  document.querySelectorAll('#modalBox [data-hire]').forEach(b => b.onclick = () => {
+    const g = +b.dataset.hire; if ((S.hires || []).length >= HIRE_MAX || !hireOk(g)) return;
+    if (buy(HIRE_PRICE[g], `${g}급 해결사 고용 (${HIRE_DAYS}일)`)) { const x = makeHire(g); S.hires = [...(S.hires || []), x]; say(`🤝 ${x.name}과(와) 계약했다. "${pick(['돈값은 하지.', '등 뒤는 맡겨.', '위험수당은 따로야.', '잘 부탁해.'])}"`, 'l-good'); }
+    renderTop(); cityRender();
+  });
+  document.querySelectorAll('#modalBox [data-hire-ext]').forEach(b => b.onclick = () => {
+    const x = S.hires.find(y => y.id === b.dataset.hireExt); if (x && buy(HIRE_PRICE[x.g], `${x.name} 계약 연장`)) x.until += HIRE_DAYS;
+    renderTop(); cityRender();
+  });
+  document.querySelectorAll('#modalBox [data-hire-fire]').forEach(b => b.onclick = () => {
+    const x = S.hires.find(y => y.id === b.dataset.hireFire); if (x) { S.hires.splice(S.hires.indexOf(x), 1); say(`${x.name}을(를) 돌려보냈다.`, 'l-sys'); }
+    renderTop(); cityRender();
+  });
+};
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
