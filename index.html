@@ -6988,7 +6988,7 @@ function rollSpeed(u, [lo, hi], n) {
   // 최강 (붉은안개) — 가장 낮은 값의 속도 주사위들이 '최대'가 된다 (∞로 표시)
   if (n && ((u.d && u.d.strongest) || (C && u === C.P && S.redMist))) {
     const low = Math.min(...v.map(x => x.v)), top = Math.max(1, hi + mod);
-    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u === C.P && S.redMist ? '붉은안개' : u.name.split(' — ')[0]}의 가장 느린 속도 주사위가 최대값이 되었다 (∞)`, u === C.P ? 'l-good' : 'l-bad'); }
+    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u === C.P && S.redMist ? (S.heroName || '붉은안개') : u.name.split(' — ')[0]}의 가장 느린 속도 주사위가 최대값이 되었다 (∞)`, u === C.P ? 'l-good' : 'l-bad'); }
   }
   v.sort((a, b) => b.v - a.v || (b.inf ? 1 : 0) - (a.inf ? 1 : 0));
   const out = v.map(x => x.v); out.inf = v.map(x => !!x.inf); return out;
@@ -7328,9 +7328,10 @@ Object.assign(CARDS, {
   rm_vert:  { name: '대절단-세로', cost: 4, dice: [['참격', 20, 39]], desc: '붉은안개의 책장' },
 });
 const RM_DECK = ['rm_jong', 'rm_jong', 'rm_jong', 'rm_hoeng', 'rm_hoeng', 'rm_hoeng', 'rm_jjir', 'rm_jjir', 'rm_gihap', 'rm_gihap', 'rm_vert'];
+const rmName = () => '붉은안개' + (S.heroName ? ' — ' + S.heroName : '');
 function becomeRedMist() {
   S.redMist = true; S.rmBook = false; S.deck = [...RM_DECK]; S._h = null;
-  say('책장이 넘어간다. 붉은 안개가 몸을 감싼다. 손에 쥔 것은 이제 거대한 검과, 그녀가 남긴 기술뿐이다. — 당신은 붉은안개가 되었다.', 'l-day');
+  say('책장이 넘어간다. 붉은 안개가 몸을 감싼다. 손에 쥔 것은 이제 거대한 검과, 그녀가 남긴 기술뿐이다. — ' + (S.heroName ? S.heroName + ', ' : '') + '당신은 붉은안개가 되었다.', 'l-day');
   if (typeof chron === 'function') chron('붉은안개의 책을 사용 — 붉은안개가 되었다');
   renderTop();
 }
@@ -7354,13 +7355,13 @@ rewardModal = function (...a) {
 $('#boardBtn').insertAdjacentHTML('afterend', ' <button id="rmBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--red);color:var(--red)">붉은안개의 책</button>');
 $('#rmBtn').onclick = () => { if (S && S.rmBook && !S.redMist && S.phase !== 'combat') redMistBookModal(false); };
 const _renderTopRM = renderTop;
-renderTop = function () { _renderTopRM(); const b = $('#rmBtn'); if (b) b.classList.toggle('hidden', !(S && S.rmBook && !S.redMist && S.phase !== 'over')); };
+renderTop = function () { _renderTopRM(); if (S && S.redMist && $('#sRole') && !$('#sRole').textContent.startsWith('붉은안개')) $('#sRole').textContent = '붉은안개 · ' + $('#sRole').textContent; const b = $('#rmBtn'); if (b) b.classList.toggle('hidden', !(S && S.rmBook && !S.redMist && S.phase !== 'over')); };
 // 전투: 붉은안개의 책장만, 빛 6 이상
 const _fightRM = fight;
 fight = function (key, opts = {}) {
   if (S && S.redMist) S.deck = [...RM_DECK];
   _fightRM(key, opts);
-  if (C && S.redMist && C.P) { C.P.name = '붉은안개'; C.P.maxLight = Math.max(C.P.maxLight, 6); C.P.light = C.P.maxLight; renderCombat(); }
+  if (C && S.redMist && C.P) { C.P.name = rmName(); C.P.maxLight = Math.max(C.P.maxLight, 6); C.P.light = C.P.maxLight; renderCombat(); }
 };
 // 나의 붉은안개 — 전설(E.G.O 발현)·반격·붉은안개 효과
 function playerRedMistRound() {
