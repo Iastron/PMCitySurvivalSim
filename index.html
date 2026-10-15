@@ -6984,13 +6984,14 @@ const eSpeedRange = e => e.d.speed || (e.d.boss ? [4, 8] : e.d.elite ? [3, 7] : 
 const allySpeedRange = a => a.kind === 'mate' ? (/CCA/.test(a.name) ? [3, 7] : [2, 6]) : [2, 5 + Math.floor((a.pow || 0) / 2)];
 function rollSpeed(u, [lo, hi], n) {
   const mod = (u.st.haste || 0) - (u.st.bind || 0); u.st.haste = 0; u.st.bind = 0;
-  let v = Array.from({ length: n }, () => Math.max(1, rnd(lo, hi) + mod));
-  // 최강 (붉은안개) — 가장 낮은 값의 속도 주사위들이 '최대'가 된다
+  let v = Array.from({ length: n }, () => ({ v: Math.max(1, rnd(lo, hi) + mod) }));
+  // 최강 (붉은안개) — 가장 낮은 값의 속도 주사위들이 '최대'가 된다 (∞로 표시)
   if (n && u.d && u.d.strongest) {
-    const low = Math.min(...v), top = Math.max(1, hi + mod);
-    if (low < top) { v = v.map(x => x === low ? top : x); clog(`✦ 최강 — ${u.name}의 가장 느린 속도 주사위가 최대값 ${top}이 된다`, 'l-bad'); }
+    const low = Math.min(...v.map(x => x.v)), top = Math.max(1, hi + mod);
+    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u.name}의 가장 느린 속도 주사위가 ∞가 된다`, 'l-bad'); }
   }
-  return v.sort((a, b) => b - a);
+  v.sort((a, b) => b.v - a.v || (b.inf ? 1 : 0) - (a.inf ? 1 : 0));
+  const out = v.map(x => x.v); out.inf = v.map(x => !!x.inf); return out;
 }
 // 동료를 전투 단위로 (상태·흐트러짐·고유 책장)
 function allyUnit(a) {
@@ -7020,12 +7021,12 @@ function speedSetup() {
     allyUnit(a); a.st.para = 0; a.st.str = a.next.str; a.st.end = a.next.end; a.st.prot = a.next.prot; a.next = mkSt();
   }
   P.speedDice = P.staggered ? [] : rollSpeed(P, pSpeedRange(), pSpeedCount(P));
-  C.intentSpd = [];
+  C.intentSpd = []; C.intentInf = [];
   for (const e of combatEnemies()) {
     const idx = C.intentOwners.map((o, i) => o === e ? i : -1).filter(i => i >= 0);
     if (!idx.length) { e.st.haste = 0; e.st.bind = 0; continue; }
     const sp = rollSpeed(e, eSpeedRange(e), idx.length);
-    idx.forEach((i, k) => { C.intentSpd[i] = sp[k]; });
+    idx.forEach((i, k) => { C.intentSpd[i] = sp[k]; C.intentInf[i] = sp.inf[k]; });
   }
   retargetIntents();
 }
@@ -7154,7 +7155,7 @@ resolveRoundInner = async function () {
       const tg = C.intentTargets?.[i] || P, mine = C.intentSpd?.[i] || 0;
       const theirs = pair ? (pair.spd || 0) : tg === P ? (P.speedDice && P.speedDice.length ? Math.min(...P.speedDice) : 0) : (tg.acted || tg.staggered ? 0 : tg.spd || 0);
       const b = Math.min(5, Math.floor((mine - theirs) / 2));
-      if (b > 0) { C.finesse = { u: enemy, b }; clog(`✦ 기량 — ${enemy.name}의 속도 ${mine} vs ${theirs}, 모든 주사위 위력 +${b}`, 'l-bad'); }
+      if (b > 0) { C.finesse = { u: enemy, b }; clog(`✦ 기량 — ${enemy.name}의 속도 ${C.intentInf && C.intentInf[i] ? '∞' : mine} vs ${theirs}, 모든 주사위 위력 +${b}`, 'l-bad'); }
     }
     if (enemy.hp <= 0 || enemy.staggered || C.cancelledIntents.has(i)) {
       C.cancelledIntents.add(i);
@@ -7207,7 +7208,7 @@ alliesPhase = function () {
 };
 
 // 화면: 예고의 속도·대상, 나의 속도 주사위, 배치한 카드의 속도, 동료의 속도·흐트러짐
-const spdHtml = (v, dim) => `<span style="display:inline-block;min-width:18px;text-align:center;border:1px solid var(--gold);border-radius:4px;padding:0 4px;margin-right:2px;font-size:12px;color:var(--gold);${dim ? 'opacity:.35' : ''}">${v}</span>`;
+const spdHtml = (v, dim, inf) => `<span ${inf ? `title="최강 — 최대값 ${v}" ` : ''}style="display:inline-block;min-width:18px;text-align:center;border:1px solid ${inf ? 'var(--red)' : 'var(--gold)'};border-radius:4px;padding:0 4px;margin-right:2px;font-size:12px;color:${inf ? 'var(--red)' : 'var(--gold)'};${dim ? 'opacity:.35' : ''}">${inf ? '∞' : v}</span>`;
 const _renderCombatSpd = renderCombat;
 renderCombat = function () {
   _renderCombatSpd();
@@ -7216,7 +7217,7 @@ renderCombat = function () {
   $('#intents').querySelectorAll('.intent').forEach((el, i) => {
     const t = C.intentTargets && C.intentTargets[i], slot = el.querySelector('.slot');
     if (!slot || slot.querySelector('.spd')) return;
-    slot.insertAdjacentHTML('afterbegin', `<span class="spd">속도 ${spdHtml(C.intentSpd[i] || 0)}</span> `);
+    slot.insertAdjacentHTML('afterbegin', `<span class="spd">속도 ${spdHtml(C.intentSpd[i] || 0, false, C.intentInf && C.intentInf[i])}</span> `);
     if (t && t !== P) {
       slot.insertAdjacentHTML('beforeend', ` · <span class="l-bad">→ ${t.name}</span>`);
       const vs = el.querySelector('.vs');
