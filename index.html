@@ -6847,7 +6847,7 @@ oneSide = function (atk, die, card, def) {
   if (isCounter(die)) { keepReserve(atk, [die], card); return; }
   const r = def.reserve && def.reserve.length && !def.staggered ? def.reserve.shift() : null;
   if (!r) return _oneSideDice(atk, die, card, def);
-  clog(`${def.name}의 대기 주사위 「${r.card.name}」 ${dieHtml(r.d)}가 맞선다`, 'l-sys');
+  clog(`${def.name} — 대기 주사위 「${r.card.name}」(${dieHtml(r.d)})로 맞선다`, 'l-sys');
   const enemy = atk === C.P ? def : atk; C.E = enemy;
   const w = atk === C.P ? clashPair(die, card, r.d, r.card) : clashPair(r.d, r.card, die, card);
   if (w === def && !def.staggered) def.reserve.unshift(r);   // 이긴 대기 주사위는 남는다
@@ -6979,16 +6979,16 @@ Object.assign(STATUS_NAME, { haste: '신속', bind: '속박' });
 Object.assign(STATUS_DESC, { haste: '다음에 굴리는 속도 주사위 +수치', bind: '다음에 굴리는 속도 주사위 -수치' });
 const combatAllies = () => C && C.allies ? C.allies.filter(a => a.hp > 0 && !a.dead && (a.kind === 'mate' || a.kind === 'thrall')) : [];
 const pSpeedRange = () => { const rp = rankPower(); return [1 + Math.floor(rp / 2), 4 + rp]; };
-const pSpeedCount = P => Math.min(5, 3 + (rankPower() >= 3 ? 1 : 0) + (P.emoLv >= 3 ? 1 : 0));
+const pSpeedCount = P => Math.min(5, 3 + (rankPower() >= 3 ? 1 : 0) + (P.emoLv >= 3 ? 1 : 0)) + (S.redMist ? 1 + (P.emoLv >= 3 ? 1 : 0) : 0);   // 붉은안개: 속도 3
 const eSpeedRange = e => e.d.speed || (e.d.boss ? [4, 8] : e.d.elite ? [3, 7] : [1, 5]);
 const allySpeedRange = a => a.kind === 'mate' ? (/CCA/.test(a.name) ? [3, 7] : [2, 6]) : [2, 5 + Math.floor((a.pow || 0) / 2)];
 function rollSpeed(u, [lo, hi], n) {
   const mod = (u.st.haste || 0) - (u.st.bind || 0); u.st.haste = 0; u.st.bind = 0;
   let v = Array.from({ length: n }, () => ({ v: Math.max(1, rnd(lo, hi) + mod) }));
   // 최강 (붉은안개) — 가장 낮은 값의 속도 주사위들이 '최대'가 된다 (∞로 표시)
-  if (n && u.d && u.d.strongest) {
+  if (n && ((u.d && u.d.strongest) || (C && u === C.P && S.redMist))) {
     const low = Math.min(...v.map(x => x.v)), top = Math.max(1, hi + mod);
-    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u.name.split(' — ')[0]}의 가장 느린 속도 주사위가 최대값이 되었다 (∞)`, 'l-bad'); }
+    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u === C.P && S.redMist ? '붉은안개' : u.name.split(' — ')[0]}의 가장 느린 속도 주사위가 최대값이 되었다 (∞)`, u === C.P ? 'l-good' : 'l-bad'); }
   }
   v.sort((a, b) => b.v - a.v || (b.inf ? 1 : 0) - (a.inf ? 1 : 0));
   const out = v.map(x => x.v); out.inf = v.map(x => !!x.inf); return out;
@@ -7041,7 +7041,7 @@ function assignSlots() {
   if (!C) return;
   const P = C.P, used = new Set();
   C.played.forEach((p, k) => {
-    p.spd = (P.speedDice || [])[k] || 0;
+    p.spd = (P.speedDice || [])[k] || 0; p.inf = !!(P.speedDice && P.speedDice.inf && P.speedDice.inf[k]);
     if (CARDS[p.id].mass) { p.slot = -2; return; }
     const owner = combatEnemies()[p.target];
     const ok = i => !used.has(i) && C.intentOwners[i] === owner && (C.intentTargets[i] === P || p.spd > (C.intentSpd[i] || 0));
@@ -7129,6 +7129,7 @@ resolveRoundInner = async function () {
     if (act.kind === 'free') {
       if (P.staggered) continue;
       const t = combatEnemies()[act.p.target];
+      if (t) myFinesse(act.p.spd || 0, Math.min(...C.intents.map((_, i) => C.intentOwners[i] === t && !C.cancelledIntents.has(i) ? C.intentSpd[i] || 0 : 99).concat(t.staggered ? [0] : [99])) % 99, act.p.inf);
       await attackAlone(CARDS[act.p.id], t && t.hp > 0 ? t : combatEnemies().find(e => e.hp > 0)); continue;
     }
     if (act.kind === 'ally') {
@@ -7163,7 +7164,7 @@ resolveRoundInner = async function () {
       continue;
     }
     C.cancelledIntents.add(i);
-    if (pair && !P.staggered) { await clash(CARDS[pair.id], ec); continue; }
+    if (pair && !P.staggered) { myFinesse(pair.spd || 0, C.intentSpd?.[i] || 0, pair.inf); await clash(CARDS[pair.id], ec); continue; }
     let tgt = C.intentTargets?.[i] || P;
     if (tgt !== P && (tgt.hp <= 0 || tgt.dead)) tgt = P;
     if (tgt !== P) {
@@ -7225,8 +7226,8 @@ renderCombat = function () {
     }
   });
   const used = C.played.filter(p => !CARDS[p.id].instant).length;
-  $('#pBox').insertAdjacentHTML('beforeend', `<div style="margin-top:6px;font-size:13px">속도 ${P.speedDice && P.speedDice.length ? P.speedDice.map((v, k) => spdHtml(v, k < used)).join('') : '<span class="l-bad">없음</span>'} <span class="dim" style="font-size:11px">(${pSpeedRange().join('~')} · 카드 1장 = 주사위 1개)</span></div>`);
-  $('#played').querySelectorAll('span[data-p]').forEach(el => { const p = C.played[+el.dataset.p]; if (p && p.spd) el.insertAdjacentHTML('afterbegin', spdHtml(p.spd)); });
+  $('#pBox').insertAdjacentHTML('beforeend', `<div style="margin-top:6px;font-size:13px">속도 ${P.speedDice && P.speedDice.length ? P.speedDice.map((v, k) => spdHtml(v, k < used, P.speedDice.inf && P.speedDice.inf[k])).join('') : '<span class="l-bad">없음</span>'} <span class="dim" style="font-size:11px">(${pSpeedRange().join('~')} · 카드 1장 = 주사위 1개)</span></div>`);
+  $('#played').querySelectorAll('span[data-p]').forEach(el => { const p = C.played[+el.dataset.p]; if (p && p.spd) el.insertAdjacentHTML('afterbegin', spdHtml(p.spd, false, p.inf)); });
   const box = $('#pBox .allies');
   if (box && C.allies) box.innerHTML = C.allies.map(a => {
     const unit = a.kind === 'mate' || a.kind === 'thrall';
@@ -7239,6 +7240,11 @@ for (const k of ['gebura_lib', 'rift_redmist']) {
   Object.assign(ENEMIES[k], { strongest: true, finesse: true, speed: [4, 8] });
   ENEMIES[k].passive += ' · 최강 — 자신의 속도 주사위 중 가장 낮은 값을 가진 주사위들의 값이 최대가 된다. · 기량 — 전투 책장 사용 시, 대상의 속도가 자신의 속도보다 더 낮으면 모든 주사위의 위력이 속도 차이 2당 1 증가 (최대 5).';
 }
+function myFinesse(mine, theirs, inf) {   // 붉은안개가 된 나의 기량
+  if (!S.redMist) return;
+  const b = Math.min(5, Math.floor((mine - theirs) / 2));
+  if (b > 0) { C.finesse = { u: C.P, b }; clog(`✦ 기량 — 속도 ${inf ? '∞' : mine} vs ${theirs}, 모든 주사위 위력 +${b}`, 'l-good'); }
+}
 const _rollFinesse = roll;
 roll = function (u, die, foe) { const v = _rollFinesse(u, die, foe); return C && C.finesse && C.finesse.u === u ? v + C.finesse.b : v; };
 // 신속·속박을 쓰는 패시브
@@ -7248,6 +7254,152 @@ if (AFFS.devjat) {
 }
 COLOR_PASSIVES['사슬'] = ['합에서 이기면 대상에게 속박 2 (다음 막 속도 -2).', { onClashWin(P, E) { E.st.bind = (E.st.bind || 0) + 2; } }];
 COLOR_PASSIVES['나비'] = ['회피 주사위 위력 +1, 매 막 신속 1, 도주 성공률 상승.', { rollBonus(P, d) { return d[0] === '회피' ? 1 : 0; }, roundStart(P) { P.st.haste = (P.st.haste || 0) + 1; }, flee: 0.95 }];
+/* ---------- 게부라 | 붉은안개 — Library of Ruina 지속 능력 그대로
+   전설 · 반격 · 최강 · 속도 3 · 붉은안개 · 기량. 적에게도 감정 단계가 있다 (피해를 주고받을 때 오른다) ---------- */
+const RM_EMO = [3, 6, 10, 15];
+function rmEmo(e, n) {
+  e.emo = (e.emo || 0) + n; e.emoLv = e.emoLv || 0;
+  while (e.emoLv < RM_EMO.length && e.emo >= RM_EMO[e.emoLv]) { e.emoLv++; clog(`${e.name.split(' — ')[0]}의 감정 단계 ${e.emoLv}`, 'l-bad'); }
+}
+const RM_TYPES = ['참격', '관통', '타격'];
+function rmEgoOff(e, why) {
+  if (!e.ego) return;
+  e.ego = false; e.extra = []; e.priorityCard = null; if (e.baseRes) e.res = { ...e.baseRes };
+  clog(`붉은 안개가 걷힌다 — E.G.O 발현 해제${why ? ` (${why})` : ''}`, 'l-good');
+}
+const redMistRound2 = e => {
+  e.priorityCard = null;
+  if (e.hp <= 0) return;
+  if (!e.baseRes) e.baseRes = { ...(e.res || {}) };
+  // 속도 3 — 속도 주사위 슬롯 +1, 감정 단계 3 이상이면 추가로 +1
+  e.d.slots = 3 + 1 + ((e.emoLv || 0) >= 3 ? 1 : 0);
+  // 반격 — 매 막 반격 주사위(참격 4~8) 1개
+  const ctr = ['참격', 4, 8, { counter: true }];
+  e.reserve = e.reserve || []; e.reserve.push({ d: ctr, card: { name: '반격', dice: [ctr] } });
+  // 붉은안개 — 지난 막에 공격으로 40 이상 피해를 입히지 못했다면 흐트러짐 피해
+  if (e.ego && C.round > e.egoRound && (e.rmDealt || 0) < 40) {
+    const n = Math.round(e.maxStg * 0.4);
+    clog(`붉은안개 — 지난 막에 준 피해 ${e.rmDealt || 0} (< 40). 흐트러짐 피해 ${n}`, 'l-good'); stgDmg(e, n);
+  }
+  e.rmDealt = 0;
+  if (e.staggered) { rmEgoOff(e, '흐트러짐'); return; }
+  // 전설 — 감정 단계 4 이상이면 E.G.O 발현 (전투당 한 번)
+  if (!e.ego && !e.egoUsed && (e.emoLv || 0) >= 4) {
+    e.ego = true; e.egoUsed = true; e.egoRound = C.round;
+    e.light = e.maxLight; e.extra = [GREATER_SPLIT_H];
+    clog('붉은 안개가 피어오른다 — E.G.O 발현 (모든 주사위 위력 +2, 대절단-가로 사용 가능)', 'l-bad');
+  }
+  if (e.ego) {
+    const p = 2 + (e.rmStack || 0);
+    e.st.str += p; e.st.end += p;
+    const keep = pick(RM_TYPES); e.res = {};
+    for (const t of RM_TYPES) e.res[t] = t === keep ? 1 : 0.5;
+    clog(`붉은안개 — 이번 막 ${keep}만 보통, 나머지 속성은 견딤`, 'l-sys');
+    if (e.d.egoCycle && (C.round - e.egoRound) % e.d.egoCycle === 0) { e.light = Math.max(e.light, GREATER_SPLIT_H.cost); e.priorityCard = GREATER_SPLIT_H; }
+  }
+};
+// 감정·준 피해·처치 수치
+const _dmgRM = dmg;
+dmg = function (t, amount, type) {
+  const before = t.hp; const r = _dmgRM(t, amount, type); const lost = Math.max(0, before - t.hp);
+  if (C && lost > 0) {
+    const a = C.E;
+    if (t.d && t.d.redmist) rmEmo(t, 1);
+    else if (a && a.d && a.d.redmist && t !== a && a.hp > 0) {
+      rmEmo(a, 1); a.rmDealt = (a.rmDealt || 0) + lost;
+      if (a.ego && before > 0 && t.hp <= 0 && (a.rmStack || 0) < 5) { a.rmStack = (a.rmStack || 0) + 1; clog(`붉은안개 ${a.rmStack} — 모든 주사위 위력 +1`, 'l-bad'); }
+    }
+  }
+  return r;
+};
+// 흐트러지면 E.G.O 발현 해제
+const _stgDmgRM = stgDmg;
+stgDmg = function (t, n) { _stgDmgRM(t, n); if (t.d && t.d.redmist && t.staggered) rmEgoOff(t, '흐트러짐'); };
+const RM_PASSIVE = '전설 — 감정 단계가 4 이상이면 E.G.O를 발현한다 (전투당 한 번). · 반격 — 매 막 반격 주사위(참격, 4-8) 1개를 추가한다. · 최강 — 자신의 속도 주사위 중에서 가장 낮은 값을 가진 속도 주사위들을 선택한다. 그 속도 주사위들의 값은 \'최대\'가 된다. · 속도 3 — 속도 주사위 슬롯 +1. 감정 단계가 3 이상일 때 추가로 속도 주사위 슬롯 +1. · 붉은안개 — (E.G.O 발현 중) 모든 주사위의 위력 2 증가. \'대절단-가로\' 사용 가능. 매 막마다 한 속성의 내성이 \'보통\'이 되고 나머지 속성이 견딤이 된다. 적을 처치할 때마다 모든 주사위의 위력이 증가하는 \'붉은안개\' 수치 1을 얻는다 (최대 5). 한 막 동안 공격으로 40 이상의 피해를 입히지 못하면 최대 흐트러짐 저항의 40%만큼 흐트러짐 피해를 받는다. 흐트러짐 상태가 되면 E.G.O 발현이 해제된다. · 기량 — 전투 책장 사용 시, 대상의 속도가 자신의 속도보다 더 낮으면 모든 주사위의 위력이 속도의 차이에 비례하여 증가 (차이 2당 1 증가, 최대 5).';
+for (const k of ['gebura_lib', 'rift_redmist']) Object.assign(ENEMIES[k], { redmist: true, onRound: redMistRound2, egoPower: 2, slots: 3, light: 8, lightRegen: 4, passive: RM_PASSIVE });
+/* ---------- 붉은안개의 책 — 도서관의 게부라를 쓰러뜨리면 얻는다. 바로 쓰거나 보관했다가 원할 때 쓴다.
+   쓰면 붉은안개가 된다: 덱은 붉은안개의 책장만 남고(다른 기술은 모두 사라진다, 유물은 남는다),
+   전설·반격·최강·속도 3·붉은안개·기량을 그대로 쓴다 ---------- */
+Object.assign(CARDS, {
+  rm_jong:  { name: '종베기', cost: 1, dice: [['타격', 6, 10], ['타격', 6, 9]], desc: '붉은안개의 책장' },
+  rm_jjir:  { name: '찌르기', cost: 2, dice: [['관통', 3, 8], ['관통', 3, 7], ['관통', 3, 7]], desc: '붉은안개의 책장' },
+  rm_hoeng: { name: '횡베기', cost: 1, dice: [['참격', 5, 9], ['참격', 5, 8]], onHit: { bleed: 3 }, desc: '적중 시 출혈 3 · 붉은안개의 책장' },
+  rm_gihap: { name: '기합', cost: 1, dice: [['방어', 8, 12], ['타격', 5, 7]], onUse: { nextStr: 3 }, desc: '사용 시 다음 막 힘 3 · 붉은안개의 책장' },
+  rm_vert:  { name: '대절단-세로', cost: 4, dice: [['참격', 20, 39]], desc: '붉은안개의 책장' },
+});
+const RM_DECK = ['rm_jong', 'rm_jong', 'rm_jong', 'rm_hoeng', 'rm_hoeng', 'rm_hoeng', 'rm_jjir', 'rm_jjir', 'rm_gihap', 'rm_gihap', 'rm_vert'];
+function becomeRedMist() {
+  S.redMist = true; S.rmBook = false; S.deck = [...RM_DECK]; S._h = null;
+  say('책장이 넘어간다. 붉은 안개가 몸을 감싼다. 손에 쥔 것은 이제 거대한 검과, 그녀가 남긴 기술뿐이다. — 당신은 붉은안개가 되었다.', 'l-day');
+  if (typeof chron === 'function') chron('붉은안개의 책을 사용 — 붉은안개가 되었다');
+  renderTop();
+}
+function redMistBookModal(fresh) {
+  S.pausedByModal = !S.paused; if (!S.paused) setSpeed(0);
+  openModal(`<h3>붉은안개의 책</h3><p style="font-size:14px">${fresh ? '게부라가 남긴 책이 손에 들려 있다. ' : ''}사용하면 붉은안개가 된다.<br>
+    <span class="l-bad">지금 가진 기술은 모두 사라지고 붉은안개의 책장만 남는다.</span> (유물은 남는다)<br>
+    <span class="dim" style="font-size:12px">${RM_PASSIVE}</span></p>
+    <button id="rmUse">사용한다</button> <button id="rmKeep">${fresh ? '보관한다' : '닫기'}</button>`);
+  const close = () => { closeModal(); if (S.pausedByModal) setSpeed(0); };
+  $('#rmUse').onclick = () => { close(); becomeRedMist(); };
+  $('#rmKeep').onclick = () => { if (fresh) { S.rmBook = true; print('붉은안개의 책을 보관했다. 상단의 「붉은안개의 책」으로 언제든 사용할 수 있다.', 'l-sys'); renderTop(); } close(); };
+}
+// 게부라를 이기면 책장 대신 붉은안개의 책. 붉은안개가 된 뒤에는 다른 책장을 얻지 않는다
+const _rewardModalRM = rewardModal;
+rewardModal = function (...a) {
+  if (C && C.key === 'gebura_lib' && !S.redMist) return redMistBookModal(true);
+  if (S.redMist) return;
+  return _rewardModalRM(...a);
+};
+$('#boardBtn').insertAdjacentHTML('afterend', ' <button id="rmBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--red);color:var(--red)">붉은안개의 책</button>');
+$('#rmBtn').onclick = () => { if (S && S.rmBook && !S.redMist && S.phase !== 'combat') redMistBookModal(false); };
+const _renderTopRM = renderTop;
+renderTop = function () { _renderTopRM(); const b = $('#rmBtn'); if (b) b.classList.toggle('hidden', !(S && S.rmBook && !S.redMist && S.phase !== 'over')); };
+// 전투: 붉은안개의 책장만, 빛 6 이상
+const _fightRM = fight;
+fight = function (key, opts = {}) {
+  if (S && S.redMist) S.deck = [...RM_DECK];
+  _fightRM(key, opts);
+  if (C && S.redMist && C.P) { C.P.name = '붉은안개'; C.P.maxLight = Math.max(C.P.maxLight, 6); C.P.light = C.P.maxLight; renderCombat(); }
+};
+// 나의 붉은안개 — 전설(E.G.O 발현)·반격·붉은안개 효과
+function playerRedMistRound() {
+  const P = C.P;
+  const ctr = ['참격', 4, 8, { counter: true }];
+  P.reserve = P.reserve || []; P.reserve.push({ d: ctr, card: { name: '반격', dice: [ctr] } });
+  if (P.rmEgo && C.round > P.egoRound && (P.rmDealt || 0) < 40) {
+    const n = Math.round(P.maxStg * 0.4);
+    clog(`붉은안개 — 지난 막에 준 피해 ${P.rmDealt || 0} (< 40). 흐트러짐 피해 ${n}`, 'l-bad'); stgDmg(P, n);
+  }
+  P.rmDealt = 0;
+  if (P.staggered) { if (P.rmEgo) { P.rmEgo = false; P.res = {}; clog('붉은 안개가 걷힌다 — E.G.O 발현 해제 (흐트러짐)', 'l-bad'); } return; }
+  if (!P.rmEgo && !P.egoUsed && P.emoLv >= 4) {
+    P.rmEgo = true; P.egoUsed = true; P.egoRound = C.round;
+    if (C.hand.length < 8) C.hand.push('aoe_split');
+    clog('붉은 안개가 피어오른다 — E.G.O 발현 (모든 주사위 위력 +2, 손에 「대절단-가로」)', 'l-day');
+  }
+  if (P.rmEgo) {
+    const p = 2 + (P.rmStack || 0); P.st.str += p; P.st.end += p;
+    const keep = pick(RM_TYPES); P.res = {}; for (const t of RM_TYPES) P.res[t] = t === keep ? 1 : 0.5;
+    clog(`붉은안개 — 이번 막 ${keep}만 보통, 나머지 속성은 견딤`, 'l-sys');
+  }
+}
+const _speedSetupRM = speedSetup;
+speedSetup = function () { if (S.redMist && C.P) playerRedMistRound(); _speedSetupRM(); };
+const _dmgRMP = dmg;
+dmg = function (t, amount, type) {
+  const before = t.hp; const r = _dmgRMP(t, amount, type);
+  if (C && S.redMist && t.isEnemy && before > t.hp) {
+    const P = C.P; P.rmDealt = (P.rmDealt || 0) + (before - Math.max(0, t.hp));
+    if (P.rmEgo && before > 0 && t.hp <= 0 && (P.rmStack || 0) < 5) { P.rmStack = (P.rmStack || 0) + 1; clog(`붉은안개 ${P.rmStack} — 모든 주사위 위력 +1`, 'l-good'); }
+  }
+  return r;
+};
+const _stgDmgRMP = stgDmg;
+stgDmg = function (t, n) { _stgDmgRMP(t, n); if (C && S.redMist && t === C.P && t.staggered && t.rmEgo) { t.rmEgo = false; t.res = {}; clog('붉은 안개가 걷힌다 — E.G.O 발현 해제 (흐트러짐)', 'l-bad'); } };
+// 상태창에 붉은안개 지속 능력 표시
+const _passiveTextRM = passiveText;
+passiveText = function () { return _passiveTextRM() + (S.redMist ? `<br><span style="color:var(--red)">[붉은안개]</span> ${RM_PASSIVE}` : ''); };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
