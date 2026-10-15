@@ -6988,7 +6988,7 @@ function rollSpeed(u, [lo, hi], n) {
   // 최강 (붉은안개) — 가장 낮은 값의 속도 주사위들이 '최대'가 된다 (∞로 표시)
   if (n && u.d && u.d.strongest) {
     const low = Math.min(...v.map(x => x.v)), top = Math.max(1, hi + mod);
-    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u.name}의 가장 느린 속도 주사위가 ∞가 된다`, 'l-bad'); }
+    if (low < top) { v.forEach(x => { if (x.v === low) { x.v = top; x.inf = true; } }); clog(`✦ 최강 — ${u.name.split(' — ')[0]}의 가장 느린 속도 주사위가 최대값이 되었다 (∞)`, 'l-bad'); }
   }
   v.sort((a, b) => b.v - a.v || (b.inf ? 1 : 0) - (a.inf ? 1 : 0));
   const out = v.map(x => x.v); out.inf = v.map(x => !!x.inf); return out;
@@ -7155,7 +7155,7 @@ resolveRoundInner = async function () {
       const tg = C.intentTargets?.[i] || P, mine = C.intentSpd?.[i] || 0;
       const theirs = pair ? (pair.spd || 0) : tg === P ? (P.speedDice && P.speedDice.length ? Math.min(...P.speedDice) : 0) : (tg.acted || tg.staggered ? 0 : tg.spd || 0);
       const b = Math.min(5, Math.floor((mine - theirs) / 2));
-      if (b > 0) { C.finesse = { u: enemy, b }; clog(`✦ 기량 — ${enemy.name}의 속도 ${C.intentInf && C.intentInf[i] ? '∞' : mine} vs ${theirs}, 모든 주사위 위력 +${b}`, 'l-bad'); }
+      if (b > 0) { C.finesse = { u: enemy, b }; clog(`✦ 기량 — ${enemy.name.split(' — ')[0]}의 속도 ${C.intentInf && C.intentInf[i] ? '∞' : mine} vs ${theirs}, 모든 주사위 위력 +${b}`, 'l-bad'); }
     }
     if (enemy.hp <= 0 || enemy.staggered || C.cancelledIntents.has(i)) {
       C.cancelledIntents.add(i);
