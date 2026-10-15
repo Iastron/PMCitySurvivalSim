@@ -1611,7 +1611,12 @@ EVENTS.push(
   { id: 'color_grant', when: [0, 1, 2], w: 3, cond: () => isFixer() && S.grade === 1 && faction() !== 'color' && !S.colorBadge && S.merit >= 62, title: '하나 협회 — 색의 부여',
     text: '하나 협회 본부의 호출. "당신에게 색을 부여하기로 결정했습니다." 특색. 해결사가 오를 수 있는 마지막 자리.',
     choices: [
-      { t: '색을 받는다', def: true, fn() { const c = makeColorTitle(); say(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day'); S.ch.colorName = c; changeAff('color'); addCard('col_sig'); } },
+      { t: '색을 받는다', def: true, fn() {
+        const c = makeColorTitle(); say(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day'); S.ch.colorName = c;
+        if (faction() === 'assoc') { S.colorBadge = true; S._h = null; say(`${AFFS[S.aff].name}에 남은 채 색을 받았다. 협회의 배지 옆에 색이 하나 더 붙었다.`, 'l-day'); renderTop(); }
+        else changeAff('color');
+        addCard('col_sig');
+      } },
       { t: '사양한다', fn() { say('색은 무게다. 아직은 짊어지지 않기로 했다.'); } },
     ] },
   { id: 'leave', when: [0, 1, 2], w: 0.8, cond: () => !AFF().locked && ['wing', 'gang', 'assoc', 'finger', 'color'].includes(faction()), title: '갈림길',
