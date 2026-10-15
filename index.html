@@ -5151,7 +5151,7 @@ function startRound() {
   }
   if (H().equal) for (const e of foes) { e.st.str = 0; e.st.end = 0; e.st.prot = 0; }
   if (P.laev === 2) { for (const e of foes) e.st.burn += 3; P.st.burn += 1; clog('레바테인의 열기 — 적 전원 화상 3, 자신 화상 1', 'l-sys'); }
-  if (C.round > 1) { const lr = lightRegenP(P); P.light = Math.min(P.maxLight, P.light + lr); if (lr > 1) clog(`숙련된 호흡 — 빛 ${lr} 회복`, 'l-sys'); drawCards((P.emoLv > 0 ? 3 : 2) + (H().extraDraw || 0)); }
+  if (C.round > 1) { const lr = lightRegenP(P); P.light = Math.min(P.maxLight, P.light + lr); drawCards((P.emoLv > 0 ? 3 : 2) + (H().extraDraw || 0)); }
   C.intents = []; C.intentOwners = [];
   for (const e of foes) {
     if (C.round > 1) e.light = Math.min(e.maxLight, e.light + e.lightRegen);
@@ -5895,7 +5895,7 @@ function rep(n, why) {
   const before = S.rep || 0, after = Math.max(-100, Math.min(100, before + n));
   if (after === before) return;
   S.rep = after;
-  if (Math.abs(n) >= 2) say(`평판 ${n > 0 ? '+' : ''}${n}${why ? ' — ' + why : ''} (${after}, ${repTier(after)[1]})`, n > 0 ? 'l-sys' : 'l-bad');
+  if (Math.abs(n) >= 5) say(`평판 ${n > 0 ? '+' : ''}${n}${why ? ' — ' + why : ''} (${after}, ${repTier(after)[1]})`, n > 0 ? 'l-sys' : 'l-bad');
   const tb = repTier(before)[1], ta = repTier(after)[1];
   if (tb !== ta) print(`✦ 평판이 바뀌었다 — ${tb} → <b>${ta}</b>`, n > 0 ? 'l-day' : 'l-day');
 }
@@ -6815,8 +6815,8 @@ clash = async function (pc, ec) {
     if (dead()) return;
     if (P.staggered) { pd = []; } if (E.staggered) { ed = []; }
     // 한쪽 주사위가 떨어지면 반격 주사위가 나선다
-    if (!pd.length && ed.length && pc2.length && !P.staggered) { pd.push(pc2.shift()); clog('반격!', 'l-good'); }
-    if (!ed.length && pd.length && ec2.length && !E.staggered) { ed.push(ec2.shift()); clog('적의 반격!', 'l-bad'); }
+    if (!pd.length && ed.length && pc2.length && !P.staggered) { pd.push(pc2.shift()); }
+    if (!ed.length && pd.length && ec2.length && !E.staggered) { ed.push(ec2.shift()); }
     if (!pd.length && !ed.length) break;
     // 한쪽만 남은 경우: 공격 주사위는 일방 공격, 회피·방어·반격은 대기 주사위로
     if (!ed.length) { const rest = pd.splice(0); for (const d of rest) { if (isDefDie(d) || isCounter(d)) keepReserve(P, [d], pc); else { await wait(380); oneSide(P, d, pc, E); renderCombat(); if (dead()) return; } } continue; }
@@ -6827,8 +6827,8 @@ clash = async function (pc, ec) {
     if (winner === P && a[3]?.destroyNext && ed.length) { ed.shift(); clog('잠금 — 상대의 다음 주사위 파괴', 'l-good'); }
     if (winner === E && b[3]?.destroyNext && pd.length) { pd.shift(); clog('잠금 — 내 다음 주사위 파괴', 'l-bad'); }
     // 부서지지 않은 회피·방어·반격 주사위는 다시 쓴다
-    if (winner === P && (isDefDie(a) || isCounter(a)) && !P.staggered) { pd.unshift(a); clog(`${isCounter(a) ? '반격 ' : ''}${a[0]} 주사위가 부서지지 않았다 — 다시 쓴다`, 'l-sys'); }
-    if (winner === E && (isDefDie(b) || isCounter(b)) && !E.staggered) { ed.unshift(b); clog(`적의 ${isCounter(b) ? '반격 ' : ''}${b[0]} 주사위가 부서지지 않았다`, 'l-sys'); }
+    if (winner === P && (isDefDie(a) || isCounter(a)) && !P.staggered) { pd.unshift(a); }
+    if (winner === E && (isDefDie(b) || isCounter(b)) && !E.staggered) { ed.unshift(b); }
     renderCombat();
   }
   keepReserve(P, pc2, pc); keepReserve(E, ec2, ec);
@@ -6836,8 +6836,8 @@ clash = async function (pc, ec) {
 // 일방 공격 — 받는 쪽에 대기 주사위가 있으면 그 주사위로 맞선다
 const _oneSideDice = oneSide;
 oneSide = function (atk, die, card, def) {
-  if (!OFF(die[0])) { keepReserve(atk, [die], card); clog(`${atk.name}의 ${isCounter(die) ? '반격 ' : ''}${die[0]} 주사위 — 대기`, 'l-amb'); return; }
-  if (isCounter(die)) { keepReserve(atk, [die], card); clog(`${atk.name}의 반격 주사위 — 대기`, 'l-amb'); return; }
+  if (!OFF(die[0])) { keepReserve(atk, [die], card); return; }
+  if (isCounter(die)) { keepReserve(atk, [die], card); return; }
   const r = def.reserve && def.reserve.length && !def.staggered ? def.reserve.shift() : null;
   if (!r) return _oneSideDice(atk, die, card, def);
   clog(`${def.name}의 대기 주사위 「${r.card.name}」 ${dieHtml(r.d)}가 맞선다`, 'l-sys');
