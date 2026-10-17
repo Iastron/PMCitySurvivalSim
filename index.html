@@ -7507,8 +7507,13 @@ async function aiListModels(cfg) {
   const base = (cfg.base || 'https://api.openai.com/v1').replace(/\/+$/, '');
   const r = await fetch(base + '/models', { headers: { authorization: 'Bearer ' + cfg.key } });
   const j = await r.json(); if (!r.ok) throw aiFriendly(aiErr(r, j));
-  return (j.data || []).map(m => m.id).sort();
+  // 대화용이 아닌 모델(임베딩·음성·이미지·구형 완성 모델 등)은 뺀다
+  const ids = (j.data || []).map(m => m.id).filter(id => !/embed|tts|whisper|dall-e|davinci|babbage|audio|realtime|transcribe|image|moderation|instruct|search|computer-use|codex/i.test(id));
+  const official = !cfg.base || /api\.openai\.com/.test(cfg.base);
+  return (official ? ids.filter(id => /^(gpt-|o\d|chatgpt-)/.test(id)) : ids).sort();
 }
+// OpenAI: 목록에서 기본 모델을 고른다 (gpt-5-mini → 최신 gpt-*-mini → 최신 gpt-* → 첫 모델)
+const aiPickOpenAI = list => list.find(m => m === 'gpt-5-mini') || list.filter(m => /^gpt-[\d.]+-mini$/.test(m)).sort().reverse()[0] || list.filter(m => /^gpt-[\d.]+$/.test(m)).sort().reverse()[0] || list[0] || '';
 // 모델 칸이 비어 있으면: 목록에서 최신 flash 계열(없으면 첫 모델)을 고른다 (Gemini)
 let aiResolved = null;
 async function aiResolveModel(cfg) {
@@ -7702,8 +7707,8 @@ function aiSettings() {
     try {
       const list = await aiListModels(v);
       $('#aiModels').innerHTML = list.map(m => `<option value="${escAI(m)}">`).join('');
-      if (!v.model || !list.includes(v.model)) { aiResolved = null; const r = await aiResolveModel({ ...v, model: '' }).catch(() => null); $('#aiModelIn').value = (r && r.model) || (v.provider === 'claude' ? AI_PROVIDERS.claude.models.find(m => list.includes(m)) : '') || list[0] || ''; }
-      $('#aiTestOut').innerHTML = `${list.length}개 모델을 불러왔다. 모델 칸을 눌러 고를 수 있다.` + (v.model && !list.includes(v.model) ? ` <span class="l-bad">입력한 「${escAI(v.model)}」은(는) 이 키로 쓸 수 없어 「${escAI($('#aiModelIn').value)}」(으)로 바꿨다. 저장을 눌러 주세요.</span>` : '');
+      if (!v.model || !list.includes(v.model)) { aiResolved = null; const r = await aiResolveModel({ ...v, model: '' }).catch(() => null); $('#aiModelIn').value = (r && r.model) || (v.provider === 'claude' ? AI_PROVIDERS.claude.models.find(m => list.includes(m)) : v.provider === 'openai' ? aiPickOpenAI(list) : '') || list[0] || ''; }
+      $('#aiTestOut').innerHTML = `${list.length}개 모델을 불러왔다. 모델 칸을 눌러 고를 수 있다.` + (v.model && !list.includes(v.model) ? ` <span class="l-bad">입력한 「${escAI(v.model)}」은(는) 대화에 쓸 수 없는 모델이라 「${escAI($('#aiModelIn').value)}」(으)로 바꿨다. 저장을 눌러 주세요.</span>` : '');
     } catch (e) { $('#aiTestOut').innerHTML = `<span class="l-bad">실패 — ${escAI(e.message)}</span>`; }
   };
   $('#aiTest').onclick = async () => {
