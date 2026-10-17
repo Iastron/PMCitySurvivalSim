@@ -7486,12 +7486,40 @@ cityRender = function () {
 const AI_CFG_KEY = 'sht_ai_cfg';
 const AI_PROVIDERS = {
   claude: { label: 'Claude (Anthropic)', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], keyHint: 'sk-ant-…' },
-  gemini: { label: 'Gemini (Google AI Studio)', models: ['gemini-2.5-flash', 'gemini-2.5-pro'], keyHint: 'AIza…' },
+  gemini: { label: 'Gemini (Google AI Studio)', models: [], keyHint: 'AIza…' },   // 모델은 키로 목록을 불러와 고른다 (구 모델은 신규 사용자에게 막히는 일이 잦다)
   openai: { label: 'GPT (OpenAI · 호환 API)', models: ['gpt-5-mini', 'gpt-5'], keyHint: 'sk-…' },
 };
 function aiCfg() { try { return { provider: 'claude', model: '', key: '', base: '', ...JSON.parse(localStorage.getItem(AI_CFG_KEY) || '{}') }; } catch (_) { return { provider: 'claude', model: '', key: '', base: '' }; } }
 function aiSaveCfg(c) { try { localStorage.setItem(AI_CFG_KEY, JSON.stringify(c)); } catch (_) {} }
-const aiModel = c => c.model || AI_PROVIDERS[c.provider].models[0];
+const aiModel = c => c.model || AI_PROVIDERS[c.provider].models[0] || '';
+// 키로 쓸 수 있는 모델 목록을 서비스에서 직접 불러온다
+async function aiListModels(cfg) {
+  if (cfg.provider === 'claude') {
+    const r = await fetch('https://api.anthropic.com/v1/models?limit=100', { headers: { 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' } });
+    const j = await r.json(); if (!r.ok) throw aiFriendly(aiErr(r, j));
+    return (j.data || []).map(m => m.id);
+  }
+  if (cfg.provider === 'gemini') {
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': cfg.key } });
+    const j = await r.json(); if (!r.ok) throw aiFriendly(aiErr(r, j));
+    return (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini/.test(m.name) && !/embedding|image|tts|audio|live/i.test(m.name)).map(m => m.name.replace(/^models\//, ''));
+  }
+  const base = (cfg.base || 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const r = await fetch(base + '/models', { headers: { authorization: 'Bearer ' + cfg.key } });
+  const j = await r.json(); if (!r.ok) throw aiFriendly(aiErr(r, j));
+  return (j.data || []).map(m => m.id).sort();
+}
+// 모델 칸이 비어 있으면: 목록에서 최신 flash 계열(없으면 첫 모델)을 고른다 (Gemini)
+let aiResolved = null;
+async function aiResolveModel(cfg) {
+  if (cfg.model || cfg.provider !== 'gemini') return cfg;
+  if (aiResolved && aiResolved.key === cfg.key) return { ...cfg, model: aiResolved.model };
+  const list = await aiListModels(cfg);
+  const pickM = list.filter(m => /flash/.test(m) && !/lite|preview|exp|thinking/.test(m)).sort().reverse()[0] || list.filter(m => /flash/.test(m)).sort().reverse()[0] || list[0];
+  if (!pickM) throw new Error('이 키로 쓸 수 있는 Gemini 모델이 없습니다.');
+  aiResolved = { key: cfg.key, model: pickM };
+  return { ...cfg, model: pickM };
+}
 
 const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Library of Ruina · Limbus Company 세계관)를 배경으로 한 텍스트 생존 게임 「뒷골목의 나날」의 서술자입니다.
 플레이어가 자기 캐릭터의 행동·묘사·대사를 입력하면, 그 장면을 한국어로 2~6문장 서술하고 주변 인물의 반응과 대사를 씁니다.
@@ -7537,7 +7565,7 @@ function aiErr(r, j) { const e = new Error((j && j.error && j.error.message) || 
 const AI_BUSY = e => [429, 500, 502, 503, 504, 529].includes(e.status) || /overload|high demand|unavailable|rate limit/i.test(e.message || '');
 async function aiCall(cfg, history, onRetry) {
   for (let n = 0; ; n++) {
-    try { return await aiCallOnce(cfg, history); }
+    try { cfg = await aiResolveModel(cfg); return await aiCallOnce(cfg, history); }
     catch (e) {
       if (n >= 2 || e.name === 'AbortError' || !AI_BUSY(e)) throw aiFriendly(e);
       if (onRetry) onRetry(n + 1);
@@ -7635,15 +7663,25 @@ function aiSettings() {
       <label>모델 <input id="aiModelIn" list="aiModels" value="${escAI(c.model)}" placeholder="${AI_PROVIDERS[c.provider].models[0]}"><datalist id="aiModels">${opts(c.provider)}</datalist></label>
       <label id="aiBaseRow" class="${c.provider === 'openai' ? '' : 'hidden'}">API 주소 <input id="aiBase" value="${escAI(c.base)}" placeholder="https://api.openai.com/v1 (OpenRouter 등 호환 주소 가능)"></label>
     </div>
-    <p class="dim" style="font-size:12px">키 발급: Claude — console.anthropic.com · Gemini — aistudio.google.com · GPT — platform.openai.com<br>모델 칸을 비우면 기본 모델(목록의 첫 번째)을 씁니다.</p>
+    <p class="dim" style="font-size:12px">키 발급: Claude — console.anthropic.com · Gemini — aistudio.google.com · GPT — platform.openai.com<br>「모델 불러오기」를 누르면 이 키로 쓸 수 있는 모델이 목록에 채워집니다. 모델 칸을 비우면 기본 모델을 씁니다 (Gemini는 쓸 수 있는 최신 flash 모델).</p>
     <div id="aiTestOut" class="dim" style="font-size:13px;min-height:1.4em"></div>
-    <button id="aiTest">연결 시험</button> <button id="aiSave" style="border-color:var(--gold)">저장</button> <button id="aiClear">키 지우기</button> <button id="aiClose">닫기</button>`);
+    <button id="aiList">모델 불러오기</button> <button id="aiTest">연결 시험</button> <button id="aiSave" style="border-color:var(--gold)">저장</button> <button id="aiClear">키 지우기</button> <button id="aiClose">닫기</button>`);
   const read = () => ({ provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModelIn').value.trim(), base: $('#aiBase').value.trim() });
   $('#aiProv').onchange = () => { const p = $('#aiProv').value; $('#aiModels').innerHTML = opts(p); $('#aiModelIn').placeholder = AI_PROVIDERS[p].models[0]; $('#aiKey').placeholder = AI_PROVIDERS[p].keyHint; $('#aiBaseRow').classList.toggle('hidden', p !== 'openai'); };
   const close = () => { closeModal(); if (S && S.phase !== 'over' && !wasPaused) setSpeed(S.speed || 1); };
   $('#aiSave').onclick = () => { aiSaveCfg(read()); $('#aiTestOut').textContent = '저장했다.'; };
   $('#aiClear').onclick = () => { const v = read(); v.key = ''; aiSaveCfg(v); $('#aiKey').value = ''; $('#aiTestOut').textContent = '키를 지웠다.'; };
   $('#aiClose').onclick = close;
+  $('#aiList').onclick = async () => {
+    const v = read(); if (!v.key) { $('#aiTestOut').textContent = '키를 먼저 넣어 주세요.'; return; }
+    $('#aiTestOut').textContent = '모델 목록을 불러오는 중…';
+    try {
+      const list = await aiListModels(v);
+      $('#aiModels').innerHTML = list.map(m => `<option value="${escAI(m)}">`).join('');
+      if (!v.model || !list.includes(v.model)) { aiResolved = null; const r = await aiResolveModel({ ...v, model: '' }).catch(() => null); $('#aiModelIn').value = (r && r.model) || (v.provider === 'claude' ? AI_PROVIDERS.claude.models.find(m => list.includes(m)) : '') || list[0] || ''; }
+      $('#aiTestOut').innerHTML = `${list.length}개 모델을 불러왔다. 모델 칸을 눌러 고를 수 있다.` + (v.model && !list.includes(v.model) ? ` <span class="l-bad">입력한 「${escAI(v.model)}」은(는) 이 키로 쓸 수 없어 「${escAI($('#aiModelIn').value)}」(으)로 바꿨다. 저장을 눌러 주세요.</span>` : '');
+    } catch (e) { $('#aiTestOut').innerHTML = `<span class="l-bad">실패 — ${escAI(e.message)}</span>`; }
+  };
   $('#aiTest').onclick = async () => {
     const v = read(); if (!v.key) { $('#aiTestOut').textContent = '키를 먼저 넣어 주세요.'; return; }
     $('#aiTestOut').textContent = '시험 중…';
