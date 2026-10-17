@@ -7533,6 +7533,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
 - 매번 함께 오는 [현재 상태]가 사실의 기준입니다. 체력·돈·소속·위상·전투 결과 같은 수치나 결과를 서술로 바꾸거나 새로 만들지 마세요. 아이템·돈·기술·부상을 주거나 빼앗지 마세요. 그런 일은 게임이 정합니다.
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 플레이어 캐릭터의 생각과 감정, 다음 행동은 플레이어가 정합니다. 대신 정하지 마세요.
+- 대화 한 번은 게임 안에서 약 10분입니다. 시간을 크게 건너뛰거나 다음 시간대로 넘기지 마세요. 시간대는 플레이어가 넘깁니다.
 - 플레이어가 입력한 행동이 [선택지] 중 하나와 분명히 같은 뜻이면, 서술을 마친 뒤 마지막 줄에 [[선택 번호]]만 적으세요(예: [[선택 2]]). 애매하거나 선택지가 없으면 적지 마세요.
 - 게임·AI·프롬프트 같은 메타 발언, 마크다운 제목·목록은 쓰지 마세요. 소설처럼 평문으로 씁니다.`;
 
@@ -7548,7 +7549,7 @@ function aiStateText() {
   if (S.ego) tags.push(`E.G.O 「${S.ego}」`);
   if (tags.length) L.push('특이: ' + tags.join(' · '));
   L.push(`체력 ${S.hp}/${S.maxHp} · 자금 ${won(S.money)} · 평판 ${repTier()[1]}`);
-  L.push(`${S.day}일차 ${TURNS[S.turn] ? TURNS[S.turn].name : ''} · 위치 ${S.warp ? '워프 열차 안' : S.exiled ? '외곽' : (S.loc ? S.loc.label : '')}${!S.warp && !S.exiled && typeof isNest === 'function' ? (isNest() ? ' (둥지 안)' : ' (뒷골목)') : ''}`);
+  L.push(`${S.day}일차 ${TURNS[S.turn] ? TURNS[S.turn].name : ''}${S.aiMode && typeof aiClock === 'function' && TURNS[S.turn] ? ' ' + aiClock() : ''} · 위치 ${S.warp ? '워프 열차 안' : S.exiled ? '외곽' : (S.loc ? S.loc.label : '')}${!S.warp && !S.exiled && typeof isNest === 'function' ? (isNest() ? ' (둥지 안)' : ' (뒷골목)') : ''}`);
   if ((S.hires || []).length) L.push('고용한 동료: ' + S.hires.map(h => h.name).join(', '));
   let scene = '', choices = '';
   if (S.phase === 'combat' && C) {
@@ -7676,10 +7677,11 @@ async function aiSend() {
     S.aiHist = S.aiHist.slice(-16);
     if (m && S.phase === 'day' && T && T.awaiting) {
       const i = +m[1] - 1, c = T.awaiting.choices[i];
-      if (c && (typeof avail !== 'function' || avail(c))) { choose(i); aiReleaseTime(); return; }
+      if (c && (typeof avail !== 'function' || avail(c))) { choose(i); aiReleaseTime(); if (typeof aiPassTime === 'function') aiPassTime(); return; }
     }
   }
   aiReleaseTime();
+  if (reply && typeof aiPassTime === 'function') aiPassTime();
 }
 
 // 설정 창
@@ -7747,7 +7749,7 @@ $('.hero-controls').insertAdjacentHTML('beforeend', `<label for="heroMode">모�
 document.body.insertAdjacentHTML('beforeend', `<div id="aiBar" class="hidden"><div class="in">
   <textarea id="aiInput" rows="1" maxlength="600" placeholder="행동·묘사·대사를 입력하세요 (Enter 보내기 · Shift+Enter 줄바꿈)"></textarea>
   <button id="aiSend" style="border-color:var(--gold)">보내기</button><button id="aiGear" title="AI 설정">⚙</button></div>
-  <div class="hint">서술자는 장면을 그리기만 합니다. 행동이 지금 선택지와 분명히 같으면 그 선택지를 대신 고릅니다. 입력하는 동안 시간은 멈춥니다.</div></div>`);
+  <div class="hint">대화 한 번 = 10분. 시간대는 「다음 시간대로」로 직접 넘깁니다. 선택지는 채팅으로 — 행동이 선택지와 같으면 서술자가 고릅니다.</div></div>`);
 try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); if (v.mode) $('#heroMode').value = v.mode; } catch (_) {}
 $('#heroMode').addEventListener('change', () => { try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); v.mode = $('#heroMode').value; localStorage.setItem('sht_hero', JSON.stringify(v)); } catch (_) {} if ($('#heroMode').value === 'ai' && !aiCfg().key) aiSettings(); });
 $('#aiCfgBtn').onclick = aiSettings; $('#aiGear').onclick = aiSettings; $('#aiSend').onclick = aiSend;
@@ -7773,6 +7775,70 @@ const _renderTopAI = renderTop;
 renderTop = function () { _renderTopAI(); const on = !!(S && S.aiMode && S.phase !== 'over'); $('#aiBar').classList.toggle('hidden', !on); document.body.classList.toggle('ai-on', on); };
 const _gameOverAI = gameOver;
 gameOver = function (reason) { const r = _gameOverAI(reason); $('#aiBar').classList.add('hidden'); document.body.classList.remove('ai-on'); return r; };
+/* ---------- AI 서술 모드의 시간 — 실시간 제한시간 대신, 대화 한 번 = 10분.
+   시간대는 플레이어가 「다음 시간대로」를 눌러 넘기거나, 대화가 쌓여 다음 시간대 시각에 닿으면 넘어간다.
+   선택지는 채팅으로 대신한다 (밤의 거처·이동·위기 같은 특수한 경우만 버튼을 바로 보여 준다) ---------- */
+const AI_SLOT = [[540, 840], [840, 1200], [1200, 1633], [1633, 1714]];   // 시간대별 시작·끝 (분, 03:13은 27:13으로)
+const AI_STEP = 10;
+const hasBatchim = w => { const c = w.charCodeAt(w.length - 1) - 0xAC00; return c >= 0 && c % 28 > 0; };
+const ro = w => w + (hasBatchim(w) ? '으로' : '로'), iga = w => w + (hasBatchim(w) ? '이' : '가'), ida = w => w + (hasBatchim(w) ? '이다' : '다');
+const AI_BTN_EVENTS = new Set(['crisis', 'night_out', 'night_in', 'knock', 'travel_choice', 'travel_method', 'vp_fate', 'ws_customer']);
+const aiOn = () => !!(S && S.aiMode && S.phase !== 'over');
+const hhmm = m => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const aiNow = () => AI_SLOT[S.turn][0] + (S.aiMin || 0);
+const aiClock = () => hhmm(aiNow());
+// 시간대를 넘긴다 — 남은 사건은 기본 선택으로 정리된다
+function aiAdvance(why) {
+  if (!aiOn() || S.phase !== 'day' || !T || S.aiSkip) return;
+  S.aiSkip = true;
+  print(why || `— 시간을 흘려보낸다. 곧 ${ida(TURNS[(S.turn + 1) % 4].name)}.`, 'l-amb');
+  if (T.awaiting) { const i = defaultEventChoice(T.awaiting.choices); if (i >= 0) choose(i); }
+  if (S.phase === 'day' && T) { T.resolved = T.resolved || !T.awaiting; T.timeLeft = 0; }
+  if (S.paused) setSpeed(S.speed || 1);
+}
+// 대화 한 번마다 10분
+function aiPassTime() {
+  if (!aiOn() || S.phase !== 'day') return;
+  S.aiMin = (S.aiMin || 0) + AI_STEP;
+  renderTop();
+  if (aiNow() >= AI_SLOT[S.turn][1]) aiAdvance(`— 이야기를 나누는 사이 ${hhmm(AI_SLOT[S.turn][1])}, ${iga(TURNS[(S.turn + 1) % 4].name)} 되었다.`);
+}
+// 실시간 제한시간은 흐르지 않게 (tick마다 renderTop이 불린다)
+const _renderTopAiTime = renderTop;
+renderTop = function () {
+  _renderTopAiTime();
+  if (!aiOn()) return;
+  if (T && S.phase === 'day' && !S.aiSkip) { T.timeLeft = Math.max(T.timeLeft, 9999); T.ambCd = 9999; }
+  if (!S.warp && S.phase !== 'combat') $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${TURNS[S.turn].name} ${aiClock()}</span>`;
+  const nb = $('#aiNext'); if (nb) { nb.disabled = S.phase !== 'day' || !!S.aiSkip; nb.textContent = `${ro(TURNS[(S.turn + 1) % 4].name)} ▶`; }
+  $('#nextBtn').classList.add('hidden');
+};
+const _startTurnAiTime = startTurn;
+startTurn = function () { if (S) { S.aiMin = 0; S.aiSkip = false; } return _startTurnAiTime(); };
+// 제한시간 표시 대신 안내, 선택지는 채팅으로 (특수한 경우만 버튼)
+const _updateEvTimerAI = updateEvTimer;
+updateEvTimer = function () {
+  if (!aiOn()) return _updateEvTimerAI();
+  const el = $('#evTimer'); if (el && T) el.innerHTML = T.awaiting ? '채팅으로 행동하세요 — 행동이 선택지와 같으면 서술자가 그대로 고릅니다. 시간대를 넘기면 기본 선택으로 정리됩니다.' : '';
+};
+const _showEventAI = showEvent;
+showEvent = function (ev) {
+  const r = _showEventAI(ev);
+  if (aiOn() && T && T.awaiting) {
+    const box = $('#event .choices'), id = T.awaiting.ev.id;
+    if (box && !AI_BTN_EVENTS.has(id)) {
+      box.classList.add('hidden');
+      box.insertAdjacentHTML('beforebegin', `<button id="aiShowChoices" style="padding:3px 10px;font-size:12px">선택지 보기 (${T.awaiting.choices.length})</button>`);
+      $('#aiShowChoices').onclick = () => { box.classList.remove('hidden'); $('#aiShowChoices').remove(); };
+    }
+    updateEvTimer();
+  }
+  return r;
+};
+// 숫자키로 숨은 선택지를 고르지 않게
+document.addEventListener('keydown', e => { if (aiOn() && /^[1-9]$/.test(e.key) && $('#event .choices.hidden')) e.stopImmediatePropagation(); }, true);
+$('#aiSend').insertAdjacentHTML('afterend', '<button id="aiNext" title="지금 시간대를 마치고 다음 시간대로 넘어간다">다음 시간대로 ▶</button>');
+$('#aiNext').onclick = () => aiAdvance();
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
