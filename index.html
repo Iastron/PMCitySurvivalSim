@@ -7510,10 +7510,10 @@ async function aiListModels(cfg) {
   // 대화용이 아닌 모델(임베딩·음성·이미지·구형 완성 모델 등)은 뺀다
   const ids = (j.data || []).map(m => m.id).filter(id => !/embed|tts|whisper|dall-e|davinci|babbage|audio|realtime|transcribe|image|moderation|instruct|search|computer-use|codex/i.test(id));
   const official = !cfg.base || /api\.openai\.com/.test(cfg.base);
-  return (official ? ids.filter(id => /^(gpt-|o\d|chatgpt-)/.test(id)) : ids).sort();
+  return (official ? ids.filter(id => /^(gpt-|o\d|chatgpt-)/.test(id)) : ids).sort((a, b) => (/:free$/.test(b) - /:free$/.test(a)) || a.localeCompare(b));   // 무료 모델(:free)을 위로
 }
 // OpenAI: 목록에서 기본 모델을 고른다 (gpt-5-mini → 최신 gpt-*-mini → 최신 gpt-* → 첫 모델)
-const aiPickOpenAI = list => list.find(m => m === 'gpt-5-mini') || list.filter(m => /^gpt-[\d.]+-mini$/.test(m)).sort().reverse()[0] || list.filter(m => /^gpt-[\d.]+$/.test(m)).sort().reverse()[0] || list[0] || '';
+const aiPickOpenAI = list => list.filter(m => /:free$/.test(m)).sort()[0] || list.find(m => m === 'gpt-5-mini') || list.filter(m => /^gpt-[\d.]+-mini$/.test(m)).sort().reverse()[0] || list.filter(m => /^gpt-[\d.]+$/.test(m)).sort().reverse()[0] || list[0] || '';
 // 모델 칸이 비어 있으면: 목록에서 최신 flash 계열(없으면 첫 모델)을 고른다 (Gemini)
 let aiResolved = null;
 async function aiResolveModel(cfg) {
@@ -7567,7 +7567,8 @@ function aiStateText() {
 // 서비스별 호출
 function aiErr(r, j) { const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status)); e.status = r.status; return e; }
 // 서버가 붐빌 때(429·5xx·과부하)는 잠시 기다렸다가 두 번 더 시도한다
-const AI_BUSY = e => [429, 500, 502, 503, 504, 529].includes(e.status) || /overload|high demand|unavailable|rate limit/i.test(e.message || '');
+const AI_NOCREDIT = e => e.status === 402 || /no credits|insufficient_quota|credit balance|billing|payment required/i.test(e.message || '');
+const AI_BUSY = e => !AI_NOCREDIT(e) && ([429, 500, 502, 503, 504, 529].includes(e.status) || /overload|high demand|unavailable|rate limit/i.test(e.message || ''));
 // Gemini 무료 등급에서 막힌 모델(한도 0)은 기다려도 소용없다 — 쓸 수 있는 다른 모델을 차례로 시도한다
 const AI_NOFREE = e => /limit:\s*0(?!\d)/.test(e.message || '');
 let aiSwitched = null, aiSwitchWhy = '';   // { from, to } — 이번 호출에서 모델을 바꿨다면
@@ -7604,7 +7605,8 @@ function aiFriendly(e) {
   if (e.name === 'AbortError') return e;
   const m = e.message || '';
   let k = '';
-  if (AI_NOFREE(e)) k = '이 키(무료 등급)로는 쓸 수 없는 모델입니다. 무료로 쓸 수 있는 다른 모델도 찾지 못했습니다. 결제 설정을 하거나 다른 서비스를 써 주세요.';
+  if (AI_NOCREDIT(e)) k = '계정에 남은 크레딧(잔액)이 없습니다. 이 서비스는 충전해야 쓸 수 있습니다. 무료로 쓰려면 Gemini 무료 등급이나 OpenRouter의 무료 모델을 써 보세요.';
+  else if (AI_NOFREE(e)) k = '이 키(무료 등급)로는 쓸 수 없는 모델입니다. 무료로 쓸 수 있는 다른 모델도 찾지 못했습니다. 결제 설정을 하거나 다른 서비스를 써 주세요.';
   else if (AI_BUSY(e)) k = e.status === 429 && !/high demand|overload/i.test(m) ? '요청 한도를 넘었습니다. 잠시 뒤에 다시 시도하거나 요금제·한도를 확인해 주세요.' : '서비스가 지금 붐빕니다. 잠시 뒤 다시 시도하거나 다른 모델로 바꿔 보세요.';
   else if (e.status === 401 || e.status === 403 || /api key|invalid.*key|permission/i.test(m)) k = 'API 키가 맞지 않거나 권한이 없습니다.';
   else if (e.status === 404 || /not found|does not exist|is not supported/i.test(m)) k = '모델 이름을 찾을 수 없습니다. 모델 칸을 확인해 주세요.';
@@ -7691,12 +7693,18 @@ function aiSettings() {
       <label>API 키 <input id="aiKey" type="password" autocomplete="off" value="${escAI(c.key)}" placeholder="${AI_PROVIDERS[c.provider].keyHint}"></label>
       <label>모델 <input id="aiModelIn" list="aiModels" value="${escAI(c.model)}" placeholder="${AI_PROVIDERS[c.provider].models[0]}"><datalist id="aiModels">${opts(c.provider)}</datalist></label>
       <label id="aiBaseRow" class="${c.provider === 'openai' ? '' : 'hidden'}">API 주소 <input id="aiBase" value="${escAI(c.base)}" placeholder="https://api.openai.com/v1 (OpenRouter 등 호환 주소 가능)"></label>
+      <div id="aiPresets" class="${c.provider === 'openai' ? '' : 'hidden'}" style="font-size:12px;display:flex;gap:4px;flex-wrap:wrap;align-items:center"><span class="dim">주소 바로 넣기</span>
+        <button type="button" data-base="" style="padding:2px 8px;font-size:12px">OpenAI</button>
+        <button type="button" data-base="https://openrouter.ai/api/v1" style="padding:2px 8px;font-size:12px">OpenRouter (무료 모델 있음)</button>
+        <button type="button" data-base="https://api.groq.com/openai/v1" style="padding:2px 8px;font-size:12px">Groq</button>
+        <button type="button" data-base="http://localhost:11434/v1" style="padding:2px 8px;font-size:12px">Ollama (내 PC)</button></div>
     </div>
     <p class="dim" style="font-size:12px">키 발급: Claude — console.anthropic.com · Gemini — aistudio.google.com · GPT — platform.openai.com<br>「모델 불러오기」를 누르면 이 키로 쓸 수 있는 모델이 목록에 채워집니다. 모델 칸을 비우면 기본 모델을 씁니다 (Gemini는 쓸 수 있는 최신 flash 모델).</p>
     <div id="aiTestOut" class="dim" style="font-size:13px;min-height:1.4em"></div>
     <button id="aiList">모델 불러오기</button> <button id="aiTest">연결 시험</button> <button id="aiSave" style="border-color:var(--gold)">저장</button> <button id="aiClear">키 지우기</button> <button id="aiClose">닫기</button>`);
   const read = () => ({ provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModelIn').value.trim(), base: $('#aiBase').value.trim() });
-  $('#aiProv').onchange = () => { const p = $('#aiProv').value; $('#aiModels').innerHTML = opts(p); $('#aiModelIn').placeholder = AI_PROVIDERS[p].models[0]; $('#aiKey').placeholder = AI_PROVIDERS[p].keyHint; $('#aiBaseRow').classList.toggle('hidden', p !== 'openai'); };
+  $('#aiProv').onchange = () => { const p = $('#aiProv').value; $('#aiModels').innerHTML = opts(p); $('#aiModelIn').placeholder = AI_PROVIDERS[p].models[0]; $('#aiKey').placeholder = AI_PROVIDERS[p].keyHint; $('#aiBaseRow').classList.toggle('hidden', p !== 'openai'); $('#aiPresets').classList.toggle('hidden', p !== 'openai'); };
+  document.querySelectorAll('#aiPresets [data-base]').forEach(b => b.onclick = () => { $('#aiBase').value = b.dataset.base; $('#aiModelIn').value = ''; $('#aiTestOut').textContent = '주소를 넣었다. 그 서비스의 키를 넣고 「모델 불러오기」를 눌러 주세요.'; });
   const close = () => { closeModal(); if (S && S.phase !== 'over' && !wasPaused) setSpeed(S.speed || 1); };
   $('#aiSave').onclick = () => { aiSaveCfg(read()); $('#aiTestOut').textContent = '저장했다.'; };
   $('#aiClear').onclick = () => { const v = read(); v.key = ''; aiSaveCfg(v); $('#aiKey').value = ''; $('#aiTestOut').textContent = '키를 지웠다.'; };
