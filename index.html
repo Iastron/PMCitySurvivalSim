@@ -7563,10 +7563,30 @@ function aiStateText() {
 function aiErr(r, j) { const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status)); e.status = r.status; return e; }
 // 서버가 붐빌 때(429·5xx·과부하)는 잠시 기다렸다가 두 번 더 시도한다
 const AI_BUSY = e => [429, 500, 502, 503, 504, 529].includes(e.status) || /overload|high demand|unavailable|rate limit/i.test(e.message || '');
+// Gemini 무료 등급에서 막힌 모델(한도 0)은 기다려도 소용없다 — 쓸 수 있는 다른 모델을 차례로 시도한다
+const AI_NOFREE = e => /limit:\s*0(?!\d)/.test(e.message || '');
+let aiSwitched = null;   // { from, to } — 이번 호출에서 모델을 바꿨다면
+async function aiGeminiFallback(cfg, history, from) {
+  const list = await aiListModels(cfg).catch(() => []);
+  const rank = m => (/^gemini-\d/.test(m) ? 0 : 2) + (/preview|exp/.test(m) ? 1 : 0) + (/flash/.test(m) ? 0 : 3);
+  const cand = list.filter(m => m !== from).sort((a, b) => rank(a) - rank(b) || b.localeCompare(a)).slice(0, 8);
+  for (const m of cand) {
+    try { const t = await aiCallOnce({ ...cfg, model: m }, history); aiResolved = { key: cfg.key, model: m }; aiSwitched = { from, to: m }; return t; }
+    catch (e) { if (!AI_NOFREE(e) && e.status !== 404 && e.status !== 400) throw e; }
+  }
+  return null;
+}
 async function aiCall(cfg, history, onRetry) {
+  aiSwitched = null;
   for (let n = 0; ; n++) {
     try { cfg = await aiResolveModel(cfg); return await aiCallOnce(cfg, history); }
     catch (e) {
+      if (cfg.provider === 'gemini' && AI_NOFREE(e)) {
+        if (onRetry) onRetry('모델');
+        const t = await aiGeminiFallback(cfg, history, cfg.model);
+        if (t !== null) return t;
+        throw aiFriendly(e);
+      }
       if (n >= 2 || e.name === 'AbortError' || !AI_BUSY(e)) throw aiFriendly(e);
       if (onRetry) onRetry(n + 1);
       await new Promise(res => setTimeout(res, n === 0 ? 2000 : 5000));
@@ -7577,7 +7597,8 @@ function aiFriendly(e) {
   if (e.name === 'AbortError') return e;
   const m = e.message || '';
   let k = '';
-  if (AI_BUSY(e)) k = e.status === 429 && !/high demand|overload/i.test(m) ? '요청 한도를 넘었습니다. 잠시 뒤에 다시 시도하거나 요금제·한도를 확인해 주세요.' : '서비스가 지금 붐빕니다. 잠시 뒤 다시 시도하거나 다른 모델로 바꿔 보세요.';
+  if (AI_NOFREE(e)) k = '이 키(무료 등급)로는 쓸 수 없는 모델입니다. 무료로 쓸 수 있는 다른 모델도 찾지 못했습니다. 결제 설정을 하거나 다른 서비스를 써 주세요.';
+  else if (AI_BUSY(e)) k = e.status === 429 && !/high demand|overload/i.test(m) ? '요청 한도를 넘었습니다. 잠시 뒤에 다시 시도하거나 요금제·한도를 확인해 주세요.' : '서비스가 지금 붐빕니다. 잠시 뒤 다시 시도하거나 다른 모델로 바꿔 보세요.';
   else if (e.status === 401 || e.status === 403 || /api key|invalid.*key|permission/i.test(m)) k = 'API 키가 맞지 않거나 권한이 없습니다.';
   else if (e.status === 404 || /not found|does not exist|is not supported/i.test(m)) k = '모델 이름을 찾을 수 없습니다. 모델 칸을 확인해 주세요.';
   const f = new Error(k ? `${k} (${m})` : m); f.status = e.status; return f;
@@ -7633,9 +7654,10 @@ async function aiSend() {
   S.aiHist = (S.aiHist || []).slice(-16);
   const turn = { role: 'user', content: `${aiStateText()}\n\n[플레이어의 입력]\n${msg}` };
   let reply = '';
-  try { reply = await aiCall(cfg, [...S.aiHist, turn], n => { $('#aiSend').textContent = `재시도 ${n}…`; }); }
+  try { reply = await aiCall(cfg, [...S.aiHist, turn], n => { $('#aiSend').textContent = n === '모델' ? '모델 찾는 중…' : `재시도 ${n}…`; }); }
   catch (e) { aiOut(`<span class="l-bad">서술자 연결 실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`, 'ai-line'); }
   aiBusy = false; $('#aiSend').disabled = false; $('#aiSend').textContent = '보내기';
+  if (reply && aiSwitched) { const c2 = aiCfg(); c2.model = aiSwitched.to; aiSaveCfg(c2); aiOut(`서술자 모델을 「${escAI(aiSwitched.to)}」(으)로 바꿨다 — 「${escAI(aiSwitched.from)}」은(는) 무료 한도가 없다.`, 'l-sys'); }
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]\s*$/);
     const body = reply.replace(/\[\[\s*선택\s*\d+\s*\]\]\s*$/, '').trim();
@@ -7685,7 +7707,9 @@ function aiSettings() {
   $('#aiTest').onclick = async () => {
     const v = read(); if (!v.key) { $('#aiTestOut').textContent = '키를 먼저 넣어 주세요.'; return; }
     $('#aiTestOut').textContent = '시험 중…';
-    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }], n => { $('#aiTestOut').textContent = `서버가 붐빈다 — 다시 시도하는 중 (${n}/2)…`; }); $('#aiTestOut').innerHTML = '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
+    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }], n => { $('#aiTestOut').textContent = n === '모델' ? '이 모델은 무료 한도가 없다 — 쓸 수 있는 다른 모델을 찾는 중…' : `서버가 붐빈다 — 다시 시도하는 중 (${n}/2)…`; });
+      if (aiSwitched) { v.model = aiSwitched.to; $('#aiModelIn').value = v.model; }
+      $('#aiTestOut').innerHTML = (aiSwitched ? `「${escAI(aiSwitched.from)}」은(는) 무료 한도가 없어 「${escAI(aiSwitched.to)}」(으)로 바꿨다. ` : '') + '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
     catch (e) { $('#aiTestOut').innerHTML = `<span class="l-bad">실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`; }
   };
 }
