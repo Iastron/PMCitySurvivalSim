@@ -7478,6 +7478,192 @@ cityRender = function () {
   });
 };
 /* =========================================================
+   AI 서술 모드 — 게임 흐름은 그대로, 하단 대화창에 행동·묘사·대사를 입력하면
+   플레이어가 직접 넣은 API 키(Claude·Gemini·OpenAI 호환)로 서술자가 장면을 이어 쓴다.
+   - 키는 이 브라우저(localStorage)에만 저장되고, 고른 서비스로만 전송된다. 요금은 그 서비스에 직접 청구된다
+   - 서술자는 수치·결과를 바꾸지 않는다. 행동이 지금 선택지 하나와 분명히 같으면 그 선택지를 대신 고른다
+========================================================= */
+const AI_CFG_KEY = 'sht_ai_cfg';
+const AI_PROVIDERS = {
+  claude: { label: 'Claude (Anthropic)', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], keyHint: 'sk-ant-…' },
+  gemini: { label: 'Gemini (Google AI Studio)', models: ['gemini-2.5-flash', 'gemini-2.5-pro'], keyHint: 'AIza…' },
+  openai: { label: 'GPT (OpenAI · 호환 API)', models: ['gpt-5-mini', 'gpt-5'], keyHint: 'sk-…' },
+};
+function aiCfg() { try { return { provider: 'claude', model: '', key: '', base: '', ...JSON.parse(localStorage.getItem(AI_CFG_KEY) || '{}') }; } catch (_) { return { provider: 'claude', model: '', key: '', base: '' }; } }
+function aiSaveCfg(c) { try { localStorage.setItem(AI_CFG_KEY, JSON.stringify(c)); } catch (_) {} }
+const aiModel = c => c.model || AI_PROVIDERS[c.provider].models[0];
+
+const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Library of Ruina · Limbus Company 세계관)를 배경으로 한 텍스트 생존 게임 「뒷골목의 나날」의 서술자입니다.
+플레이어가 자기 캐릭터의 행동·묘사·대사를 입력하면, 그 장면을 한국어로 2~6문장 서술하고 주변 인물의 반응과 대사를 씁니다.
+
+규칙
+- 매번 함께 오는 [현재 상태]가 사실의 기준입니다. 체력·돈·소속·위상·전투 결과 같은 수치나 결과를 서술로 바꾸거나 새로 만들지 마세요. 아이템·돈·기술·부상을 주거나 빼앗지 마세요. 그런 일은 게임이 정합니다.
+- 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
+- 플레이어 캐릭터의 생각과 감정, 다음 행동은 플레이어가 정합니다. 대신 정하지 마세요.
+- 플레이어가 입력한 행동이 [선택지] 중 하나와 분명히 같은 뜻이면, 서술을 마친 뒤 마지막 줄에 [[선택 번호]]만 적으세요(예: [[선택 2]]). 애매하거나 선택지가 없으면 적지 마세요.
+- 게임·AI·프롬프트 같은 메타 발언, 마크다운 제목·목록은 쓰지 마세요. 소설처럼 평문으로 씁니다.`;
+
+const stripTagsAI = h => String(h || '').replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+function aiStateText() {
+  const L = [];
+  L.push(`이름: ${S.heroName || '이름 없음'} (${S.gender === 'f' ? '여성' : '남성'}) · 출신: ${S.ch.name} · 소속: ${affName()} · ${rankText()}`);
+  const tags = [];
+  if (faction() === 'vampire' || S.vampRank) tags.push(`혈귀 제${S.vampRank}권속 · 피 ${S.blood || 0}`);
+  if (faction() === 'twisted') tags.push(`뒤틀림 「${S.ch.twistName}」`);
+  if (S.ch.colorName) tags.push(`특색 「${S.ch.colorName}」`);
+  if (S.redMist) tags.push('붉은안개');
+  if (S.ego) tags.push(`E.G.O 「${S.ego}」`);
+  if (tags.length) L.push('특이: ' + tags.join(' · '));
+  L.push(`체력 ${S.hp}/${S.maxHp} · 자금 ${won(S.money)} · 평판 ${repTier()[1]}`);
+  L.push(`${S.day}일차 ${TURNS[S.turn] ? TURNS[S.turn].name : ''} · 위치 ${S.warp ? '워프 열차 안' : S.exiled ? '외곽' : (S.loc ? S.loc.label : '')}${!S.warp && !S.exiled && typeof isNest === 'function' ? (isNest() ? ' (둥지 안)' : ' (뒷골목)') : ''}`);
+  if ((S.hires || []).length) L.push('고용한 동료: ' + S.hires.map(h => h.name).join(', '));
+  let scene = '', choices = '';
+  if (S.phase === 'combat' && C) {
+    scene = `전투 중 (제${C.round}막). 적: ${combatEnemies().map(e => `${e.name} 체력 ${Math.max(0, e.hp)}/${e.maxHp}${e.staggered ? ' 흐트러짐' : ''}`).join(', ')}. 나: 체력 ${C.P.hp}/${C.P.maxHp}${C.P.staggered ? ' 흐트러짐' : ''}.`
+      + ((C.allies || []).filter(a => a.hp > 0).length ? ` 동료: ${C.allies.filter(a => a.hp > 0).map(a => a.name).join(', ')}.` : '');
+  } else if (T && T.awaiting) {
+    const ev = T.awaiting.ev;
+    scene = `사건 「${ev.title || ''}」 — ${stripTagsAI(ev.text)}`;
+    choices = T.awaiting.choices.map((c, i) => `${i + 1}. ${stripTagsAI(c.t)}`).join('\n');
+  }
+  const logSel = S.phase === 'combat' ? '#clog' : '#log';
+  const recent = [...document.querySelectorAll(logSel + ' > div')].slice(-14).map(d => d.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+  return `[현재 상태]\n${L.join('\n')}\n\n[지금 장면]\n${scene || '특별한 사건은 없다.'}${choices ? `\n\n[선택지]\n${choices}` : ''}\n\n[최근 기록]\n${recent}`;
+}
+
+// 서비스별 호출
+async function aiCall(cfg, history) {
+  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90000);
+  const model = aiModel(cfg);
+  try {
+    if (cfg.provider === 'claude') {
+      const fb = /^claude-(opus|sonnet)-5-5$/.test(model);   // 거절 시 서버가 다른 모델로 넘겨 준다
+      const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: ctl.signal,
+        headers: { 'content-type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', ...(fb ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}) },
+        body: JSON.stringify({ model, max_tokens: 2000, system: AI_SYSTEM, messages: history, output_config: { effort: 'low' }, ...(fb ? { fallbacks: 'default' } : {}) }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+      if (j.stop_reason === 'refusal') return '(서술자가 이 장면을 묘사하지 않았다.)';
+      return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
+    }
+    if (cfg.provider === 'gemini') {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', signal: ctl.signal,
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.key },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_SYSTEM }] }, contents: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+      const parts = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
+      return parts ? parts.map(p => p.text || '').join('').trim() : '(서술자가 이 장면을 묘사하지 않았다.)';
+    }
+    const base = (cfg.base || 'https://api.openai.com/v1').replace(/\/+$/, '');
+    const r = await fetch(base + '/chat/completions', { method: 'POST', signal: ctl.signal,
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + cfg.key },
+      body: JSON.stringify({ model, messages: [{ role: 'system', content: AI_SYSTEM }, ...history] }) });
+    const j = await r.json();
+    if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+    return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
+  } finally { clearTimeout(timer); }
+}
+
+// 화면 출력 (일상은 기록창, 전투는 전투 기록)
+function aiOut(text, cls) {
+  if (S.phase === 'combat' && C) clog(text, cls); else print(text, cls);
+}
+const escAI = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+let aiBusy = false;
+async function aiSend() {
+  const box = $('#aiInput'), msg = box.value.trim();
+  if (!msg || aiBusy || !S || S.phase === 'over') return;
+  const cfg = aiCfg();
+  if (!cfg.key) { aiSettings(); return; }
+  box.value = ''; aiBusy = true; $('#aiSend').disabled = true; $('#aiSend').textContent = '…';
+  const wasPaused = S.paused, prevSpeed = S.speed || 1;
+  if (!wasPaused) setSpeed(0);
+  aiOut(`<span class="ai-me">▸ ${escAI(S.heroName || '나')}: ${escAI(msg)}</span>`, 'ai-line');
+  S.aiHist = (S.aiHist || []).slice(-16);
+  const turn = { role: 'user', content: `${aiStateText()}\n\n[플레이어의 입력]\n${msg}` };
+  let reply = '';
+  try { reply = await aiCall(cfg, [...S.aiHist, turn]); }
+  catch (e) { aiOut(`<span class="l-bad">서술자 연결 실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`, 'ai-line'); }
+  aiBusy = false; $('#aiSend').disabled = false; $('#aiSend').textContent = '보내기';
+  if (reply) {
+    const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]\s*$/);
+    const body = reply.replace(/\[\[\s*선택\s*\d+\s*\]\]\s*$/, '').trim();
+    aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
+    S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
+    S.aiHist = S.aiHist.slice(-16);
+    if (m && S.phase === 'day' && T && T.awaiting) {
+      const i = +m[1] - 1, c = T.awaiting.choices[i];
+      if (c && (typeof avail !== 'function' || avail(c))) { if (!wasPaused) setSpeed(prevSpeed); choose(i); return; }
+    }
+  }
+  if (!wasPaused && S.phase !== 'over') setSpeed(prevSpeed);
+}
+
+// 설정 창
+function aiSettings() {
+  const c = aiCfg(), wasPaused = S ? S.paused : true;
+  if (S && S.phase !== 'over' && !wasPaused) setSpeed(0);
+  const opts = p => AI_PROVIDERS[p].models.map(m => `<option value="${m}">`).join('');
+  openModal(`<h3>AI 서술자 설정</h3>
+    <p class="dim" style="font-size:13px">직접 발급받은 API 키를 넣어 주세요. 키는 <b>이 브라우저에만</b> 저장되고, 고른 서비스로만 전송됩니다. 요금은 그 서비스 계정에 직접 청구됩니다. 공용 컴퓨터라면 다 쓴 뒤 키를 지워 주세요.</p>
+    <div class="ai-form">
+      <label>서비스 <select id="aiProv">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<option value="${k}" ${k === c.provider ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
+      <label>API 키 <input id="aiKey" type="password" autocomplete="off" value="${escAI(c.key)}" placeholder="${AI_PROVIDERS[c.provider].keyHint}"></label>
+      <label>모델 <input id="aiModelIn" list="aiModels" value="${escAI(c.model)}" placeholder="${AI_PROVIDERS[c.provider].models[0]}"><datalist id="aiModels">${opts(c.provider)}</datalist></label>
+      <label id="aiBaseRow" class="${c.provider === 'openai' ? '' : 'hidden'}">API 주소 <input id="aiBase" value="${escAI(c.base)}" placeholder="https://api.openai.com/v1 (OpenRouter 등 호환 주소 가능)"></label>
+    </div>
+    <p class="dim" style="font-size:12px">키 발급: Claude — console.anthropic.com · Gemini — aistudio.google.com · GPT — platform.openai.com<br>모델 칸을 비우면 기본 모델(목록의 첫 번째)을 씁니다.</p>
+    <div id="aiTestOut" class="dim" style="font-size:13px;min-height:1.4em"></div>
+    <button id="aiTest">연결 시험</button> <button id="aiSave" style="border-color:var(--gold)">저장</button> <button id="aiClear">키 지우기</button> <button id="aiClose">닫기</button>`);
+  const read = () => ({ provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModelIn').value.trim(), base: $('#aiBase').value.trim() });
+  $('#aiProv').onchange = () => { const p = $('#aiProv').value; $('#aiModels').innerHTML = opts(p); $('#aiModelIn').placeholder = AI_PROVIDERS[p].models[0]; $('#aiKey').placeholder = AI_PROVIDERS[p].keyHint; $('#aiBaseRow').classList.toggle('hidden', p !== 'openai'); };
+  const close = () => { closeModal(); if (S && S.phase !== 'over' && !wasPaused) setSpeed(S.speed || 1); };
+  $('#aiSave').onclick = () => { aiSaveCfg(read()); $('#aiTestOut').textContent = '저장했다.'; };
+  $('#aiClear').onclick = () => { const v = read(); v.key = ''; aiSaveCfg(v); $('#aiKey').value = ''; $('#aiTestOut').textContent = '키를 지웠다.'; };
+  $('#aiClose').onclick = close;
+  $('#aiTest').onclick = async () => {
+    const v = read(); if (!v.key) { $('#aiTestOut').textContent = '키를 먼저 넣어 주세요.'; return; }
+    $('#aiTestOut').textContent = '시험 중…';
+    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }]); $('#aiTestOut').innerHTML = '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
+    catch (e) { $('#aiTestOut').innerHTML = `<span class="l-bad">실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`; }
+  };
+}
+
+// 화면 구성: 시작 화면의 모드 선택 + 하단 대화창
+document.head.insertAdjacentHTML('beforeend', `<style>
+#aiBar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--panel);border-top:1px solid var(--gold);padding:8px 12px}
+#aiBar .in{max-width:980px;margin:0 auto;display:flex;gap:6px;align-items:flex-end}
+#aiInput{flex:1;min-width:0;resize:none;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:8px 10px;height:42px;max-height:140px}
+#aiBar .hint{max-width:980px;margin:4px auto 0;font-size:11px;color:var(--dim)}
+body.ai-on{padding-bottom:92px}
+.ai-line .ai-me{color:var(--cyan)}
+.ai-line .ai-text{color:var(--text);font-style:italic;border-left:2px solid var(--gold);padding-left:8px;display:inline-block}
+.ai-form label{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:14px}
+.ai-form input,.ai-form select{flex:1;min-width:0;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+@media (max-width:600px){#aiBar .hint{display:none}body.ai-on{padding-bottom:70px}}
+</style>`);
+$('.hero-controls').insertAdjacentHTML('beforeend', `<label for="heroMode">모드</label><select id="heroMode"><option value="normal">기본</option><option value="ai">AI 서술 모드</option></select> <button id="aiCfgBtn" type="button" style="padding:4px 10px;font-size:13px">AI 설정</button>`);
+document.body.insertAdjacentHTML('beforeend', `<div id="aiBar" class="hidden"><div class="in">
+  <textarea id="aiInput" rows="1" maxlength="600" placeholder="행동·묘사·대사를 입력하세요 (Enter 보내기 · Shift+Enter 줄바꿈)"></textarea>
+  <button id="aiSend" style="border-color:var(--gold)">보내기</button><button id="aiGear" title="AI 설정">⚙</button></div>
+  <div class="hint">서술자는 장면을 그리기만 합니다. 행동이 지금 선택지와 분명히 같으면 그 선택지를 대신 고릅니다. 입력하는 동안 시간은 멈춥니다.</div></div>`);
+try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); if (v.mode) $('#heroMode').value = v.mode; } catch (_) {}
+$('#heroMode').addEventListener('change', () => { try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); v.mode = $('#heroMode').value; localStorage.setItem('sht_hero', JSON.stringify(v)); } catch (_) {} if ($('#heroMode').value === 'ai' && !aiCfg().key) aiSettings(); });
+$('#aiCfgBtn').onclick = aiSettings; $('#aiGear').onclick = aiSettings; $('#aiSend').onclick = aiSend;
+const aiInput = $('#aiInput');
+aiInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); aiSend(); } });
+// 입력하는 동안 시간을 멈춘다
+let aiFocusPaused = false;
+aiInput.addEventListener('focus', () => { if (S && S.phase !== 'over' && !S.paused) { aiFocusPaused = true; setSpeed(0); } });
+aiInput.addEventListener('blur', () => { if (aiFocusPaused && !aiBusy && S && S.phase !== 'over' && !aiInput.value.trim()) setSpeed(S.speed || 1); aiFocusPaused = false; });
+const _newGameAI = newGame;
+newGame = function (ch) { _newGameAI(ch); S.aiMode = $('#heroMode') && $('#heroMode').value === 'ai'; S.aiHist = []; if (S.aiMode) say('AI 서술 모드 — 하단 대화창에 행동·묘사·대사를 입력하면 서술자가 장면을 이어 씁니다.', 'l-sys'); renderTop(); };
+const _renderTopAI = renderTop;
+renderTop = function () { _renderTopAI(); const on = !!(S && S.aiMode && S.phase !== 'over'); $('#aiBar').classList.toggle('hidden', !on); document.body.classList.toggle('ai-on', on); };
+const _gameOverAI = gameOver;
+gameOver = function (reason) { const r = _gameOverAI(reason); $('#aiBar').classList.add('hidden'); document.body.classList.remove('ai-on'); return r; };
+/* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
 ========================================================= */
