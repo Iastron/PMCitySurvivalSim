@@ -7565,14 +7565,14 @@ function aiErr(r, j) { const e = new Error((j && j.error && j.error.message) || 
 const AI_BUSY = e => [429, 500, 502, 503, 504, 529].includes(e.status) || /overload|high demand|unavailable|rate limit/i.test(e.message || '');
 // Gemini 무료 등급에서 막힌 모델(한도 0)은 기다려도 소용없다 — 쓸 수 있는 다른 모델을 차례로 시도한다
 const AI_NOFREE = e => /limit:\s*0(?!\d)/.test(e.message || '');
-let aiSwitched = null;   // { from, to } — 이번 호출에서 모델을 바꿨다면
+let aiSwitched = null, aiSwitchWhy = '';   // { from, to } — 이번 호출에서 모델을 바꿨다면
 async function aiGeminiFallback(cfg, history, from) {
   const list = await aiListModels(cfg).catch(() => []);
   const rank = m => (/^gemini-\d/.test(m) ? 0 : 2) + (/preview|exp/.test(m) ? 1 : 0) + (/flash/.test(m) ? 0 : 3);
   const cand = list.filter(m => m !== from).sort((a, b) => rank(a) - rank(b) || b.localeCompare(a)).slice(0, 8);
   for (const m of cand) {
-    try { const t = await aiCallOnce({ ...cfg, model: m }, history); aiResolved = { key: cfg.key, model: m }; aiSwitched = { from, to: m }; return t; }
-    catch (e) { if (!AI_NOFREE(e) && e.status !== 404 && e.status !== 400) throw e; }
+    try { const t = await aiCallOnce({ ...cfg, model: m }, history); aiResolved = { key: cfg.key, model: m }; aiSwitched = { from, to: m, why: aiSwitchWhy }; return t; }
+    catch (e) { if (!AI_NOFREE(e) && !AI_BUSY(e) && e.status !== 404 && e.status !== 400) throw aiFriendly(e); }   // 막혔거나 붐비는 모델은 건너뛴다
   }
   return null;
 }
@@ -7581,7 +7581,9 @@ async function aiCall(cfg, history, onRetry) {
   for (let n = 0; ; n++) {
     try { cfg = await aiResolveModel(cfg); return await aiCallOnce(cfg, history); }
     catch (e) {
-      if (cfg.provider === 'gemini' && AI_NOFREE(e)) {
+      // Gemini: 무료 한도가 없거나 계속 붐비면 다른 모델로 넘어간다
+      if (cfg.provider === 'gemini' && (AI_NOFREE(e) || (n >= 2 && AI_BUSY(e)))) {
+        aiSwitchWhy = AI_NOFREE(e) ? '무료 한도가 없다' : '계속 붐빈다';
         if (onRetry) onRetry('모델');
         const t = await aiGeminiFallback(cfg, history, cfg.model);
         if (t !== null) return t;
@@ -7657,7 +7659,7 @@ async function aiSend() {
   try { reply = await aiCall(cfg, [...S.aiHist, turn], n => { $('#aiSend').textContent = n === '모델' ? '모델 찾는 중…' : `재시도 ${n}…`; }); }
   catch (e) { aiOut(`<span class="l-bad">서술자 연결 실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`, 'ai-line'); }
   aiBusy = false; $('#aiSend').disabled = false; $('#aiSend').textContent = '보내기';
-  if (reply && aiSwitched) { const c2 = aiCfg(); c2.model = aiSwitched.to; aiSaveCfg(c2); aiOut(`서술자 모델을 「${escAI(aiSwitched.to)}」(으)로 바꿨다 — 「${escAI(aiSwitched.from)}」은(는) 무료 한도가 없다.`, 'l-sys'); }
+  if (reply && aiSwitched) { const c2 = aiCfg(); c2.model = aiSwitched.to; aiSaveCfg(c2); aiOut(`서술자 모델을 「${escAI(aiSwitched.to)}」(으)로 바꿨다 — 「${escAI(aiSwitched.from)}」은(는) ${aiSwitched.why}.`, 'l-sys'); }
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]\s*$/);
     const body = reply.replace(/\[\[\s*선택\s*\d+\s*\]\]\s*$/, '').trim();
@@ -7707,9 +7709,9 @@ function aiSettings() {
   $('#aiTest').onclick = async () => {
     const v = read(); if (!v.key) { $('#aiTestOut').textContent = '키를 먼저 넣어 주세요.'; return; }
     $('#aiTestOut').textContent = '시험 중…';
-    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }], n => { $('#aiTestOut').textContent = n === '모델' ? '이 모델은 무료 한도가 없다 — 쓸 수 있는 다른 모델을 찾는 중…' : `서버가 붐빈다 — 다시 시도하는 중 (${n}/2)…`; });
+    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }], n => { $('#aiTestOut').textContent = n === '모델' ? `이 모델은 ${aiSwitchWhy} — 쓸 수 있는 다른 모델을 찾는 중…` : `서버가 붐빈다 — 다시 시도하는 중 (${n}/2)…`; });
       if (aiSwitched) { v.model = aiSwitched.to; $('#aiModelIn').value = v.model; }
-      $('#aiTestOut').innerHTML = (aiSwitched ? `「${escAI(aiSwitched.from)}」은(는) 무료 한도가 없어 「${escAI(aiSwitched.to)}」(으)로 바꿨다. ` : '') + '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
+      $('#aiTestOut').innerHTML = (aiSwitched ? `「${escAI(aiSwitched.from)}」은(는) ${aiSwitched.why} — 「${escAI(aiSwitched.to)}」(으)로 바꿨다. ` : '') + '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
     catch (e) { $('#aiTestOut').innerHTML = `<span class="l-bad">실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`; }
   };
 }
