@@ -7532,7 +7532,29 @@ function aiStateText() {
 }
 
 // 서비스별 호출
-async function aiCall(cfg, history) {
+function aiErr(r, j) { const e = new Error((j && j.error && j.error.message) || ('HTTP ' + r.status)); e.status = r.status; return e; }
+// 서버가 붐빌 때(429·5xx·과부하)는 잠시 기다렸다가 두 번 더 시도한다
+const AI_BUSY = e => [429, 500, 502, 503, 504, 529].includes(e.status) || /overload|high demand|unavailable|rate limit/i.test(e.message || '');
+async function aiCall(cfg, history, onRetry) {
+  for (let n = 0; ; n++) {
+    try { return await aiCallOnce(cfg, history); }
+    catch (e) {
+      if (n >= 2 || e.name === 'AbortError' || !AI_BUSY(e)) throw aiFriendly(e);
+      if (onRetry) onRetry(n + 1);
+      await new Promise(res => setTimeout(res, n === 0 ? 2000 : 5000));
+    }
+  }
+}
+function aiFriendly(e) {
+  if (e.name === 'AbortError') return e;
+  const m = e.message || '';
+  let k = '';
+  if (AI_BUSY(e)) k = e.status === 429 && !/high demand|overload/i.test(m) ? '요청 한도를 넘었습니다. 잠시 뒤에 다시 시도하거나 요금제·한도를 확인해 주세요.' : '서비스가 지금 붐빕니다. 잠시 뒤 다시 시도하거나 다른 모델로 바꿔 보세요.';
+  else if (e.status === 401 || e.status === 403 || /api key|invalid.*key|permission/i.test(m)) k = 'API 키가 맞지 않거나 권한이 없습니다.';
+  else if (e.status === 404 || /not found|does not exist|is not supported/i.test(m)) k = '모델 이름을 찾을 수 없습니다. 모델 칸을 확인해 주세요.';
+  const f = new Error(k ? `${k} (${m})` : m); f.status = e.status; return f;
+}
+async function aiCallOnce(cfg, history) {
   const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90000);
   const model = aiModel(cfg);
   try {
@@ -7542,7 +7564,7 @@ async function aiCall(cfg, history) {
         headers: { 'content-type': 'application/json', 'x-api-key': cfg.key, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', ...(fb ? { 'anthropic-beta': 'server-side-fallback-2026-07-01' } : {}) },
         body: JSON.stringify({ model, max_tokens: 2000, system: AI_SYSTEM, messages: history, output_config: { effort: 'low' }, ...(fb ? { fallbacks: 'default' } : {}) }) });
       const j = await r.json();
-      if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+      if (!r.ok) throw aiErr(r, j);
       if (j.stop_reason === 'refusal') return '(서술자가 이 장면을 묘사하지 않았다.)';
       return (j.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim();
     }
@@ -7551,7 +7573,7 @@ async function aiCall(cfg, history) {
         headers: { 'content-type': 'application/json', 'x-goog-api-key': cfg.key },
         body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_SYSTEM }] }, contents: history.map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] })) }) });
       const j = await r.json();
-      if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+      if (!r.ok) throw aiErr(r, j);
       const parts = j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts;
       return parts ? parts.map(p => p.text || '').join('').trim() : '(서술자가 이 장면을 묘사하지 않았다.)';
     }
@@ -7560,7 +7582,7 @@ async function aiCall(cfg, history) {
       headers: { 'content-type': 'application/json', authorization: 'Bearer ' + cfg.key },
       body: JSON.stringify({ model, messages: [{ role: 'system', content: AI_SYSTEM }, ...history] }) });
     const j = await r.json();
-    if (!r.ok) throw new Error((j.error && j.error.message) || r.status);
+    if (!r.ok) throw aiErr(r, j);
     return ((j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '').trim();
   } finally { clearTimeout(timer); }
 }
@@ -7583,7 +7605,7 @@ async function aiSend() {
   S.aiHist = (S.aiHist || []).slice(-16);
   const turn = { role: 'user', content: `${aiStateText()}\n\n[플레이어의 입력]\n${msg}` };
   let reply = '';
-  try { reply = await aiCall(cfg, [...S.aiHist, turn]); }
+  try { reply = await aiCall(cfg, [...S.aiHist, turn], n => { $('#aiSend').textContent = `재시도 ${n}…`; }); }
   catch (e) { aiOut(`<span class="l-bad">서술자 연결 실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`, 'ai-line'); }
   aiBusy = false; $('#aiSend').disabled = false; $('#aiSend').textContent = '보내기';
   if (reply) {
@@ -7625,7 +7647,7 @@ function aiSettings() {
   $('#aiTest').onclick = async () => {
     const v = read(); if (!v.key) { $('#aiTestOut').textContent = '키를 먼저 넣어 주세요.'; return; }
     $('#aiTestOut').textContent = '시험 중…';
-    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }]); $('#aiTestOut').innerHTML = '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
+    try { const t = await aiCall(v, [{ role: 'user', content: '[연결 시험] 뒷골목의 새벽 풍경을 한 문장으로 묘사해 주세요.' }], n => { $('#aiTestOut').textContent = `서버가 붐빈다 — 다시 시도하는 중 (${n}/2)…`; }); $('#aiTestOut').innerHTML = '성공 — ' + escAI(t.slice(0, 160)); aiSaveCfg(v); }
     catch (e) { $('#aiTestOut').innerHTML = `<span class="l-bad">실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`; }
   };
 }
