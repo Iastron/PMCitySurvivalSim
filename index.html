@@ -7552,7 +7552,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[압박 +5]] — 공포·상실·굴욕 같은 괴로운 일로 정신 압박이 쌓일 때(나쁜 일) / [[압박 -5]] — 안도·위안·기쁜 일로 압박이 풀릴 때(좋은 일). 좋은 일에 +를 쓰지 마세요
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
   [[소속 츠바이 협회]] — 플레이어가 조직·협회·손가락에 들어가거나 나올 때. 고를 수 있는 이름: 뒷골목 무소속 · 무소속 해결사 · 뒷골목 조직원 · 날개 소속 깃털 · 츠바이/시/리우/하나/트레스/섕크/세븐/에잇/제뱌찌/디에치/외우피 협회 · 엄지 · 검지 · 중지 · 약지 · 소지
-  [[실적 +2]] — 의뢰를 끝내거나 공을 세웠을 때 (한 번에 최대 5)
+  [[실적 +2]] — 플레이어가 이 장면에서 직접 의뢰를 끝내거나 사건을 해결하거나 눈에 띄는 공을 세웠을 때만 (한 번에 최대 3). 대화·이동·휴식·구경·시간이 흐르는 것만으로는 절대 주지 마세요. 확실하지 않으면 주지 마세요
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
@@ -7780,7 +7780,7 @@ function aiApplyTags(reply) {
   }
   const grade0 = S.grade;
   const mr = num(/\[\[\s*실적\s*([+-]?\s*[\d,]+)\s*\]\]/);
-  if (mr && !inCombat) merit(Math.max(-5, Math.min(5, mr)));
+  if (mr && !inCombat) merit(Math.max(-5, Math.min(3, mr)));
   // 등급: 실적을 그 등급 기준까지 채워 원래의 승급 처리(체력·흐트러짐·승급 보상)를 그대로 거친다. 한 번에 두 단계까지
   const gr = num(/\[\[\s*등급\s*(\d)\s*(?:급|단계)?\s*\]\]/);
   if (gr && !inCombat && faction() !== 'vampire' && faction() !== 'twisted' && gr < S.grade && Math.max(gr, grade0 - 2) < S.grade) {
@@ -7986,7 +7986,10 @@ const aiClock = () => hhmm(aiNow());
 function aiAdvance(why) {
   if (!aiOn() || S.phase !== 'day' || !T || S.aiSkip) return;
   print(why || `— 시간을 흘려보낸다. 곧 ${ida(TURNS[(S.turn + 1) % 4].name)}.`, 'l-amb');
-  if (T.awaiting) { const i = defaultEventChoice(T.awaiting.choices); if (i >= 0) choose(i); }
+  if (T.awaiting) {
+    if (AI_BTN_EVENTS.has(T.awaiting.ev.id) || T.awaiting.ev.id === 'night' || T.awaiting.ev.id === 'nest_night') { const i = defaultEventChoice(T.awaiting.choices); if (i >= 0) choose(i); }
+    else { T.awaiting = null; $('#event').classList.add('hidden'); T.resolved = true; }   // 손대지 않은 사건은 보상도 없이 지나간다
+  }
   if (S.phase !== 'day' || !T) { S.aiSkip = true; if (T) T.timeLeft = 0; return; }   // 기본 선택이 전투로 이어지면 전투 뒤에 넘어간다
   // 한 번에 넘긴다 — 지금 시간대에 남은 줄을 마저 찍고, 건너뛸 시간대들을 곧바로 지나간다
   T.pendingChain = null; T.queue.splice(0).forEach(([tx, cl]) => print(tx, cl));
