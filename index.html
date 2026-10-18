@@ -7537,7 +7537,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[돈 +50000]] / [[돈 -30000]] — 돈을 벌거나 쓰거나 잃을 때 (단위: 안. 뒷골목 한 끼는 약 1만 안, 하급 의뢰 보수는 수십만 안)
   [[정신 +5]] / [[정신 -5]] — 정신 압박이 오르내릴 때
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
-  [[장소 L사 유적 중심부]] — 같은 구 안에서 머무는 곳이 바뀔 때 (건물·거리·가게 이름 등, 짧게)
+  [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
   [[전투 보통 상대 이름]] — 싸움이 벌어질 때.
@@ -7752,7 +7752,14 @@ function aiApplyPlace(reply) {
       if (!S.aiTimeJump) S.aiTimeJump = '+60';   // 구를 옮기면 한 시간쯤 걸린다
     } else if (area && S.loc && S.loc.n && S.loc.area !== area) { S.aiPlace = ''; moveZone(area); }
   }
-  if (pl) { S.aiPlace = pl[1].slice(0, 30); }
+  if (pl) {
+    // 장소 이름에 섞인 구·회사·둥지/뒷골목은 떼어 내고, 지금 위치와 어긋나면 그 장소는 받지 않는다
+    let t = pl[1];
+    const n = +((t.match(/(\d{1,2})\s*구/) || [])[1] || 0), area = /둥지/.test(t) ? '둥지' : /뒷골목|골목/.test(t) ? '뒷골목' : null;
+    t = t.replace(/\d{1,2}\s*구/g, '').replace(/\b[A-Y]\s*사(\([^)]*\))?/g, '').replace(/둥지|뒷골목/g, '').replace(/^[\s·,\-—]+|[\s·,\-—]+$/g, '').trim();
+    const clash = (n && S.loc && S.loc.n && n !== S.loc.n) || (area && S.loc && S.loc.area && area !== S.loc.area);
+    if (!clash && t) S.aiPlace = t.slice(0, 24);
+  }
 }
 // 전투 중 태그: 대상 → 카드 → 진행
 function aiCombatTags(reply) {
@@ -7763,6 +7770,10 @@ function aiCombatTags(reply) {
   renderCombat();
   if (/\[\[\s*진행\s*\]\]/.test(reply)) setTimeout(() => { if (C && !C.busy) resolveRound(); }, 400);
 }
+const _moveZonePlace = moveZone;
+moveZone = function (to) { if (S) S.aiPlace = ''; return _moveZonePlace(to); };
+const _arrivePlace = arrive;
+arrive = function (loc) { if (S) S.aiPlace = ''; return _arrivePlace(loc); };
 const AI_FIGHT = { 약함: ['rat', 0.8], 보통: ['fixer_rookie', 1], 강함: ['fixer_vet', 1], 위험: ['twisted', 1.2] };
 function aiStartFight({ lv, name }) {
   const [key, hpMul] = AI_FIGHT[lv] || AI_FIGHT.보통;
@@ -7911,6 +7922,7 @@ renderTop = function () {
   _renderTopAiTime();
   if (!aiOn()) return;
   if (T && S.phase === 'day' && !S.aiSkip) { T.timeLeft = Math.max(T.timeLeft, 9999); T.ambCd = 9999; }
+  if (S.aiPlace && /\d\s*구|둥지|뒷골목/.test(S.aiPlace)) S.aiPlace = '';   // 예전에 잘못 들어간 장소 정리
   if (S.aiPlace && !S.warp && $('#sLoc') && !$('#sLoc').textContent.includes(S.aiPlace)) $('#sLoc').textContent += ' · ' + S.aiPlace;
   if (!S.warp && S.phase !== 'combat') $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${TURNS[S.turn].name} ${aiClock()}</span>`;
   const nb = $('#aiNext'); if (nb) { nb.disabled = S.phase !== 'day' || !!S.aiSkip; nb.textContent = `${ro(TURNS[(S.turn + 1) % 4].name)} ▶`; }
