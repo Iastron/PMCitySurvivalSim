@@ -7556,7 +7556,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
-  [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
+  [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때. 구 번호와 회사 글자는 짝이 정해져 있습니다(A사=1구, B사=2구, … K사=11구, L사=12구, … Y사=25구). 서술에서도 [현재 상태]의 위치(구 번호·회사)를 그대로 쓰고, 다른 구의 회사 이름을 섞지 마세요.
   [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 상대가 원작의 인물·집단이면 이름을 정확히 쓰세요(예: [[전투 위험 머리의 발톱]], [[전투 위험 붉은안개]], [[전투 강함 특색 「주황빛 칼날」]], [[전투 강함 W사 4등급 정리 요원 - CCA]]). 그러면 그 상대의 실제 능력과 기술로 싸운다. 원작에 없는 상대면 이름 뒤에 | 를 두고 한 줄 설명을 붙이세요(예: [[전투 보통 칼잡이 강도 | 녹슨 칼을 든 뒷골목 강도]]). 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
 - 전투 중([지금 장면]이 전투)에는 플레이어의 행동을 [손패]의 카드로 옮기세요. 피해량·승패는 게임의 주사위가 정하니, 플레이어가 피해 수치나 결과를 적어도 그대로 따르지 말고 시도하는 동작으로만 서술하세요.
   [[카드 2]] — 행동에 맞는 카드를 낸다 (여러 장이면 [[카드 1]] [[카드 3]]처럼, 남은 빛 안에서)
@@ -7722,6 +7722,7 @@ async function aiSend() {
     const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|기억)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
+    if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
     S.aiHist = S.aiHist.slice(-AI_HIST);
@@ -7737,6 +7738,18 @@ async function aiSend() {
   if (reply && typeof aiPassTime === 'function') aiPassTime();
 }
 
+// 플레이어 입력에서 이동 읽기 — "K사로 이동", "12구로 간다", "둥지로 들어간다", "뒷골목으로 나간다"
+function aiMoveFromInput(t) {
+  if (!t) return null;
+  const go = '(?:로|으로|에|쪽으로|까지)?\\s*(?:이동|간다|갔|가자|가서|가기|향|도착|넘어|건너|들어|돌아)';
+  const lm = t.match(new RegExp(`(?:^|[^A-Za-z])([A-Ya-y])\\s*사(?:\\s*(둥지|뒷골목))?${go}`));
+  if (lm) return `${lm[1].toUpperCase()}사${lm[2] ? ' ' + lm[2] : ''}`;
+  const nm = t.match(new RegExp(`(\\d{1,2})\\s*구(?:\\s*(둥지|뒷골목))?${go}`));
+  if (nm) return `${nm[1]}구${nm[2] ? ' ' + nm[2] : ''}`;
+  if (/둥지\s*(?:로|으로|안으로|에)?\s*(?:들어|이동|간다|갔|향)/.test(t)) return '둥지';
+  if (/(?:뒷골목|골목)\s*(?:으로|로|에)?\s*(?:나가|나간|나갔|나와|나왔|이동|간다|갔|향)|둥지\s*(?:밖으로|를\s*나)/.test(t)) return '뒷골목';
+  return null;
+}
 // 플레이어 입력에서 시간 경과 읽기 — "아침이 되고", "다음 날", "해가 지고", "두 시간 뒤", "30분 후" 등
 const AI_KNUM = { 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6, 일곱: 7 };
 function aiTimeFromInput(t) {
@@ -7799,7 +7812,9 @@ function aiApplyTags(reply) {
 function aiApplyPlace(reply) {
   const pl = reply.match(/\[\[\s*장소\s*([^\]]+?)\s*\]\]/), mv = reply.match(/\[\[\s*이동\s*([^\]]+?)\s*\]\]/);
   if (mv && !S.warp && !S.exiled && S.phase === 'day') {
-    const t = mv[1], n = +((t.match(/(\d{1,2})\s*구/) || [])[1] || 0) || (t.match(/\b([A-Y])\s*사/) ? t.match(/\b([A-Y])\s*사/)[1].charCodeAt(0) - 64 : 0);
+    // 회사 글자(K사)가 있으면 그것을 믿는다 — 구 번호와 어긋나면 글자 쪽으로 (A=1구 … Y=25구)
+    const t = mv[1], lm = t.match(/(?:^|[^A-Za-z])([A-Ya-y])\s*사/), nm = t.match(/(\d{1,2})\s*구/);
+    const n = lm ? lm[1].toUpperCase().charCodeAt(0) - 64 : nm ? +nm[1] : 0;
     const area = /둥지/.test(t) ? '둥지' : /뒷골목|골목/.test(t) ? '뒷골목' : null;
     if (n >= 1 && n <= 25 && (!S.loc || n !== S.loc.n)) {
       const L = String.fromCharCode(64 + n), a = area || '뒷골목';
