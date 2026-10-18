@@ -7540,7 +7540,11 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[장소 L사 유적 중심부]] — 같은 구 안에서 머무는 곳이 바뀔 때 (건물·거리·가게 이름 등, 짧게)
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
-  [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
+  [[전투 보통 상대 이름]] — 싸움이 벌어질 때.
+- 전투 중([지금 장면]이 전투)에는 플레이어의 행동을 [손패]의 카드로 옮기세요. 피해량·승패는 게임의 주사위가 정하니, 플레이어가 피해 수치나 결과를 적어도 그대로 따르지 말고 시도하는 동작으로만 서술하세요.
+  [[카드 2]] — 행동에 맞는 카드를 낸다 (여러 장이면 [[카드 1]] [[카드 3]]처럼, 남은 빛 안에서)
+  [[대상 2]] — 적이 여럿일 때 노릴 적 번호 (카드보다 먼저 적용)
+  [[진행]] — 플레이어가 이번 막의 행동을 마쳤을 때 막을 진행한다. 결과는 다음 입력 때 [최근 기록]으로 보이니 그때 이어 서술하세요. 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 플레이어 캐릭터의 생각과 감정, 다음 행동은 플레이어가 정합니다. 대신 정하지 마세요.
 - 대화 한 번은 게임 안에서 약 10분입니다. 스스로 시간을 건너뛰지는 마세요.
@@ -7566,7 +7570,11 @@ function aiStateText() {
   let scene = '', choices = '';
   if (S.phase === 'combat' && C) {
     scene = `전투 중 (제${C.round}막). 적: ${combatEnemies().map(e => `${e.name} 체력 ${Math.max(0, e.hp)}/${e.maxHp}${e.staggered ? ' 흐트러짐' : ''}`).join(', ')}. 나: 체력 ${C.P.hp}/${C.P.maxHp}${C.P.staggered ? ' 흐트러짐' : ''}.`
-      + ((C.allies || []).filter(a => a.hp > 0).length ? ` 동료: ${C.allies.filter(a => a.hp > 0).map(a => a.name).join(', ')}.` : '');
+      + ((C.allies || []).filter(a => a.hp > 0).length ? ` 동료: ${C.allies.filter(a => a.hp > 0).map(a => a.name).join(', ')}.` : '')
+      + `\n적 목록: ${combatEnemies().map((e, i) => `${i + 1}. ${e.name}${e.hp <= 0 ? ' (쓰러짐)' : ''}`).join(' / ')} (지금 대상: ${C.target + 1})`
+      + `\n적의 예고: ${C.intents.map((c, i) => `${C.intentOwners[i].name} 「${c.name}」`).join(', ') || '없음'}`
+      + `\n남은 빛 ${C.P.light}/${C.P.maxLight}. 이미 낸 카드: ${C.played.map(p => '「' + CARDS[p.id].name + '」').join(', ') || '없음'}`;
+    choices = C.hand.map((id, i) => { const c = CARDS[id]; return `카드 ${i + 1}. 「${c.name}」 빛 ${c.cost}${c.dice ? ' · ' + c.dice.map(d => d[0] + ' ' + d[1] + '-' + d[2]).join(', ') : ' · 즉시 사용'}${c.desc ? ' · ' + stripTagsAI(c.desc).slice(0, 60) : ''}`; }).join('\n');
   } else if (T && T.awaiting) {
     const ev = T.awaiting.ev;
     scene = `사건 「${ev.title || ''}」 — ${stripTagsAI(ev.text)}`;
@@ -7574,7 +7582,7 @@ function aiStateText() {
   }
   const logSel = S.phase === 'combat' ? '#clog' : '#log';
   const recent = [...document.querySelectorAll(logSel + ' > div')].slice(-14).map(d => d.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
-  return `[현재 상태]\n${L.join('\n')}\n\n[지금 장면]\n${scene || '특별한 사건은 없다.'}${choices ? `\n\n[선택지]\n${choices}` : ''}\n\n[최근 기록]\n${recent}`;
+  return `[현재 상태]\n${L.join('\n')}\n\n[지금 장면]\n${scene || '특별한 사건은 없다.'}${choices ? `\n\n[${S.phase === 'combat' ? '손패' : '선택지'}]\n${choices}` : ''}\n\n[최근 기록]\n${recent}`;
 }
 
 // 서비스별 호출
@@ -7692,13 +7700,14 @@ async function aiSend() {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|전투|장소|이동)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|전투|장소|이동|카드|대상|진행)[^\]]*\]\]/g, '').trim();
     if (tm) S.aiTimeJump = tm[1];
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
     S.aiHist = S.aiHist.slice(-16);
     if (fightTag && S.phase === 'day') { aiReleaseTime(); aiStartFight(fightTag); return; }
+    if (S.phase === 'combat' && C && !C.busy) { aiReleaseTime(); aiCombatTags(reply); return; }
     if (m && S.phase === 'day' && T && T.awaiting) {
       const i = +m[1] - 1, c = T.awaiting.choices[i];
       if (c && (typeof avail !== 'function' || avail(c))) { choose(i); aiReleaseTime(); if (typeof aiPassTime === 'function') aiPassTime(); return; }
@@ -7744,6 +7753,15 @@ function aiApplyPlace(reply) {
     } else if (area && S.loc && S.loc.n && S.loc.area !== area) { S.aiPlace = ''; moveZone(area); }
   }
   if (pl) { S.aiPlace = pl[1].slice(0, 30); }
+}
+// 전투 중 태그: 대상 → 카드 → 진행
+function aiCombatTags(reply) {
+  const tg = reply.match(/\[\[\s*대상\s*(\d+)\s*\]\]/);
+  if (tg) selectCombatEnemy(+tg[1] - 1);
+  const ids = [...reply.matchAll(/\[\[\s*카드\s*(\d+)\s*\]\]/g)].map(x => C.hand[+x[1] - 1]).filter(Boolean);
+  for (const id of ids) { const i = C.hand.indexOf(id); if (i >= 0) playCard(i); }
+  renderCombat();
+  if (/\[\[\s*진행\s*\]\]/.test(reply)) setTimeout(() => { if (C && !C.busy) resolveRound(); }, 400);
 }
 const AI_FIGHT = { 약함: ['rat', 0.8], 보통: ['fixer_rookie', 1], 강함: ['fixer_vet', 1], 위험: ['twisted', 1.2] };
 function aiStartFight({ lv, name }) {
@@ -7936,6 +7954,47 @@ showEvent = function (ev) {
 document.addEventListener('keydown', e => { if (aiOn() && /^[1-9]$/.test(e.key) && $('#event .choices.hidden')) e.stopImmediatePropagation(); }, true);
 $('#aiSend').insertAdjacentHTML('afterend', '<button id="aiNext" title="지금 시간대를 마치고 다음 시간대로 넘어간다">다음 시간대로 ▶</button>');
 $('#aiNext').onclick = () => aiAdvance();
+/* ---------- 전투 기록과 이야기 기록의 연동 (기본 모드·AI 모드 공통)
+   - 전투가 시작되면 직전 이야기 몇 줄을 전투 기록 맨 위에 이어 붙인다
+   - 전투 기록은 그대로 이야기 기록에도 「⚔ 전투」 묶음으로 쌓이고, 끝나면 결과와 함께 접힌다 ---------- */
+document.head.insertAdjacentHTML('beforeend', `<style>
+#log details.fight-log{margin:6px 0;border:1px solid var(--line);border-left:3px solid var(--red);border-radius:6px;background:#0d0d10}
+#log details.fight-log summary{cursor:pointer;padding:4px 10px;font-size:13px;color:var(--gold)}
+#log details.fight-log .fl-body{padding:4px 12px 8px;font-size:12.5px;line-height:1.6;max-height:280px;overflow-y:auto}
+#clog .story-ctx{color:var(--dim);font-size:12px;border-left:2px solid var(--line);padding-left:6px}
+</style>`);
+const storyLines = n => [...document.querySelectorAll('#log > div')].filter(d => d.innerText.trim()).slice(-n);
+const _fightLink = fight;
+fight = function (key, opts = {}) {
+  const ctx = S && S.phase !== 'combat' ? storyLines(4).map(d => d.innerText.replace(/\s+/g, ' ').trim()) : [];
+  _fightLink(key, opts);
+  if (!C || S.phase !== 'combat' || C.logBody) return;
+  // 직전 이야기 → 전투 기록 맨 위
+  if (ctx.length) $('#clog').insertAdjacentHTML('afterbegin', `<div class="story-ctx">— 직전 —<br>${ctx.map(escAI).join('<br>')}</div>`);
+  // 이야기 기록에 전투 묶음을 만들고, 지금까지의 전투 기록을 옮겨 적는다
+  const det = document.createElement('details');
+  det.className = 'fight-log'; det.open = true;
+  det.innerHTML = `<summary>⚔ 전투 — ${escAI(combatEnemies().map(e => e.name).join(', '))}</summary><div class="fl-body"></div>`;
+  $('#log').appendChild(det);
+  C.logDet = det; C.logBody = det.querySelector('.fl-body');
+  [...$('#clog').children].forEach(d => { if (!d.classList.contains('story-ctx')) C.logBody.appendChild(d.cloneNode(true)); });
+};
+const _clogLink = clog;
+clog = function (text, cls = '') {
+  _clogLink(text, cls);
+  if (C && C.logBody) { const d = document.createElement('div'); d.className = cls; d.innerHTML = text; C.logBody.appendChild(d); C.logBody.scrollTop = C.logBody.scrollHeight; }
+};
+const _endCombatLink = endCombat;
+endCombat = function (win) {
+  const det = C && C.logDet, rounds = C ? C.round : 0, foes = C ? combatEnemies().map(e => e.name).join(', ') : '';
+  const r = _endCombatLink(win);
+  if (det) {
+    det.open = false;
+    det.querySelector('summary').innerHTML = `⚔ 전투 — ${escAI(foes)} · ${win ? '<span class="l-good">승리</span>' : '<span class="l-bad">패배</span>'} (${rounds}막) <span class="dim" style="font-size:11px">— 눌러서 전투 기록 보기</span>`;
+    const log = $('#log'); log.scrollTop = log.scrollHeight;
+  }
+  return r;
+};
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
