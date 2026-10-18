@@ -4985,6 +4985,20 @@ function choose(i, auto = false) {
   renderTop();
 }
 
+// 날이 바뀔 때의 한 줄 — 둥지·뒷골목·거처에 따라 여러 가지 중에서 (같은 줄이 연달아 나오지 않게)
+const DAY_BREAK = {
+  alley: ['04:34. 기계음이 멀어진다. 골목에 남은 것은 젖은 바닥과, 누군가의 신발 한 짝.', '04:34. 청소부들이 물러갔다. 골목은 언제 그랬냐는 듯 다시 장사 준비를 한다.', '해가 뜨기 전, 전단지 붙이는 사람들이 먼저 나온다. 어젯밤 사라진 이름들이 벽에 늘어난다.', '04:34. 밤이 끝났다. 하수구 옆 붉은 얼룩을 누군가 대충 물로 씻어 낸다.', '골목 끝 국숫집의 셔터가 올라간다. 김이 오르기 시작하면 밤은 끝난 것이다.', '새벽 공기가 쇠 냄새를 조금 덜어 냈다. 오늘도 일단은 살아 있다.', '쥐들이 하나둘 기어 나와 밤사이 떨어진 것들을 줍는다. 하루가 시작됐다.', '멀리 둥지의 불빛이 하나씩 켜진다. 이쪽은 늘 조금 늦게 밝아진다.'],
+  nest: ['둥지의 가로등이 일제히 아침 조도로 바뀐다. 밤은 이 벽 안까지 들어오지 않았다.', '자동 청소 차량이 지나간 거리가 반짝인다. 깃털들이 출근 준비를 한다.', '아침 방송이 오늘의 날씨와 날개의 공지를 읽는다. 아무 일도 없었던 밤이다.', '창밖으로 정시 열차가 지나간다. 둥지의 하루는 언제나 제시간에 시작된다.', '커피 자판기 앞에 줄이 생긴다. 둥지의 아침은 조용하고, 비싸다.'],
+  outskirts: ['외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.', '모닥불이 재만 남았다. 밤새 무언가가 정착지 둘레를 돌다 갔다.', '안개가 낮게 깔린 아침. 멀리서 노움들의 노랫소리가 끊겼다.', '경계 말뚝 하나가 쓰러져 있다. 발자국은 사람의 것이 아니다.'],
+  home: ['잠긴 문 너머로 아침 소리가 들린다. 밤의 규칙은 오늘도 지켜졌다.', '눈을 뜨니 창틈으로 빛이 새어 든다. 문은 밤새 한 번도 열리지 않았다.', '자기 집 천장을 보며 일어나는 아침. 이 도시에서 그건 꽤 큰 사치다.'],
+};
+function dayBreakLine() {
+  if (S.aiMode && S.aiMontage && S.aiSkipLeft > 0) return null;   // 며칠을 한꺼번에 넘길 때는 하루하루를 찍지 않는다
+  const pool = S.exiled ? DAY_BREAK.outskirts : isNest() ? DAY_BREAK.nest : hasHome() && Math.random() < 0.5 ? DAY_BREAK.home : DAY_BREAK.alley;
+  let l; do { l = pick(pool); } while (l === S.lastDayLine && pool.length > 1);
+  S.lastDayLine = l;
+  return `${S.day}일차 — ${l}`;
+}
 function endTurn() {
   S.turn++;
   if (S.travelSkip > 0 && S.turn <= 3) { S.travelSkip--; print('— 이동 중 — 이 시간대는 길 위에서 보냈다.', 'l-amb'); S.turn++; }
@@ -4992,8 +5006,8 @@ function endTurn() {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
     if (!S.warp && inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
     if ((!S.warp || S.warp.stow) && (faction() === 'vampire' || S.vampRank) && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
-    print(S.warp ? `열차 안 ${warpInner().toLocaleString()}일째 — 창밖은 여전히 색이 없다.` : S.exiled ? `${S.day}일차 — 외곽의 밤이 걷혔다. 지평선 너머 도시의 불빛이 하나둘 꺼진다.`
-      : `${S.day}일차 — 04:34. 밤이 끝났다. 청소부들이 물러가고, 도시는 아무 일 없었다는 듯 눈을 뜬다.`, 'l-day');
+    const dayLine = S.aiMode && S.aiMontage && S.aiSkipLeft > 0 ? null : S.warp ? `열차 안 ${warpInner().toLocaleString()}일째 — 창밖은 여전히 색이 없다.` : dayBreakLine();
+    if (dayLine) print(dayLine, 'l-day');
     startTurn();
     if (S.warp) {
       if (S.day >= S.warp.end) exitWarp();
@@ -7971,11 +7985,15 @@ const aiClock = () => hhmm(aiNow());
 // 시간대를 넘긴다 — 남은 사건은 기본 선택으로 정리된다
 function aiAdvance(why) {
   if (!aiOn() || S.phase !== 'day' || !T || S.aiSkip) return;
-  S.aiSkip = true;
   print(why || `— 시간을 흘려보낸다. 곧 ${ida(TURNS[(S.turn + 1) % 4].name)}.`, 'l-amb');
   if (T.awaiting) { const i = defaultEventChoice(T.awaiting.choices); if (i >= 0) choose(i); }
-  if (S.phase === 'day' && T) { T.resolved = T.resolved || !T.awaiting; T.timeLeft = 0; }
+  if (S.phase !== 'day' || !T) { S.aiSkip = true; if (T) T.timeLeft = 0; return; }   // 기본 선택이 전투로 이어지면 전투 뒤에 넘어간다
+  // 한 번에 넘긴다 — 지금 시간대에 남은 줄을 마저 찍고, 건너뛸 시간대들을 곧바로 지나간다
+  T.pendingChain = null; T.queue.splice(0).forEach(([tx, cl]) => print(tx, cl));
+  let n = (S.aiSkipLeft || 0) + 1;
+  while (n-- > 0 && S.phase === 'day') endTurn();
   if (S.paused) setSpeed(S.speed || 1);
+  renderTop();
 }
 // 대화 한 번마다 10분
 const AI_SLOT_NAME = { 아침: 0, 오후: 1, 저녁: 2, 밤: 3, 새벽: 3 };
@@ -8020,7 +8038,7 @@ startTurn = function () {
   if (S) { S.aiMin = 0; S.aiSkip = false; if (!(S.aiSkipLeft > 0)) S.aiMontage = false; }
   const r = _startTurnAiTime();
   // 장면 전환으로 건너뛰는 시간대 — 사건 없이 바로 지나간다
-  if (S && S.aiMode && S.aiSkipLeft > 0 && T) { S.aiSkipLeft--; if (S.aiMontage) { const lg = $('#log'); while (lg.lastChild && /l-turn|l-night|l-amb/.test(lg.lastChild.className || '')) lg.removeChild(lg.lastChild); } T.queue = []; T.eventShown = true; T.resolved = true; S.aiSkip = true; T.timeLeft = 0; }
+  if (S && S.aiMode && S.aiSkipLeft > 0 && T) { S.aiSkipLeft--; if (S.aiMontage) { const lg = $('#log'); while (lg.lastChild && /l-turn|l-night/.test(lg.lastChild.className || '')) lg.removeChild(lg.lastChild); } T.queue = []; T.eventShown = true; T.resolved = true; S.aiSkip = true; T.timeLeft = 0; }
   return r;
 };
 // 제한시간 표시 대신 안내, 선택지는 채팅으로 (특수한 경우만 버튼)
@@ -8050,7 +8068,12 @@ showEvent = function (ev) {
   return _showEventRate(ev);
 };
 // 숫자키로 숨은 선택지를 고르지 않게
-document.addEventListener('keydown', e => { if (aiOn() && /^[1-9]$/.test(e.key) && $('#event .choices.hidden')) e.stopImmediatePropagation(); }, true);
+// 글을 쓰는 칸(입력창·메모 등)에서는 게임 단축키(Space 정지, 숫자 선택, Enter 진행)가 먹지 않게 한다
+const isEditable = el => !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable || (el.tagName === 'INPUT' && !/^(button|checkbox|radio|submit|range)$/i.test(el.type)));
+document.addEventListener('keydown', e => {
+  if (isEditable(e.target)) { e.target.addEventListener('keydown', ev => ev.stopPropagation(), { once: true }); return; }
+  if (aiOn() && /^[1-9]$/.test(e.key) && $('#event .choices.hidden')) e.stopImmediatePropagation();
+}, true);
 $('#aiSend').insertAdjacentHTML('afterend', '<button id="aiNext" title="지금 시간대를 마치고 다음 시간대로 넘어간다">다음 시간대로 ▶</button>');
 $('#aiNext').onclick = () => aiAdvance();
 /* ---------- 전투 기록과 이야기 기록의 연동 (기본 모드·AI 모드 공통)
