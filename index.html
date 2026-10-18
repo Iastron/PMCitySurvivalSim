@@ -7537,6 +7537,8 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[돈 +50000]] / [[돈 -30000]] — 돈을 벌거나 쓰거나 잃을 때 (단위: 안. 뒷골목 한 끼는 약 1만 안, 하급 의뢰 보수는 수십만 안)
   [[정신 +5]] / [[정신 -5]] — 정신 압박이 오르내릴 때
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
+  [[실적 +2]] — 의뢰를 끝내거나 공을 세웠을 때 (한 번에 최대 5)
+  [[등급 7]] — 플레이어가 시간이 흘러 위상·등급이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
@@ -7700,7 +7702,7 @@ async function aiSend() {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|전투|장소|이동|카드|대상|진행)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|실적|등급|전투|장소|이동|카드|대상|진행)[^\]]*\]\]/g, '').trim();
     if (tm) S.aiTimeJump = tm[1];
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
@@ -7734,6 +7736,16 @@ function aiApplyTags(reply) {
   }
   if (st) stress(Math.max(-15, Math.min(15, st)));
   if (rp && typeof rep === 'function') rep(Math.max(-5, Math.min(5, rp)), '소문');
+  const grade0 = S.grade;
+  const mr = num(/\[\[\s*실적\s*([+-]?\s*[\d,]+)\s*\]\]/);
+  if (mr && !inCombat) merit(Math.max(-5, Math.min(5, mr)));
+  // 등급: 실적을 그 등급 기준까지 채워 원래의 승급 처리(체력·흐트러짐·승급 보상)를 그대로 거친다. 한 번에 두 단계까지
+  const gr = num(/\[\[\s*등급\s*(\d)\s*(?:급|단계)?\s*\]\]/);
+  if (gr && !inCombat && faction() !== 'vampire' && faction() !== 'twisted' && gr < S.grade && Math.max(gr, grade0 - 2) < S.grade) {
+    const g = Math.max(1, gr, grade0 - 2);
+    if (GRADE_REQ[g] && S.merit < GRADE_REQ[g]) { S.merit = GRADE_REQ[g] - 1; merit(1); }
+    if (gr < g) aiOut(`(한 번에 두 단계까지만 오른다 — ${rankText()})`, 'l-sys');
+  }
   aiApplyPlace(reply);
   const f = reply.match(/\[\[\s*전투\s*(약함|보통|강함|위험)?\s*([^\]]*?)\s*\]\]/);
   renderTop();
