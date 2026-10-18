@@ -7551,7 +7551,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 플레이어 캐릭터의 생각과 감정, 다음 행동은 플레이어가 정합니다. 대신 정하지 마세요.
 - 대화 한 번은 게임 안에서 약 10분입니다. 스스로 시간을 건너뛰지는 마세요.
-- 플레이어가 시간을 건너뛰거나 장면을 바꾸려 하면(예: "아침이 되고", "몇 시간 뒤", "다음 날") 짧은 장면 전환으로 서술하고, 마지막 줄에 목표 시간대를 [[시간 아침]] · [[시간 오후]] · [[시간 저녁]] · [[시간 밤]] · [[시간 다음]] 중 하나로 적으세요. 같은 시간대 안에서 한두 시간만 흐르면 [[시간 +90]]처럼 분으로 적으세요(최대 240). 선택 태그와 함께 써도 됩니다.
+- 플레이어가 시간을 건너뛰거나 장면을 바꾸려 하면 그대로 따르세요 — 시간이 아직 안 됐다며 막지 마세요. 이때는 반드시 시간 태그를 적어야 실제 게임 시간이 바뀝니다. (예: "아침이 되고", "몇 시간 뒤", "다음 날") 짧은 장면 전환으로 서술하고, 마지막 줄에 목표 시간대를 [[시간 아침]] · [[시간 오후]] · [[시간 저녁]] · [[시간 밤]] · [[시간 다음]] 중 하나로 적으세요. 같은 시간대 안에서 한두 시간만 흐르면 [[시간 +90]]처럼 분으로 적으세요(최대 240). 선택 태그와 함께 써도 됩니다.
 - 플레이어가 입력한 행동이 [선택지] 중 하나와 분명히 같은 뜻이면, 서술을 마친 뒤 마지막 줄에 [[선택 번호]]만 적으세요(예: [[선택 2]]). 애매하거나 선택지가 없으면 적지 마세요.
 - 게임·AI·프롬프트 같은 메타 발언, 마크다운 제목·목록은 쓰지 마세요. 소설처럼 평문으로 씁니다.`;
 
@@ -7704,7 +7704,7 @@ async function aiSend() {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
     const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행)[^\]]*\]\]/g, '').trim();
-    if (tm) S.aiTimeJump = tm[1];
+    S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
@@ -7720,6 +7720,20 @@ async function aiSend() {
   if (reply && typeof aiPassTime === 'function') aiPassTime();
 }
 
+// 플레이어 입력에서 시간 경과 읽기 — "아침이 되고", "다음 날", "해가 지고", "두 시간 뒤", "30분 후" 등
+const AI_KNUM = { 한: 1, 두: 2, 세: 3, 네: 4, 다섯: 5, 여섯: 6 };
+function aiTimeFromInput(t) {
+  if (!t) return null;
+  if (/다음\s*날|이튿날|날이\s*밝|아침이\s*(되|밝|오|왔)|아침까지|동이\s*트/.test(t)) return '아침';
+  if (/해가\s*(지|저물|떨어)|저녁이\s*(되|오|왔)|저녁까지|해질\s*녘/.test(t)) return '저녁';
+  if (/오후가\s*(되|오|왔)|오후까지|점심\s*(이\s*지나|이후|먹고\s*나서)/.test(t)) return '오후';
+  if (/밤이\s*(되|깊|오|왔)|새벽이\s*(되|오|왔)|밤까지|자정/.test(t)) return '밤';
+  const h = t.match(/(\d+|한|두|세|네|다섯|여섯)\s*시간\s*(뒤|후|이\s*지나|동안|쯤\s*지나)/);
+  if (h) return '+' + Math.min(240, (AI_KNUM[h[1]] || +h[1]) * 60);
+  const m = t.match(/(\d+)\s*분\s*(뒤|후|이\s*지나|동안)/);
+  if (m) return '+' + Math.min(240, +m[1]);
+  return null;
+}
 // 서술자의 수치 태그 — 범위를 넘지 않게 잘라서 적용한다
 function aiApplyTags(reply) {
   const num = re => { const x = reply.match(re); return x ? parseInt(x[1].replace(/[,\s]/g, ''), 10) : 0; };
