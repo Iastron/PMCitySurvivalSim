@@ -7537,6 +7537,9 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[돈 +50000]] / [[돈 -30000]] — 돈을 벌거나 쓰거나 잃을 때 (단위: 안. 뒷골목 한 끼는 약 1만 안, 하급 의뢰 보수는 수십만 안)
   [[정신 +5]] / [[정신 -5]] — 정신 압박이 오르내릴 때
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
+  [[장소 L사 유적 중심부]] — 같은 구 안에서 머무는 곳이 바뀔 때 (건물·거리·가게 이름 등, 짧게)
+  [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
+  [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
   [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 플레이어 캐릭터의 생각과 감정, 다음 행동은 플레이어가 정합니다. 대신 정하지 마세요.
@@ -7558,6 +7561,7 @@ function aiStateText() {
   if (tags.length) L.push('특이: ' + tags.join(' · '));
   L.push(`체력 ${S.hp}/${S.maxHp} · 자금 ${won(S.money)} · 평판 ${repTier()[1]}`);
   L.push(`${S.day}일차 ${TURNS[S.turn] ? TURNS[S.turn].name : ''}${S.aiMode && typeof aiClock === 'function' && TURNS[S.turn] ? ' ' + aiClock() : ''} · 위치 ${S.warp ? '워프 열차 안' : S.exiled ? '외곽' : (S.loc ? S.loc.label : '')}${!S.warp && !S.exiled && typeof isNest === 'function' ? (isNest() ? ' (둥지 안)' : ' (뒷골목)') : ''}`);
+  if (S.aiPlace) L.push(`지금 있는 곳: ${S.aiPlace}`);
   if ((S.hires || []).length) L.push('고용한 동료: ' + S.hires.map(h => h.name).join(', '));
   let scene = '', choices = '';
   if (S.phase === 'combat' && C) {
@@ -7688,7 +7692,7 @@ async function aiSend() {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|전투)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|전투|장소|이동)[^\]]*\]\]/g, '').trim();
     if (tm) S.aiTimeJump = tm[1];
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
@@ -7721,9 +7725,25 @@ function aiApplyTags(reply) {
   }
   if (st) stress(Math.max(-15, Math.min(15, st)));
   if (rp && typeof rep === 'function') rep(Math.max(-5, Math.min(5, rp)), '소문');
+  aiApplyPlace(reply);
   const f = reply.match(/\[\[\s*전투\s*(약함|보통|강함|위험)?\s*([^\]]*?)\s*\]\]/);
   renderTop();
   return f ? { lv: f[1] || '보통', name: (f[2] || '').trim().slice(0, 24) } : null;
+}
+// 장소·이동 태그
+function aiApplyPlace(reply) {
+  const pl = reply.match(/\[\[\s*장소\s*([^\]]+?)\s*\]\]/), mv = reply.match(/\[\[\s*이동\s*([^\]]+?)\s*\]\]/);
+  if (mv && !S.warp && !S.exiled && S.phase === 'day') {
+    const t = mv[1], n = +((t.match(/(\d{1,2})\s*구/) || [])[1] || 0) || (t.match(/\b([A-Y])\s*사/) ? t.match(/\b([A-Y])\s*사/)[1].charCodeAt(0) - 64 : 0);
+    const area = /둥지/.test(t) ? '둥지' : /뒷골목|골목/.test(t) ? '뒷골목' : null;
+    if (n >= 1 && n <= 25 && (!S.loc || n !== S.loc.n)) {
+      const L = String.fromCharCode(64 + n), a = area || '뒷골목';
+      S.loc = S.cityLoc = { area: a, n, letter: L, label: cityLabel(n, a), note: WING_NOTE[L] || '' };
+      S.aiPlace = ''; aiOut(`📍 도착 — ${S.loc.label}${S.loc.note ? ' · ' + S.loc.note : ''}`, 'l-day');
+      if (!S.aiTimeJump) S.aiTimeJump = '+60';   // 구를 옮기면 한 시간쯤 걸린다
+    } else if (area && S.loc && S.loc.n && S.loc.area !== area) { S.aiPlace = ''; moveZone(area); }
+  }
+  if (pl) { S.aiPlace = pl[1].slice(0, 30); }
 }
 const AI_FIGHT = { 약함: ['rat', 0.8], 보통: ['fixer_rookie', 1], 강함: ['fixer_vet', 1], 위험: ['twisted', 1.2] };
 function aiStartFight({ lv, name }) {
@@ -7873,6 +7893,7 @@ renderTop = function () {
   _renderTopAiTime();
   if (!aiOn()) return;
   if (T && S.phase === 'day' && !S.aiSkip) { T.timeLeft = Math.max(T.timeLeft, 9999); T.ambCd = 9999; }
+  if (S.aiPlace && !S.warp && $('#sLoc') && !$('#sLoc').textContent.includes(S.aiPlace)) $('#sLoc').textContent += ' · ' + S.aiPlace;
   if (!S.warp && S.phase !== 'combat') $('#clock').innerHTML = `${S.day}일차 · <span style="color:${S.turn === 3 ? 'var(--red)' : 'var(--cyan)'}">${TURNS[S.turn].name} ${aiClock()}</span>`;
   const nb = $('#aiNext'); if (nb) { nb.disabled = S.phase !== 'day' || !!S.aiSkip; nb.textContent = `${ro(TURNS[(S.turn + 1) % 4].name)} ▶`; }
   $('#nextBtn').classList.add('hidden');
