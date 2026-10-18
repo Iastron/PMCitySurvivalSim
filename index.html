@@ -7535,14 +7535,15 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
 - 행동이나 전개의 결과로 수치가 바뀌어야 하면, 서술을 마친 뒤 마지막 줄들에 태그로 적으세요. 상황에 맞는 만큼만, 과장하지 말고:
   [[체력 -15]] / [[체력 +10]] — 다치거나 회복할 때 (최대 체력의 40% 이내)
   [[돈 +50000]] / [[돈 -30000]] — 돈을 벌거나 쓰거나 잃을 때 (단위: 안. 뒷골목 한 끼는 약 1만 안, 하급 의뢰 보수는 수십만 안)
-  [[정신 +5]] / [[정신 -5]] — 정신 압박이 오르내릴 때
+  [[압박 +5]] — 공포·상실·굴욕 같은 괴로운 일로 정신 압박이 쌓일 때(나쁜 일) / [[압박 -5]] — 안도·위안·기쁜 일로 압박이 풀릴 때(좋은 일). 좋은 일에 +를 쓰지 마세요
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
+  [[소속 츠바이 협회]] — 플레이어가 조직·협회·손가락에 들어가거나 나올 때. 고를 수 있는 이름: 뒷골목 무소속 · 무소속 해결사 · 뒷골목 조직원 · 날개 소속 깃털 · 츠바이/시/리우/하나/트레스/섕크/세븐/에잇/제뱌찌/디에치/외우피 협회 · 엄지 · 검지 · 중지 · 약지 · 소지
   [[실적 +2]] — 의뢰를 끝내거나 공을 세웠을 때 (한 번에 최대 5)
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
-  [[전투 보통 상대 이름]] — 싸움이 벌어질 때.
+  [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 상대가 원작의 인물·집단이면 이름을 정확히 쓰세요(예: [[전투 위험 머리의 발톱]], [[전투 위험 붉은안개]], [[전투 강함 특색 「주황빛 칼날」]], [[전투 강함 W사 4등급 정리 요원 - CCA]]). 그러면 그 상대의 실제 능력과 기술로 싸운다.
 - 전투 중([지금 장면]이 전투)에는 플레이어의 행동을 [손패]의 카드로 옮기세요. 피해량·승패는 게임의 주사위가 정하니, 플레이어가 피해 수치나 결과를 적어도 그대로 따르지 말고 시도하는 동작으로만 서술하세요.
   [[카드 2]] — 행동에 맞는 카드를 낸다 (여러 장이면 [[카드 1]] [[카드 3]]처럼, 남은 빛 안에서)
   [[대상 2]] — 적이 여럿일 때 노릴 적 번호 (카드보다 먼저 적용)
@@ -7702,7 +7703,7 @@ async function aiSend() {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|실적|등급|전투|장소|이동|카드|대상|진행)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행)[^\]]*\]\]/g, '').trim();
     if (tm) S.aiTimeJump = tm[1];
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
@@ -7722,7 +7723,7 @@ async function aiSend() {
 // 서술자의 수치 태그 — 범위를 넘지 않게 잘라서 적용한다
 function aiApplyTags(reply) {
   const num = re => { const x = reply.match(re); return x ? parseInt(x[1].replace(/[,\s]/g, ''), 10) : 0; };
-  const hp = num(/\[\[\s*체력\s*([+-]?\s*[\d,]+)\s*\]\]/), money = num(/\[\[\s*돈\s*([+-]?\s*[\d,]+)\s*\]\]/), st = num(/\[\[\s*정신\s*([+-]?\s*[\d,]+)\s*\]\]/), rp = num(/\[\[\s*평판\s*([+-]?\s*[\d,]+)\s*\]\]/);
+  const hp = num(/\[\[\s*체력\s*([+-]?\s*[\d,]+)\s*\]\]/), money = num(/\[\[\s*돈\s*([+-]?\s*[\d,]+)\s*\]\]/), st = num(/\[\[\s*(?:정신\s*)?압박\s*([+-]?\s*[\d,]+)\s*\]\]/), rp = num(/\[\[\s*평판\s*([+-]?\s*[\d,]+)\s*\]\]/);
   const inCombat = S.phase === 'combat' && C;
   if (hp && !inCombat) {
     const cap = Math.round(S.maxHp * 0.4), v = Math.max(-cap, Math.min(cap, hp));
@@ -7736,6 +7737,13 @@ function aiApplyTags(reply) {
   }
   if (st) stress(Math.max(-15, Math.min(15, st)));
   if (rp && typeof rep === 'function') rep(Math.max(-5, Math.min(5, rp)), '소문');
+  // 소속 변경 — 머리·뒤틀림·혈귀·사서처럼 고정된 소속은 바꾸지 않는다
+  const af = reply.match(/\[\[\s*소속\s*([^\]]+?)\s*\]\]/);
+  if (af && !inCombat && !AFF().locked) {
+    const want = af[1].replace(/\s+/g, '');
+    const id = Object.keys(AFFS).find(k => !AFFS[k].locked && k !== 'color' && k !== S.aff && (AFFS[k].name.replace(/\s+/g, '') === want || (want.length >= 2 && AFFS[k].name.replace(/\s+/g, '').startsWith(want)) || want.startsWith(AFFS[k].name.replace(/\s+/g, ''))));
+    if (id) changeAff(id);
+  }
   const grade0 = S.grade;
   const mr = num(/\[\[\s*실적\s*([+-]?\s*[\d,]+)\s*\]\]/);
   if (mr && !inCombat) merit(Math.max(-5, Math.min(5, mr)));
@@ -7787,8 +7795,30 @@ moveZone = function (to) { if (S) S.aiPlace = ''; return _moveZonePlace(to); };
 const _arrivePlace = arrive;
 arrive = function (loc) { if (S) S.aiPlace = ''; return _arrivePlace(loc); };
 const AI_FIGHT = { 약함: ['rat', 0.8], 보통: ['fixer_rookie', 1], 강함: ['fixer_vet', 1], 위험: ['twisted', 1.2] };
+// 서술 속 상대가 원작 인물·집단이면 그 적(고유 체력·기술)을 그대로 불러온다
+const AI_FOES = [
+  [/붉은\s*안개|게부라|칼리/, 'gebura_lib'], [/검은\s*침묵|롤랑/, 'roland_lib'], [/비나/, 'binah_lib'], [/조율자/, 'arbiter_enemy'], [/발톱/, 'claw_enemy'],
+  [/푸른\s*잔향|아르갈리아/, 'rift_argalia'], [/주홍\s*십자/, 'rift_scarlet'], [/피아니스트/, 'rift_pianist'], [/셰프|그레타/, 'rift_chefs'],
+  [/금기\s*사냥꾼/, 'warp_taboo'], [/CCA/i, 'w_cca'], [/정리\s*요원/, 'w_agent'], [/토끼팀|R사/, 'r_rabbit'], [/림버스|수감자/, 'lcb_team'],
+  [/도시의\s*별/, 'star'], [/큰\s*새/, 'canon_bigbird'], [/징벌\s*새/, 'canon_punishing'], [/아무것도\s*없는/, 'canon_nothing'],
+  [/하나\s*협회/, 'hana_high'], [/시\s*협회/, 'rep_shi'], [/날개.*(요원|부대|사병)/, 'wing_force'], [/엄지.*(카포|간부|언더보스)|손가락.*간부/, 'finger_exec'],
+  [/검지/, 'rep_index'], [/중지/, 'rep_middle'], [/약지/, 'rep_ring'], [/소지/, 'rep_pinky'], [/엄지/, 'thumb'], [/특색/, 'color_rival'],
+  [/청소부/, 'sweeper'], [/사서/, 'librarian'], [/뒤틀림/, 'twisted'],
+];
+function aiFoeKey(name) {
+  if (!name) return null;
+  const hit = AI_FOES.find(([re, k]) => re.test(name) && ENEMIES[k]);
+  if (hit) return hit[1];
+  const n = name.replace(/\s+/g, '');
+  const k = Object.keys(ENEMIES).find(k => { const en = ENEMIES[k].name.replace(/\s+/g, ''); return en.length >= 3 && (n.includes(en) || en.includes(n)); });
+  return k || null;
+}
 function aiStartFight({ lv, name }) {
-  const [key, hpMul] = AI_FIGHT[lv] || AI_FIGHT.보통;
+  const known = aiFoeKey(name);
+  let [key, hpMul] = AI_FIGHT[lv] || AI_FIGHT.보통;
+  if (known) { key = known; hpMul = 1; }
+  // 원작 인물은 원래 이름 그대로. 특색처럼 이름이 여럿인 경우만 서술 속 이름을 쓴다
+  if (known && known !== 'color_rival' && !/^rep_|^thumb$|^sweeper$|^twisted$/.test(known)) name = '';
   if (T && T.awaiting) { T.awaiting = null; $('#event').classList.add('hidden'); }
   fight(key, { name: name || undefined, hpMul, noCow: true, lethal: lv === '위험', noRob: true,
     win() { say(`${name || ENEMIES[key].name}을(를) 쓰러뜨렸다.`, 'l-good'); }, lose() { say('정신을 차려 보니 바닥이다. 상대는 이미 떠났다.', 'l-bad'); } });
@@ -8018,6 +8048,39 @@ endCombat = function (win) {
     const log = $('#log'); log.scrollTop = log.scrollHeight;
   }
   return r;
+};
+/* ---------- 집이 있으면 뒷골목의 밤은 집 안에서 시작한다 (기본·AI 모드 공통)
+   - 거처가 있으면: 「밖으로 나갈까」가 아니라 「집 안에서 밤을 보낸다」가 기본. 나가려면 스스로 나간다
+   - AI 모드에서 지금 장소가 집·숙소·사무소 같은 실내면 밤 사건 없이 그 안에서 밤을 보낸다 ---------- */
+(() => {
+  const ev = EVENTS.find(e => e.id === 'night'); if (!ev) return;
+  const baseText = ev.text, baseChoices = ev.choices;
+  const homeRest = () => {
+    say('문을 잠갔다. 밤의 규칙상 이 안은 누구도 침범할 수 없다. 창밖으로 청소부의 기계음이 지나간다.');
+    heal(Math.round(S.maxHp * (S.ownHome === 'nest' ? 0.5 : 0.35)));
+    if (Math.random() < 0.25) return 'knock';
+  };
+  Object.defineProperty(ev, 'text', { configurable: true, get() {
+    return S && hasHome() ? '03:13. 당신은 자기 거처 안에 있다. 밤의 규칙 — 거주구역 불가침 — 덕분에 이 문 안쪽은 안전하다. 문 너머로 무언가를 갈아내는 기계음이 지나간다.' : baseText;
+  } });
+  ev.build = function () {
+    if (!hasHome()) return baseChoices;
+    return [
+      { t: `거처에서 밤을 보낸다 — 체력 ${S.ownHome === 'nest' ? 50 : 35}% 회복`, def: true, fn: homeRest },
+      { t: '그래도 밖으로 나간다 — 위험하지만 밤에만 얻을 수 있는 것이 있다', fn() { say('문을 열고 밤거리로 나섰다. 등 뒤에서 문이 잠긴다.', 'l-bad'); return 'night_out'; } },
+    ];
+  };
+})();
+const AI_INDOOR = /집|거처|숙소|자택|방 안|사무소|아지트|은신처|기숙사|호텔|여관/;
+const _showEventNightAI = showEvent;
+showEvent = function (ev) {
+  if (!ev && aiOn() && T && S.turn === 3 && !S.warp && !S.exiled && S.aiPlace && AI_INDOOR.test(S.aiPlace) && !S.flags.crisis) {
+    T.eventShown = true; T.resolved = true;
+    print(`${S.aiPlace} 안에서 밤을 보낸다. 거주구역 안쪽은 밤의 규칙이 지켜 준다.`, 'l-sys');
+    heal(Math.round(S.maxHp * (hasHome() && S.ownHome === 'nest' ? 0.5 : 0.3)));
+    return;
+  }
+  return _showEventNightAI(ev);
 };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
