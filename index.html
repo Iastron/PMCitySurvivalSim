@@ -7530,7 +7530,14 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
 플레이어가 자기 캐릭터의 행동·묘사·대사를 입력하면, 그 장면을 한국어로 2~6문장 서술하고 주변 인물의 반응과 대사를 씁니다.
 
 규칙
-- 매번 함께 오는 [현재 상태]가 사실의 기준입니다. 체력·돈·소속·위상·전투 결과 같은 수치나 결과를 서술로 바꾸거나 새로 만들지 마세요. 아이템·돈·기술·부상을 주거나 빼앗지 마세요. 그런 일은 게임이 정합니다.
+- 매번 함께 오는 [현재 상태]가 지금의 사실입니다. 소속·위상·기술·아이템은 바꾸지 마세요.
+- 이야기의 주도권은 플레이어에게 있습니다. 플레이어가 자기 캐릭터에게 일어나는 일(예: 총에 맞아 쓰러짐, 동료가 달려옴, 누군가를 만남)을 쓰면 그 전개를 받아들여 이어 쓰세요. [지금 장면]의 사건은 배경일 뿐이니 플레이어의 이야기와 맞지 않으면 끌어들이지 마세요.
+- 행동이나 전개의 결과로 수치가 바뀌어야 하면, 서술을 마친 뒤 마지막 줄들에 태그로 적으세요. 상황에 맞는 만큼만, 과장하지 말고:
+  [[체력 -15]] / [[체력 +10]] — 다치거나 회복할 때 (최대 체력의 40% 이내)
+  [[돈 +50000]] / [[돈 -30000]] — 돈을 벌거나 쓰거나 잃을 때 (단위: 안. 뒷골목 한 끼는 약 1만 안, 하급 의뢰 보수는 수십만 안)
+  [[정신 +5]] / [[정신 -5]] — 정신 압박이 오르내릴 때
+  [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
+  [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 플레이어 캐릭터의 생각과 감정, 다음 행동은 플레이어가 정합니다. 대신 정하지 마세요.
 - 대화 한 번은 게임 안에서 약 10분입니다. 스스로 시간을 건너뛰지는 마세요.
@@ -7673,11 +7680,13 @@ async function aiSend() {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|평판|전투)[^\]]*\]\]/g, '').trim();
     if (tm) S.aiTimeJump = tm[1];
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
+    const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
     S.aiHist = S.aiHist.slice(-16);
+    if (fightTag && S.phase === 'day') { aiReleaseTime(); aiStartFight(fightTag); return; }
     if (m && S.phase === 'day' && T && T.awaiting) {
       const i = +m[1] - 1, c = T.awaiting.choices[i];
       if (c && (typeof avail !== 'function' || avail(c))) { choose(i); aiReleaseTime(); if (typeof aiPassTime === 'function') aiPassTime(); return; }
@@ -7685,6 +7694,35 @@ async function aiSend() {
   }
   aiReleaseTime();
   if (reply && typeof aiPassTime === 'function') aiPassTime();
+}
+
+// 서술자의 수치 태그 — 범위를 넘지 않게 잘라서 적용한다
+function aiApplyTags(reply) {
+  const num = re => { const x = reply.match(re); return x ? parseInt(x[1].replace(/[,\s]/g, ''), 10) : 0; };
+  const hp = num(/\[\[\s*체력\s*([+-]?\s*[\d,]+)\s*\]\]/), money = num(/\[\[\s*돈\s*([+-]?\s*[\d,]+)\s*\]\]/), st = num(/\[\[\s*정신\s*([+-]?\s*[\d,]+)\s*\]\]/), rp = num(/\[\[\s*평판\s*([+-]?\s*[\d,]+)\s*\]\]/);
+  const inCombat = S.phase === 'combat' && C;
+  if (hp && !inCombat) {
+    const cap = Math.round(S.maxHp * 0.4), v = Math.max(-cap, Math.min(cap, hp));
+    const before = S.hp; S.hp = Math.max(1, Math.min(S.maxHp, S.hp + v));
+    if (S.hp !== before) aiOut(`${S.hp > before ? '체력 +' + (S.hp - before) : '체력 ' + (S.hp - before)} (${S.hp}/${S.maxHp})`, S.hp > before ? 'l-good' : 'l-bad');
+  }
+  if (money && !inCombat) {
+    const cap = Math.max(100000, pay(500000));
+    if (money > 0) { const v = Math.min(cap, money); S.money += v; aiOut(`+${won(v)} (보유 ${won(S.money)})`, 'l-good'); }
+    else { const v = Math.min(S.money, -money); if (v > 0) { moneyStress(v, S.money, false); S.money -= v; aiOut(`-${won(v)} (보유 ${won(S.money)})`, 'l-bad'); } }
+  }
+  if (st) stress(Math.max(-15, Math.min(15, st)));
+  if (rp && typeof rep === 'function') rep(Math.max(-5, Math.min(5, rp)), '소문');
+  const f = reply.match(/\[\[\s*전투\s*(약함|보통|강함|위험)?\s*([^\]]*?)\s*\]\]/);
+  renderTop();
+  return f ? { lv: f[1] || '보통', name: (f[2] || '').trim().slice(0, 24) } : null;
+}
+const AI_FIGHT = { 약함: ['rat', 0.8], 보통: ['fixer_rookie', 1], 강함: ['fixer_vet', 1], 위험: ['twisted', 1.2] };
+function aiStartFight({ lv, name }) {
+  const [key, hpMul] = AI_FIGHT[lv] || AI_FIGHT.보통;
+  if (T && T.awaiting) { T.awaiting = null; $('#event').classList.add('hidden'); }
+  fight(key, { name: name || undefined, hpMul, noCow: true, lethal: lv === '위험', noRob: true,
+    win() { say(`${name || ENEMIES[key].name}을(를) 쓰러뜨렸다.`, 'l-good'); }, lose() { say('정신을 차려 보니 바닥이다. 상대는 이미 떠났다.', 'l-bad'); } });
 }
 
 // 설정 창
@@ -7698,6 +7736,7 @@ function aiSettings() {
       <label>서비스 <select id="aiProv">${Object.entries(AI_PROVIDERS).map(([k, v]) => `<option value="${k}" ${k === c.provider ? 'selected' : ''}>${v.label}</option>`).join('')}</select></label>
       <label>API 키 <input id="aiKey" type="password" autocomplete="off" value="${escAI(c.key)}" placeholder="${AI_PROVIDERS[c.provider].keyHint}"></label>
       <label>모델 <input id="aiModelIn" list="aiModels" value="${escAI(c.model)}" placeholder="${AI_PROVIDERS[c.provider].models[0]}"><datalist id="aiModels">${opts(c.provider)}</datalist></label>
+      <label>돌발 사건 <select id="aiEvRate">${[['0', '없음 — 이야기는 채팅으로만 (밤·위기만)'], ['0.25', '가끔'], ['0.6', '자주'], ['1', '항상 (기본 모드처럼)']].map(([v, t]) => `<option value="${v}" ${String(c.eventRate ?? 0) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <label id="aiBaseRow" class="${c.provider === 'openai' ? '' : 'hidden'}">API 주소 <input id="aiBase" value="${escAI(c.base)}" placeholder="https://api.openai.com/v1 (OpenRouter 등 호환 주소 가능)"></label>
       <div id="aiPresets" class="${c.provider === 'openai' ? '' : 'hidden'}" style="font-size:12px;display:flex;gap:4px;flex-wrap:wrap;align-items:center"><span class="dim">주소 바로 넣기</span>
         <button type="button" data-base="" style="padding:2px 8px;font-size:12px">OpenAI</button>
@@ -7708,7 +7747,8 @@ function aiSettings() {
     <p class="dim" style="font-size:12px">키 발급: Claude — console.anthropic.com · Gemini — aistudio.google.com · GPT — platform.openai.com<br>「모델 불러오기」를 누르면 이 키로 쓸 수 있는 모델이 목록에 채워집니다. 모델 칸을 비우면 기본 모델을 씁니다 (Gemini는 쓸 수 있는 최신 flash 모델).</p>
     <div id="aiTestOut" class="dim" style="font-size:13px;min-height:1.4em"></div>
     <button id="aiList">모델 불러오기</button> <button id="aiTest">연결 시험</button> <button id="aiSave" style="border-color:var(--gold)">저장</button> <button id="aiClear">키 지우기</button> <button id="aiClose">닫기</button>`);
-  const read = () => ({ provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModelIn').value.trim(), base: $('#aiBase').value.trim() });
+  const read = () => ({ provider: $('#aiProv').value, key: $('#aiKey').value.trim(), model: $('#aiModelIn').value.trim(), base: $('#aiBase').value.trim(), eventRate: +$('#aiEvRate').value });
+  $('#aiEvRate').onchange = () => { const v = aiCfg(); v.eventRate = +$('#aiEvRate').value; aiSaveCfg(v); };
   $('#aiProv').onchange = () => { const p = $('#aiProv').value; $('#aiModels').innerHTML = opts(p); $('#aiModelIn').placeholder = AI_PROVIDERS[p].models[0]; $('#aiKey').placeholder = AI_PROVIDERS[p].keyHint; $('#aiBaseRow').classList.toggle('hidden', p !== 'openai'); $('#aiPresets').classList.toggle('hidden', p !== 'openai'); };
   document.querySelectorAll('#aiPresets [data-base]').forEach(b => b.onclick = () => { $('#aiBase').value = b.dataset.base; $('#aiModelIn').value = ''; $('#aiTestOut').textContent = '주소를 넣었다. 그 서비스의 키를 넣고 「모델 불러오기」를 눌러 주세요.'; });
   const close = () => { closeModal(); if (S && S.phase !== 'over' && !wasPaused) setSpeed(S.speed || 1); };
@@ -7856,6 +7896,12 @@ showEvent = function (ev) {
     updateEvTimer();
   }
   return r;
+};
+// 돌발 사건: AI 모드에서는 시간대마다 뜨는 무작위 사건을 줄인다 (기본: 없음). 뒷골목의 밤·위기·이어지는 사건은 그대로
+const _showEventRate = showEvent;
+showEvent = function (ev) {
+  if (aiOn() && !ev && T && S.turn !== 3 && !S.flags.crisis && Math.random() >= (aiCfg().eventRate ?? 0)) { T.eventShown = true; T.resolved = true; return; }
+  return _showEventRate(ev);
 };
 // 숫자키로 숨은 선택지를 고르지 않게
 document.addEventListener('keydown', e => { if (aiOn() && /^[1-9]$/.test(e.key) && $('#event .choices.hidden')) e.stopImmediatePropagation(); }, true);
