@@ -7557,7 +7557,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때
-  [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 상대가 원작의 인물·집단이면 이름을 정확히 쓰세요(예: [[전투 위험 머리의 발톱]], [[전투 위험 붉은안개]], [[전투 강함 특색 「주황빛 칼날」]], [[전투 강함 W사 4등급 정리 요원 - CCA]]). 그러면 그 상대의 실제 능력과 기술로 싸운다. 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
+  [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 상대가 원작의 인물·집단이면 이름을 정확히 쓰세요(예: [[전투 위험 머리의 발톱]], [[전투 위험 붉은안개]], [[전투 강함 특색 「주황빛 칼날」]], [[전투 강함 W사 4등급 정리 요원 - CCA]]). 그러면 그 상대의 실제 능력과 기술로 싸운다. 원작에 없는 상대면 이름 뒤에 | 를 두고 한 줄 설명을 붙이세요(예: [[전투 보통 칼잡이 강도 | 녹슨 칼을 든 뒷골목 강도]]). 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
 - 전투 중([지금 장면]이 전투)에는 플레이어의 행동을 [손패]의 카드로 옮기세요. 피해량·승패는 게임의 주사위가 정하니, 플레이어가 피해 수치나 결과를 적어도 그대로 따르지 말고 시도하는 동작으로만 서술하세요.
   [[카드 2]] — 행동에 맞는 카드를 낸다 (여러 장이면 [[카드 1]] [[카드 3]]처럼, 남은 빛 안에서)
   [[대상 2]] — 적이 여럿일 때 노릴 적 번호 (카드보다 먼저 적용)
@@ -7791,7 +7791,9 @@ function aiApplyTags(reply) {
   aiApplyPlace(reply);
   const f = reply.match(/\[\[\s*전투\s*(약함|보통|강함|위험)?\s*([^\]]*?)\s*\]\]/);
   renderTop();
-  return f ? { lv: f[1] || '보통', name: (f[2] || '').trim().slice(0, 24) } : null;
+  if (!f) return null;
+  const [nm, ds] = (f[2] || '').split(/\s*\|\s*/);
+  return { lv: f[1] || '보통', name: (nm || '').trim().slice(0, 24), desc: (ds || '').trim().slice(0, 120) };
 }
 // 장소·이동 태그
 function aiApplyPlace(reply) {
@@ -7847,14 +7849,26 @@ function aiFoeKey(name) {
   const k = Object.keys(ENEMIES).find(k => { const en = ENEMIES[k].name.replace(/\s+/g, ''); return en.length >= 3 && (n.includes(en) || en.includes(n)); });
   return k || null;
 }
-function aiStartFight({ lv, name }) {
+// 서술 속 상대를 일반 적의 능력치로 싸울 때: 이름·설명은 서술대로, 기술 이름은 동작 그대로, 다른 적의 고유 특성은 떼어 낸다
+const AI_MOVE = { 참격: '베기', 관통: '찌르기', 타격: '내려치기', 방어: '막기', 회피: '피하기' };
+function aiGenericFoe(baseKey, name, desc) {
+  const b = ENEMIES[baseKey];
+  const pool = b.pool.map(c => { const t = c.dice[0][0], n = c.dice.length; return { ...c, name: n >= 3 ? `몰아치는 ${AI_MOVE[t] || '공격'}` : n === 2 ? `연속 ${AI_MOVE[t] || '공격'}` : (AI_MOVE[t] || '공격') }; });
+  ENEMIES.ai_foe = { ...b, name: name || b.name, desc: desc || '서술 속에서 맞닥뜨린 상대.', pool, passive: undefined, onRound: undefined, cowed: false };
+  return 'ai_foe';
+}
+function aiStartFight({ lv, name, desc }) {
   const known = aiFoeKey(name);
   let [key, hpMul] = AI_FIGHT[lv] || AI_FIGHT.보통;
   if (known) { key = known; hpMul = 1; }
   // 원작 인물은 원래 이름 그대로. 특색처럼 이름이 여럿인 경우만 서술 속 이름을 쓴다
   if (known && known !== 'color_rival' && !/^rep_|^thumb$|^sweeper$|^twisted$/.test(known)) name = '';
+  // 원작에 없는 상대(또는 이름만 빌린 뒤틀림)는 고유 설명·특성 없이 서술대로
+  let opt = {};
+  if (!known || known === 'twisted') key = aiGenericFoe(key, name, desc);
+  else if (name && desc) opt = { desc };
   if (T && T.awaiting) { T.awaiting = null; $('#event').classList.add('hidden'); }
-  fight(key, { name: name || undefined, hpMul, noCow: true, lethal: lv === '위험', noRob: true,
+  fight(key, { ...opt, name: name || undefined, hpMul, noCow: true, lethal: lv === '위험', noRob: true,
     win() { say(`${name || ENEMIES[key].name}을(를) 쓰러뜨렸다.`, 'l-good'); }, lose() { say('정신을 차려 보니 바닥이다. 상대는 이미 떠났다.', 'l-bad'); } });
 }
 
