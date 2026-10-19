@@ -7564,6 +7564,9 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   · 누구나: [[집 구입]] (뒷골목 주택, 3천만 안) / [[둥지 이주]] (둥지 이주권, 3억 안 — 위상 5 이상)
   [[일행 합류 이름]] / [[일행 이탈 이름]] — 함께 다니는 동료(예: 림버스 컴퍼니 버스팀의 수감자들, 사무소 동료, 권속이 아닌 친구)가 생기거나 떠날 때. 일행은 모든 전투에 함께 나서 싸운다. 여러 명이면 쉼표로 (예: [[일행 합류 이상, 로쟈, 히스클리프]], 최대 6명). 플레이어가 "버스팀과 함께" 같은 설정을 말하면 일행으로 등록하세요.
   [[직함 검지 신탁대행자]] — 지금 소속과 이어지는 직함·역할이 바뀔 때 그대로 적으세요(예: 검지 대행자 → 검지 신탁대행자, 협회 과장·부장·지부장, 조직의 보스, 사무소 소장). 지금 삶과 이어지는 변화는 막지 말고 반영하세요. 지금 소속과 전혀 관계없는 직함(예: 뒷골목 고아가 갑자기 머리의 조율자)만 쓰지 마세요.
+  [[획득 이름]] — 이야기 속에서 원작의 무기·유물·기법을 얻을 때 (예: [[획득 카두세우스]], [[획득 천퇴성도]], [[획득 팔레르모]], [[획득 레바테인]], [[획득 예지안]], [[획득 붉은안개의 책]], [[획득 E.G.O]]). 지금 삶과 이어지면 게임에 그대로 반영된다.
+  [[승격 4]] — W사 정리 요원이 승격 시험에 붙어 등급이 오를 때 (W사 등급 1~5)
+  [[뒤틀림]] — 플레이어가 뒤틀렸을 때 / [[해소]] — 뒤틀림이 풀렸을 때 / [[혈귀화 7]] — 혈귀에게 피를 받아 혈귀가 되었을 때 (숫자는 권속 서열)
   [[실적 +2]] — 플레이어가 이 장면에서 직접 의뢰를 끝내거나 사건을 해결하거나 눈에 띄는 공을 세웠을 때만 (한 번에 최대 3). 대화·이동·휴식·구경·시간이 흐르는 것만으로는 절대 주지 마세요. 확실하지 않으면 주지 마세요
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급·직급(예: 큰 아우, 카포, 도슨트, 3급, 1과)이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 인물들이 새 직급으로 부르기만 하고 태그를 빠뜨리지 마세요. 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
@@ -7740,11 +7743,12 @@ async function aiSend(override) {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|직함|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|승격|소속|직함|획득|뒤틀림|해소|혈귀화|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
     if (!/\[\[\s*등급/.test(reply)) { const gIn = aiGradeFromInput(msg); if (gIn) reply += `\n[[등급 ${gIn}]]`; }   // '큰 아우까지 달성했다' 같은 직급 서술도 반영
+    for (const g of aiGainFromInput(msg)) if (!reply.replace(/\s/g, '').includes('[[' + g.replace(/\s/g, ''))) reply += `\n[[${g}]]`;   // 얻었다·발현했다·뒤틀렸다 같은 서술도 입력대로
     if (!/\[\[\s*직함/.test(reply)) { const tIn = aiTitleFromInput(msg); if (tIn) reply += `\n[[직함 ${tIn}]]`; }
     for (const tg of aiLifeFromInput(msg)) if (!reply.replace(/\s/g, '').includes('[[' + tg.split(' ')[0])) reply += `\n[[${tg}]]`;   // 권속·피주머니·제작·판매·사무소 같은 삶의 행동도 입력대로
     if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
@@ -7986,6 +7990,7 @@ function aiApplyTags(reply) {
   }
   aiApplyPlace(reply);
   aiApplyTitle(reply);
+  if (!inCombat) aiApplyGain(reply);
   // 일행 — 합류·이탈
   for (const m of reply.matchAll(/\[\[\s*일행\s*(합류|이탈)\s*([^\]]+?)\s*\]\]/g)) {
     const names = m[2].split(/\s*[,·、]\s*/).map(x => x.trim()).filter(Boolean);
@@ -8925,6 +8930,65 @@ affName = function (...args) { if (!args.length && S && S.title && S.phase !== '
 // 소속이 바뀌면 이전 직함은 내려놓는다
 const _changeAffTitle = changeAff;
 changeAff = function (id, after) { if (S) S.title = null; return _changeAffTitle(id, after); };
+/* ---------- 서술 속 획득·변화 — 이야기에서 얻은 무기·유물·기법, E.G.O, 뒤틀림, 혈귀화를 게임에 반영한다.
+   지금 삶과 이어지면 반영하고, 전혀 관계없을 때만 이유를 알려 주고 막는다 ---------- */
+const GAIN_ITEMS = [
+  { re: /카두세우스|헤르메스/, name: '카두세우스', ok: () => S.aff === 'f_index' && (S.ch.id === 'index_oracle' || S.grade <= 2), why: '카두세우스는 헤르메스가 검지의 신탁대행자에게 내리는 것이다.',
+    give() { if (S.ch.id !== 'index_oracle') { S.ch.id = 'index_oracle'; S.title = '검지 신탁대행자'; } if (S.flags.caduceus) return false; S.flags.caduceus = true; CADUCEUS_CARDS.forEach(addCard); return '손잡이를 쥐자 검은 액체가 칼의 형태를 갖췄다 — 카두세우스. (기술 5종)'; } },
+  { re: /천퇴성도/, name: '천퇴성도', ok: () => S.aff === 'f_thumb', why: '천퇴성도는 엄지의 칼이다. 엄지의 예를 아는 자에게만 맡겨진다.',
+    give() { if (S.flags.tentaisei === true) return false; S.flags.tentaisei = true; TENTAI_CARDS.forEach(addCard); return '칼을 뽑자 탄창이 철컥 맞물렸다 — 천퇴성도. (뇌횡의 기술 5종)'; } },
+  { re: /팔레르모/, name: '팔레르모', ok: () => S.aff === 'f_thumb' || /보냐텔리/.test(S.title || ''), why: '팔레르모는 보냐텔리 가문의 검술이다. 엄지에 몸담은 자가 가문에게 배워야 한다.',
+    give() { if (S.flags.palermo) return false; S.flags.palermo = true; addCard('lf_th_spada'); return '보냐텔리의 검술을 익혔다 — 「팔레르모 스파다」.'; } },
+  { re: /붉은\s*안개의\s*책/, name: '붉은안개의 책', ok: () => !S.redMist, why: '이미 붉은안개다.',
+    give() { if (S.rmBook) return false; S.rmBook = true; return '붉은안개의 책을 얻었다. 상단의 「붉은안개의 책」으로 언제든 쓸 수 있다.'; } },
+  { re: /CCA|컨제스천/i, name: 'CCA', ok: () => isW() && wg() >= 4, why: 'CCA는 W사 4등급 이상 정리 요원에게만 허가된다.',
+    give() { if (S.ch.cca) return false; wGrantCCA(); return null; } },
+  { re: /E\.?\s*G\.?\s*O|에고/i, name: 'E.G.O', ok: () => !['head', 'twisted', 'vampire'].includes(faction()) && !S.ego, why: '지금의 몸으로는 E.G.O를 발현할 수 없다.',
+    give() { manifestEGO(); return null; } },
+];
+function relicByText(t) {
+  return Object.keys(RELICS).find(id => { const n = RELICS[id].name || ''; const core = n.split(/\s*—\s*/); return core.some(x => x.length >= 2 && t.includes(x.trim())) || t.includes(n); });
+}
+function aiApplyGain(reply) {
+  for (const m of reply.matchAll(/\[\[\s*획득\s*([^\]]+?)\s*\]\]/g)) {
+    const t = m[1].trim();
+    const it = GAIN_ITEMS.find(x => x.re.test(t));
+    if (it) {
+      if (!it.ok()) { aiOut(`(「${escAI(it.name)}」 — ${it.why})`, 'l-sys'); continue; }
+      const r = it.give(); if (r === false) aiOut(`「${escAI(it.name)}」은(는) 이미 가지고 있다.`, 'l-sys'); else if (r) aiOut(`★ ${r}`, 'l-day');
+      continue;
+    }
+    const rid = relicByText(t);
+    if (rid) { if ((S.relics || []).includes(rid)) aiOut(`「${escAI(RELICS[rid].name)}」은(는) 이미 가지고 있다.`, 'l-sys'); else acquireRelic(rid); continue; }
+    aiOut(`(「${escAI(t)}」 — 게임 안에 그런 물건의 효과는 없다. 이야기 속 소지품으로만 남는다.)`, 'l-sys');
+  }
+  // W사 정리 요원의 승격 (한 번에 두 등급까지)
+  const wp = reply.match(/\[\[\s*승격\s*(\d)\s*\]\]/);
+  if (wp) { if (!isW()) aiOut('(승격 — W사 정리 요원의 등급이다.)', 'l-sys'); else { let n = 0; while (wg() < Math.min(5, +wp[1]) && n < 2) { wPromote(); n++; } } }
+  if (/\[\[\s*뒤틀림\s*\]\]/.test(reply)) { if (['head'].includes(faction())) aiOut('머리에 속한 자는 뒤틀리지 않는다.', 'l-sys'); else if (faction() !== 'twisted') twist(); }
+  if (/\[\[\s*해소\s*\]\]/.test(reply) && faction() === 'twisted') untwist();
+  const vb = reply.match(/\[\[\s*혈귀화\s*(\d)?\s*\]\]/);
+  if (vb && !isVamp()) {
+    if (['head', 'twisted'].includes(faction())) aiOut('지금의 몸은 혈귀의 피를 받아들이지 않는다.', 'l-sys');
+    else { const r = Math.max(2, Math.min(9, +(vb[1] || 8))); S.vampRank = r; S.blood = S.blood || 0; S.thralls = S.thralls || 0; changeAff('bloodkin'); S.grade = r;
+      ['vp_claw', 'vp_claw', 'vp_mist', 'vp_mist'].forEach(addCard); aiOut(`🩸 피가 혈관을 태운다 — 혈귀, 제${r}권속이 되었다.`, 'l-day'); }
+  }
+}
+function aiGainFromInput(msg) {
+  const out = []; if (!msg) return out;
+  const got = /(얻|받|손에\s*넣|획득|하사|발견|주웠|주운|물려받|배웠|익혔|전수|건네받)/.test(msg);
+  if (got) {
+    for (const it of GAIN_ITEMS) if (it.name !== 'E.G.O' && it.re.test(msg)) out.push('획득 ' + it.name);
+    const rid = relicByText(msg); if (rid) out.push('획득 ' + RELICS[rid].name);
+  }
+  if (/(E\.?\s*G\.?\s*O|에고).{0,12}(발현|개화|각성|꺼내|피어)/i.test(msg)) out.push('획득 E.G.O');
+  const wpm = msg.match(/([1-5])\s*등급\s*(?:으로|로)?\s*(?:승격|올라|합격|진급)/); if (wpm && typeof isW === 'function' && isW()) out.push('승격 ' + wpm[1]);
+  if (/(CCA|컨제스천).{0,10}(받|허가|지급|장착)/i.test(msg)) out.push('획득 CCA');
+  if (/뒤틀렸|뒤틀려\s*버|뒤틀림이\s*되/.test(msg)) out.push('뒤틀림');
+  if (/뒤틀림이\s*(풀|해소)|사람으로\s*돌아왔/.test(msg)) out.push('해소');
+  if (/혈귀가\s*(되었|됐|되어)|혈귀의\s*피를\s*받/.test(msg)) out.push('혈귀화');
+  return out;
+}
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
