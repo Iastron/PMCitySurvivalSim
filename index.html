@@ -914,7 +914,7 @@ function changeAff(id, after) {
   const old = S.aff, oldF = faction();
   if (oldF === 'color' && AFFS[id].faction !== 'color') { S.colorBadge = true; say('색은 협회 배지와 함께 그대로 남는다. 당신은 여전히 특색이다.', 'l-day'); }
   S.aff = id; S._h = null;
-  if (S.office && !['fixer', 'street'].includes(id)) { say(`「${S.office.name} 사무소」를 떠났다.`, 'l-sys'); S.office = null; }
+  if (S.office && !['fixer', 'street'].includes(id) && !(S.office.owner && id === 'color')) { say(`「${S.office.name} 사무소」를 떠났다.`, 'l-sys'); S.office = null; }
   if (AFFS[id].hooks && AFFS[id].hooks.monthlyPay) S.payDay = S.day + 30;
   say(`◆ 소속 변경: ${affName(old)} → <b>${affName(id)}</b>`, 'l-day');
   say(`새 패시브: ${AFF().passive}`, 'l-sys');
@@ -2783,6 +2783,7 @@ H = function () {
 };
 const _affName = affName;
 affName = function (...args) {
+  if (!args.length && S && S.office && S.office.owner && ['fixer', 'color'].includes(S.aff)) return `${S.office.name} 사무소 대표${S.aff === 'color' ? ' · 특색' : ''}`;
   if (!args.length && inOffice()) return `${S.office.name} 사무소 ${S.aff === 'street' ? '잡일꾼 (무면허)' : '소속 해결사'}`;
   return _affName(...args);
 };
@@ -2801,7 +2802,7 @@ EVENTS.push(
         { t: '거절한다', def: true, fn() { say('혼자 일하는 편이 마음 편하다.'); } },
       ];
     }, text: '' },
-  { id: 'office_job', when: [0, 1, 2], w: 3, cond: () => inOffice(), title: '사무소 의뢰 배정',
+  { id: 'office_job', when: [0, 1, 2], w: 3, cond: () => inOffice() && !S.office.owner, title: '사무소 의뢰 배정',
     build() {
       const t = OFFICE_TIERS[S.office.tier];
       this.text = `「${S.office.name} 사무소」 대표가 서류를 건넨다. "이번 건, 자네가 맡아." 사무소 의뢰는 보수가 확실하다.`;
@@ -2812,7 +2813,7 @@ EVENTS.push(
         { t: '서류 작업과 뒷정리를 돕는다', def: true, fn() { say('하루 종일 보고서를 정리했다.'); gain(pay(Math.round(t.wage / 5))); merit(1); } },
       ];
     }, text: '' },
-  { id: 'office_leave', when: [0, 1, 2], w: 0.5, cond: () => inOffice() && S.day >= (S.office.joined || 0) + 5, title: '사무소를 떠날까',
+  { id: 'office_leave', when: [0, 1, 2], w: 0.5, cond: () => inOffice() && !S.office.owner && S.day >= (S.office.joined || 0) + 5, title: '사무소를 떠날까',
     text: '사무소 생활에 익숙해졌다. 하지만 혼자 움직이는 편이 나을 때도 있다.',
     choices: [
       { t: '사무소를 그만둔다', fn() { say(`「${S.office.name} 사무소」 사물함을 비웠다.`); S.office = null; S._h = null; } },
@@ -5007,7 +5008,7 @@ function endTurn() {
   if (S.travelSkip > 0 && S.turn <= 3) { S.travelSkip--; print('— 이동 중 — 이 시간대는 길 위에서 보냈다.', 'l-amb'); S.turn++; }
   if (S.turn > 3) {
     S.turn = 0; S.day++; S.seenToday = []; S.flags.zweiTonight = false; S.flags.guardTonight = false; restockShop();
-    if (!S.warp && inOffice() && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
+    if (!S.warp && inOffice() && !S.office.owner && (S.day - (S.office.joined || 0)) % 7 === 0) { const w = pay(OFFICE_TIERS[S.office.tier].wage); S.money += w; print(`「${S.office.name} 사무소」 주급 +${won(w)} (보유 ${won(S.money)})`, 'l-good'); }
     if ((!S.warp || S.warp.stow) && (faction() === 'vampire' || S.vampRank) && S.pouches) { S.blood = (S.blood || 0) + (S.pouchYield || S.pouches); print(`피주머니에서 피 ${S.pouchYield || S.pouches}을(를) 얻었다. (피 ${S.blood})`, 'l-sys'); if (S.pouches >= 2) { S.notoriety += 1; print('사라진 사람들을 찾는 전단이 늘어난다. (악명 +1)', 'l-bad'); } }
     const dayLine = S.aiMode && S.aiMontage && S.aiSkipLeft > 0 ? null : S.warp ? `열차 안 ${warpInner().toLocaleString()}일째 — 창밖은 여전히 색이 없다.` : dayBreakLine();
     if (dayLine) print(dayLine, 'l-day');
@@ -7559,7 +7560,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   삶(소속·직업)마다 쓰는 태그 — [현재 상태]에 맞는 것만:
   · 혈귀: [[권속 +1]] (피를 나눠 권속을 만들 때, 피 3 소모) / [[피주머니 +1]] (사람을 피주머니로 삼을 때) / [[피 +3]] (전투 밖에서 피를 마셨을 때, 최대 10)
   · 공방 주인: [[공방 제작 검]] (무기를 만들 때 — 무기 종류 이름) / [[공방 판매]] (진열대의 무기를 손님에게 팔 때)
-  · 해결사: [[사무소 이름]] (사무소에 들어갈 때) / [[동료 고용 5급]] (해결사를 고용할 때, 돈이 든다) / [[특색]] (1급 해결사가 하나 협회에서 색을 받을 때만)
+  · 해결사: [[사무소 이름]] (사무소에 들어갈 때) / [[사무소 설립 이름]] (자기 사무소를 차릴 때 — 6급 이상, 설립비가 든다) / [[동료 고용 5급]] (해결사를 고용할 때, 돈이 든다) / [[특색]] (1급 해결사가 하나 협회에서 색을 받을 때만)
   · 누구나: [[집 구입]] (뒷골목 주택, 3천만 안) / [[둥지 이주]] (둥지 이주권, 3억 안 — 위상 5 이상)
   [[일행 합류 이름]] / [[일행 이탈 이름]] — 함께 다니는 동료(예: 림버스 컴퍼니 버스팀의 수감자들, 사무소 동료, 권속이 아닌 친구)가 생기거나 떠날 때. 일행은 모든 전투에 함께 나서 싸운다. 여러 명이면 쉼표로 (예: [[일행 합류 이상, 로쟈, 히스클리프]], 최대 6명). 플레이어가 "버스팀과 함께" 같은 설정을 말하면 일행으로 등록하세요.
   [[실적 +2]] — 플레이어가 이 장면에서 직접 의뢰를 끝내거나 사건을 해결하거나 눈에 띄는 공을 세웠을 때만 (한 번에 최대 3). 대화·이동·휴식·구경·시간이 흐르는 것만으로는 절대 주지 마세요. 확실하지 않으면 주지 마세요
@@ -7829,7 +7830,9 @@ function aiLifeFromInput(t) {
     if (/(팔았|팔아|판매|넘겼|팔렸)/.test(t) && (S.ws.stock || []).length) out.push('공방 판매');
   }
   const of = t.match(/[「"']?([가-힣A-Za-z0-9 ]{1,12}?)\s*사무소[」"']?(에|으로|로)?\s*(들어|입사|가입|합류)/);
-  if (of && !S.office && isFixer()) out.push('사무소 ' + of[1].trim());
+  const fo = t.match(/(?:[「"']?([가-힣A-Za-z0-9 ]{1,12}?)[」"']?\s*)?사무소(를|을)?\s*(차렸|차린|차리|열었|연다|열어|설립|개업|개소)/);
+  if (fo && !S.office) out.push('사무소 설립 ' + ((fo[1] || '').replace(/[「」"']/g, '').trim() || pick(OFFICE_NAMES)));
+  else if (of && !S.office && isFixer()) out.push('사무소 ' + of[1].trim());
   const hr = t.match(/([1-9])\s*급\s*해결사(를|들을)?\s*(고용|부르|데려|계약)/);
   if (hr) out.push('동료 고용 ' + hr[1] + '급');
   if (/(집|주택)(을|를)\s*(샀|산다|구입|마련)/.test(t)) out.push('집 구입');
@@ -7874,7 +7877,9 @@ function aiApplyLife(reply) {
       S.money += v; S.ws.sold++; S.ws.revenue += v; aiOut(`🔨 「${CARDS[id].name}」을(를) 팔았다. +${won(v)} (보유 ${won(S.money)})`, 'l-good'); wsLevelCheck();
     }
   }
-  const of = reply.match(/\[\[\s*사무소\s*([^\]]+?)\s*\]\]/);
+  const fo = reply.match(/\[\[\s*사무소\s*설립\s*([^\]]*?)\s*\]\]/);
+  if (fo) officeFound(fo[1].replace(/사무소|「|」/g, '').trim() || pick(OFFICE_NAMES), true);
+  const of = fo ? null : reply.match(/\[\[\s*사무소\s*([^\]]+?)\s*\]\]/);
   if (of && !S.office && isFixer()) { const name = of[1].replace(/사무소|「|」/g, '').trim().slice(0, 12) || '이름 없는'; S.office = { name, tier: 0, joined: S.day }; S._h = null; aiOut(`◆ 「${name} 사무소」에 들어갔다. 책상 하나와 낡은 사물함이 생겼다.`, 'l-day'); }
   const hr = reply.match(/\[\[\s*동료\s*고용\s*([1-9])\s*급?\s*\]\]/);
   if (hr) { const g = +hr[1];
@@ -8752,6 +8757,127 @@ const _newGameTier = newGame;
 newGame = function (ch) { _newGameTier(ch); tierBoost(); renderTop(); };
 const _renderTopTier = renderTop;
 renderTop = function () { _renderTopTier(); if (S && S.phase !== 'over' && S.phase !== 'combat' && !S.flags.tierBoost) { tierBoost(); } };
+/* =========================================================
+   해결사 사무소 차리기 — 6급 이상 무소속 해결사(또는 특색)가 하나 협회 허가를 받아 자기 사무소를 연다.
+   대표: 직원을 뽑아(매주 급여) 함께 의뢰를 뛰고, 사무소 등급을 올리고, 매주 수익을 정산한다.
+   직원은 모든 전투에 함께 나선다
+========================================================= */
+const OFFICE_FOUND_COST = 30000000;
+const OFFICE_UP = [null, { cost: 100000000, done: 5, grade: 4 }, { cost: 1000000000, done: 15, grade: 2 }];
+const OFFICE_INCOME = [1000000, 8000000, 40000000];
+const OFFICE_STAFF_MAX = [3, 5, 8];
+const officeOwner = () => !!(S && S.office && S.office.owner);
+const canFoundOffice = () => S && !S.office && !S.warp && !S.exiled && ['fixer', 'color', 'assoc'].includes(faction() === 'assoc' ? 'assoc' : S.aff) && S.grade <= 6;
+function officeFound(name, viaStory) {
+  if (!canFoundOffice()) { print(S.office ? '이미 사무소에 몸담고 있다.' : S.grade > 6 ? '하나 협회는 6급 이상 해결사에게만 사무소 설립을 허가한다.' : '해결사만 사무소를 차릴 수 있다.', 'l-sys'); return false; }
+  if (S.money < OFFICE_FOUND_COST) { print(`설립 자금이 모자라다 (${won(OFFICE_FOUND_COST)}).`, 'l-bad'); return false; }
+  if (faction() === 'assoc') { print(`${AFFS[S.aff].name}을(를) 나와 무소속 해결사가 되었다. 사무소 대표는 협회 직원이 될 수 없다.`, 'l-sys'); changeAff('fixer'); }
+  S.money -= OFFICE_FOUND_COST;
+  S.office = { name: String(name).slice(0, 12), tier: 0, joined: S.day, owner: true, staff: [], done: 0, nextPay: S.day + 7, ledger: 0 };
+  S._h = null;
+  print(`🏢 「${S.office.name} 사무소」를 열었다. 하나 협회 허가증이 벽에 걸렸다. (설립비 ${won(OFFICE_FOUND_COST)})`, 'l-day');
+  if (typeof chron === 'function') chron(`「${S.office.name} 사무소」 설립`);
+  rep(3, '사무소 설립'); renderTop();
+  return true;
+}
+// 매주 정산: 사무소 수익 − 직원 급여
+function officeWeekly() {
+  if (!officeOwner() || S.warp || S.day < S.office.nextPay) return;
+  while (S.day >= S.office.nextPay) {
+    const o = S.office, staff = o.staff || [], wage = staff.reduce((n, x) => n + Math.round(HIRE_PRICE[x.g] * 0.5), 0);
+    const income = Math.round(pay(OFFICE_INCOME[o.tier]) * (1 + staff.length * 0.25));
+    const net = income - wage; S.money += net; o.ledger = (o.ledger || 0) + net; o.nextPay += 7;
+    print(`🏢 「${o.name} 사무소」 주간 정산 — 수익 ${won(income)} − 급여 ${won(wage)} = <b>${net >= 0 ? '+' : ''}${won(Math.abs(net))}</b>${net < 0 ? ' (적자)' : ''} (보유 ${won(S.money)})`, net >= 0 ? 'l-good' : 'l-bad');
+    if (S.money < 0) { const short = -S.money; S.money = 0; S.debt = (S.debt || 0) + short; S.debtDue = S.debtDue || S.day + 7; print(`급여를 맞추느라 ${won(short)}을 빌렸다.`, 'l-bad'); }
+  }
+}
+// 직원 — 매일 회복, 모든 전투에 함께
+function officeStaffTick() {
+  if (!officeOwner()) return;
+  for (const h of S.office.staff || []) if (h.healDay !== S.day) { h.hp = Math.min(h.maxHp, h.hp + Math.round(h.maxHp * 0.4) * Math.max(1, S.day - (h.healDay || S.day))); h.healDay = S.day; }
+}
+const _renderTopOffice = renderTop;
+renderTop = function () {
+  _renderTopOffice();
+  if (!S || S.phase === 'over') return;
+  if (S.phase !== 'combat') { officeStaffTick(); officeWeekly(); }
+  const b = $('#officeBtn'); if (b) b.classList.toggle('hidden', !(officeOwner() || canFoundOffice()) || S.phase === 'combat');
+};
+const _fightOffice = fight;
+fight = function (key, opts = {}) {
+  _fightOffice(key, opts);
+  if (!C || S.phase !== 'combat' || S.warp || !officeOwner() || C.staffIn) return;
+  C.staffIn = true;
+  const add = (S.office.staff || []).filter(h => h.hp > 0).map(h => ({ kind: 'mate', staffId: h.id, name: h.name, maxHp: h.maxHp, hp: h.hp, atk: h.atk, type: h.type, skill: h.skill, spdRange: h.spdRange }));
+  if (!add.length) return;
+  C.allies = [...(C.allies || []), ...add];
+  clog(`🏢 사무소 직원 — ${add.map(a => a.name).join(', ')}`, 'l-sys');
+  for (const a of add) allyUnit(a);
+  retargetIntents(); renderCombat();
+};
+const _endCombatOffice = endCombat;
+endCombat = function (win) {
+  if (C && C.allies && officeOwner()) for (const a of C.allies) {
+    const h = a.staffId && S.office.staff.find(x => x.id === a.staffId); if (!h) continue;
+    h.hp = Math.max(0, a.hp);
+    if (h.hp <= 0) { S.office.staff.splice(S.office.staff.indexOf(h), 1); say(`✝ 사무소 직원 ${h.name}이(가) 쓰러졌다. 책상 하나가 비었다.`, 'l-bad'); stress(6); }
+  }
+  return _endCombatOffice(win);
+};
+// 사무소 의뢰 — 대표가 직접 고른다 (시간대마다 1건)
+function officeJob(i) {
+  const o = S.office, t = OFFICE_TIERS[o.tier], [enemy, title, count] = t.jobs[i];
+  o.jobTurn = S.day + ':' + S.turn; closeModal();
+  print(`🏢 의뢰 수락 — 「${title}」`, 'l-choice');
+  if (T && T.awaiting) { T.awaiting = null; $('#event').classList.add('hidden'); }
+  fight(enemy, { lethal: o.tier >= 1, count: count + (o.staff.length >= 3 ? 1 : 0), noCow: true, noRob: true, rival: (title.match(/^(엄지|검지|중지|약지|소지)/) || [])[1],
+    win() { o.done = (o.done || 0) + 1; const g = pay(t.wage * 2); gain(g); merit(2); say(`보고서를 올렸다. 「${o.name} 사무소」의 이름이 조금 더 알려졌다. (완료 의뢰 ${o.done})`, 'l-good'); rep(1, '사무소 의뢰 완수'); },
+    lose() { say('의뢰는 실패했다. 의뢰인의 항의 전화가 사무소를 울린다.', 'l-bad'); rep(-2, '사무소 의뢰 실패'); } });
+}
+function officeRender() {
+  if (!S) return;
+  if (!S.office) {
+    openModal(`<h3>🏢 해결사 사무소 설립</h3>
+      <p class="dim" style="font-size:13px">하나 협회의 허가를 받아 자기 사무소를 연다. 대표가 되면 직원을 뽑아 함께 의뢰를 뛰고, 매주 수익을 정산한다. 협회 소속이면 협회를 나와 무소속이 된다.</p>
+      <p>조건: 6급 이상 해결사 · 설립비 <b>${won(OFFICE_FOUND_COST)}</b> (보유 ${won(S.money)})</p>
+      <div class="ai-form"><label>사무소 이름 <input id="ofName" maxlength="12" placeholder="${escAI(pick(OFFICE_NAMES))}"></label></div>
+      <button id="ofFound" style="border-color:var(--gold)" ${canFoundOffice() && S.money >= OFFICE_FOUND_COST ? '' : 'disabled'}>사무소를 연다</button> <button onclick="closeModal()">닫기</button>`);
+    $('#ofFound').onclick = () => { const n = $('#ofName').value.trim() || $('#ofName').placeholder; if (officeFound(n)) officeRender(); };
+    return;
+  }
+  const o = S.office, t = OFFICE_TIERS[o.tier], up = OFFICE_UP[o.tier + 1], max = OFFICE_STAFF_MAX[o.tier];
+  const wage = (o.staff || []).reduce((n, x) => n + Math.round(HIRE_PRICE[x.g] * 0.5), 0), income = Math.round(pay(OFFICE_INCOME[o.tier]) * (1 + (o.staff || []).length * 0.25));
+  const jobOk = S.phase === 'day' && o.jobTurn !== S.day + ':' + S.turn && S.turn < 3;
+  let h = `<h3>🏢 ${escAI(o.name)} 사무소 — ${t.label}</h3>
+    <p class="dim" style="font-size:13px">완료 의뢰 ${o.done || 0} · 누적 정산 ${won(o.ledger || 0)} · 다음 정산 ${o.nextPay}일차 (예상 수익 ${won(income)} − 급여 ${won(wage)})</p>
+    <h4>의뢰 받기 <span class="dim" style="font-size:12px">(시간대마다 1건 · 직원이 함께 나선다)</span></h4>`;
+  h += t.jobs.map(([en, title, cnt], i) => `<div class="fac-row"><div><b>${title}</b><div class="dim">${ENEMIES[en] ? ENEMIES[en].name : en} ×${cnt} · 보수 약 ${won(pay(t.wage * 2))}${o.tier >= 1 ? ' · <span class="l-bad">패배 시 사망</span>' : ''}</div></div><button data-ofjob="${i}" ${jobOk ? '' : 'disabled'}>맡는다</button></div>`).join('');
+  h += `<h4>직원 <span class="dim" style="font-size:12px">(${(o.staff || []).length}/${max} · 급여는 매주 정산에서)</span></h4>`;
+  h += (o.staff || []).map(x => `<div class="fac-row"><div><b>${x.name}</b><div class="dim">체력 ${x.hp}/${x.maxHp} · ${x.type} ${x.atk[0]}-${x.atk[1]} 「${x.skill}」 · 주급 ${won(Math.round(HIRE_PRICE[x.g] * 0.5))}</div></div><button data-offire="${x.id}">내보낸다</button></div>`).join('') || '<p class="dim">아직 직원이 없다.</p>';
+  if ((o.staff || []).length < max) h += `<div class="fac-row"><div><b>직원 채용</b><div class="dim">계약금(주급 1주치)을 먼저 낸다</div></div><div>${[9, 8, 7, 6, 5, 4, 3, 2].filter(g => g > S.grade || g >= 3).map(g => `<button data-ofhire="${g}" ${S.money >= Math.round(HIRE_PRICE[g] * 0.5) && hireOk(g) ? '' : 'disabled'} style="padding:3px 8px;font-size:12px">${g}급</button>`).join(' ')}</div></div>`;
+  if (up) { const ok = (o.done || 0) >= up.done && S.grade <= up.grade && S.money >= up.cost;
+    h += `<h4>사무소 확장 — ${OFFICE_TIERS[o.tier + 1].label}</h4><div class="fac-row"><div><b>조건</b><div class="dim">완료 의뢰 ${up.done} 이상 (${o.done || 0}) · ${up.grade}급 이상 · ${won(up.cost)}</div></div><button id="ofUp" ${ok ? '' : 'disabled'}>확장한다</button></div>`; }
+  h += `<br><button id="ofClose">닫기</button> <button id="ofShut" style="float:right;font-size:12px">사무소를 닫는다</button>`;
+  openModal(h);
+  $('#ofClose').onclick = closeModal;
+  document.querySelectorAll('#modalBox [data-ofjob]').forEach(b => b.onclick = () => officeJob(+b.dataset.ofjob));
+  document.querySelectorAll('#modalBox [data-ofhire]').forEach(b => b.onclick = () => {
+    const g = +b.dataset.ofhire, fee = Math.round(HIRE_PRICE[g] * 0.5); if (S.money < fee) return;
+    S.money -= fee; const x = makeHire(g); x.until = Infinity; o.staff.push(x); print(`🏢 ${x.name}을(를) 직원으로 뽑았다. (계약금 ${won(fee)})`, 'l-good'); renderTop(); officeRender();
+  });
+  document.querySelectorAll('#modalBox [data-offire]').forEach(b => b.onclick = () => { const x = o.staff.find(y => y.id === b.dataset.offire); if (x) { o.staff.splice(o.staff.indexOf(x), 1); print(`${x.name}이(가) 짐을 쌌다.`, 'l-sys'); } officeRender(); });
+  if ($('#ofUp')) $('#ofUp').onclick = () => { S.money -= up.cost; o.tier++; S._h = null; print(`🏢 「${o.name} 사무소」가 ${OFFICE_TIERS[o.tier].label}가 되었다. 더 큰 의뢰가 들어온다.`, 'l-day'); rep(3, '사무소 확장'); renderTop(); officeRender(); };
+  $('#ofShut').onclick = () => { const b = $('#ofShut'); if (!b.dataset.sure) { b.dataset.sure = '1'; b.textContent = '정말 닫는다 (직원 모두 떠남)'; b.style.borderColor = 'var(--red)'; return; } print(`🏢 「${o.name} 사무소」의 간판을 내렸다.`, 'l-sys'); S.office = null; S._h = null; closeModal(); renderTop(); };
+}
+$('#boardBtn').insertAdjacentHTML('afterend', ' <button id="officeBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--cyan)">사무소</button>');
+$('#officeBtn').onclick = officeRender;
+// 해결사라면 가끔 설립 제안이 들어온다
+EVENTS.push({ id: 'office_found_offer', when: [0, 1], w: 0.6, cond: () => canFoundOffice() && S.money >= OFFICE_FOUND_COST && S.day >= 3, title: '빈 사무실',
+  text: '하나 협회 게시판에 사무실 임대 공고가 붙었다. 해결사 면허와 자금만 있다면, 남의 사무소가 아니라 자기 사무소를 열 수 있다.',
+  choices: [
+    { t: `사무소를 연다 (${won(OFFICE_FOUND_COST)})`, fn() { officeFound(pick(OFFICE_NAMES)); } },
+    { t: '아직은 아니다', def: true, fn() { say('공고를 한 번 더 보고 지나갔다.'); } },
+  ] });
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
