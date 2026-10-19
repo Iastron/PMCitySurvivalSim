@@ -2640,11 +2640,14 @@ Object.assign(CARDS, {
   canon_dihui: { name: '유물 — 분신 협공', cost: 2, dice: [['참격', 6, 10], ['참격', 6, 10]], onUse: { cloneAll: true }, desc: '이번 막 공격 적중 시 분신 추가 공격 확정' },
 });
 // 유물 표시: 원작/하위 구분, 원작 설정과 게임 각색을 나눠 보여준다
+// 레바테인의 남은 포장(봉인) — 전투 중에는 지금 단계, 전투 밖에서는 다시 감긴 상태
+const laevWrapText = () => { const lv = C && S && S.phase === 'combat' && C.P ? (C.P.laev || 0) : 0, left = 2 - lv;
+  return ` · <b style="color:var(--orange)">포장 ${left ? left + '겹 남음' : '모두 벗겨짐'}</b> (${['봉인된 검', '1단계 봉인 해제', '2단계 봉인 해제 — 완전 해방'][lv]})`; };
 relicPassiveText = function () {
   return (S.relics || []).filter(id => RELICS[id]).map(id => {
     const r = RELICS[id], cards = (r.cards || [r.card]).map(c => CARDS[c].name).join(', ');
     return r.tier === 'canon'
-      ? `<br>[유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}<br><span class="dim">　${r.lore} (소유: ${r.owner})</span>`
+      ? `<br>[유물 「${r.name}」] ${r.passive}${id === 'laevateinn' ? laevWrapText() : ''} · 전용 카드: ${cards}<br><span class="dim">　${r.lore}</span>`
       : `<br>[하위 유물 「${r.name}」] ${r.passive} · 전용 카드: ${cards}`;
   }).join('');
 };
