@@ -1112,7 +1112,7 @@ function merit(n) {
   S.merit = Math.max(0, S.merit + n); say(`실적 ${n >= 0 ? '+' : ''}${n} (총 ${S.merit})`, n >= 0 ? 'l-sys' : 'l-bad');
   while (faction() !== 'vampire' && S.grade > 1 && S.merit >= GRADE_REQ[S.grade - 1]) {
     const tierBefore = fingerTier(S.grade), titleBefore = faction() === 'finger' ? affName() : null;
-    S.grade--; S.maxHp += 12; S.maxStg += 5; S.hp = S.maxHp;
+    S.grade--; { const up = 14 + (9 - S.grade) * 2; S.maxHp += up; S.maxStg += Math.round(up * 0.45); } S.hp = S.maxHp;   // 9→8급 +16 … 2→1급 +30
     S.promoCards = (S.promoCards || 0) + 1;
     if (S.grade === 6 || S.grade === 3) { S.lightBonus = (S.lightBonus || 0) + 1; say('✦ 전투 감각이 한 단계 깊어졌다 — 최대 빛 +1', 'l-day'); }
     if (S.aff === 'f_middle' && S.grade === 6) say('★ 승진 — 중지 작은 아우 → 중지 큰 아우. 상급 조직원으로서 아우들을 이끈다.', 'l-day');
@@ -8736,6 +8736,22 @@ fight = function (key, opts = {}) {
   retargetIntents(); renderCombat();
 };
 // 쓰러진 수감자는 관리자의 시계가 되감는다 — 다음 전투에 다시 나선다 (일행은 전투마다 새로 편성)
+/* ---------- 체급 재조정 — 특색(체력 380)에 맞춰 그 아래 위상들도 올린다. 해결사뿐 아니라 손가락·조직·날개·혈귀·뒤틀림 모두.
+   위상이 높을수록 많이: 9급(최하) ×1.1 … 1급 ×1.9. 특색보다 강해지지 않게 상한을 둔다 (머리 소속만 예외) ---------- */
+function tierBoost() {
+  if (!S || S.flags.tierBoost) return;
+  S.flags.tierBoost = true;
+  if (faction() === 'color' || S.ch.colorBuffed) return;
+  const g = Math.max(1, Math.min(9, S.grade || 9)), mul = 1.1 + (9 - g) * 0.1, smul = 1.05 + (9 - g) * 0.075;
+  const cap = faction() === 'head' ? 440 : faction() === 'vampire' ? 400 : 340;   // 혈귀는 피로 더 자라므로 특색을 넘볼 여지를 남긴다
+  const hp = Math.min(cap, Math.round(S.maxHp * mul)), stg = Math.min(faction() === 'head' ? 170 : 135, Math.round(S.maxStg * smul));
+  if (hp > S.maxHp) { S.hp += hp - S.maxHp; S.maxHp = hp; }
+  if (stg > S.maxStg) S.maxStg = stg;
+}
+const _newGameTier = newGame;
+newGame = function (ch) { _newGameTier(ch); tierBoost(); renderTop(); };
+const _renderTopTier = renderTop;
+renderTop = function () { _renderTopTier(); if (S && S.phase !== 'over' && S.phase !== 'combat' && !S.flags.tierBoost) { tierBoost(); } };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
