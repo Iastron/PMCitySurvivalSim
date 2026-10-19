@@ -7129,6 +7129,7 @@ resolveRoundInner = async function () {
     clog('➤ 「' + pc.name + '」 → ' + target.name, 'l-choice');
     if (pc.onUse) applyFx(pc.onUse, P, target);
     for (const die of pc.dice) { if (dead() || P.staggered) break; await wait(380); oneSide(P, die, pc, target); renderCombat(); }
+    if (pc.laevAdvance) laevAdvance(P);
   };
   C.cancelledIntents = new Set(C.preCancel || []);
   const acts = [];
@@ -8186,6 +8187,28 @@ showEvent = function (ev) {
   }
   return _showEventNightAI(ev);
 };
+/* ---------- 레바테인 — 「포장을 뜯어볼까」 (Limbus Company 거미집 중지 아비 오티스의 레바테인 스킬)
+   타격 · 스킬 위력 4 · 코인 위력 +3 · 파괴 불가 코인 4개 (화상 3 / 출혈 3 / 흐트러짐 피해 10 / 취약)
+   공격이 끝나면 검의 상태가 다음 단계로 넘어간다 (봉인 → 1단계 해제 → 2단계 해제). 레바테인을 지녀야만 쓸 수 있다 ---------- */
+CARDS.canon_laev_unwrap = { name: '포장을 뜯어볼까', cost: 3,
+  dice: [['타격', 4, 7, { onHit: { burn: 3 } }], ['타격', 4, 10, { onHit: { bleed: 3 } }], ['타격', 4, 13, { onHit: { stg: 10 } }], ['타격', 4, 16, { onHit: { rupture: 2 } }]],
+  laevAdvance: true, desc: '레바테인 · 공격이 끝나면 검의 봉인이 한 단계 풀린다' };
+RELICS.laevateinn.cards = [...new Set([...(RELICS.laevateinn.cards || []), 'canon_laev_unwrap'])];
+RELICS.laevateinn.adapt += ' 「포장을 뜯어볼까」로 싸우는 사이 봉인을 풀 수 있다.';
+function laevAdvance(P) {
+  if (!P || !H().laevateinn) return;
+  if ((P.laev || 0) >= 2) { clog('"두 눈 크게 뜨고 잘 봐라!" — 레바테인이 완전히 해방된 채 타오른다.', 'l-day'); return; }
+  P.laev = (P.laev || 0) + 1;
+  clog(P.laev === 1 ? '"그쯤 해줬으니, 포장지 한 번 벗겨야겠군!" — ✦ 봉인 1단계 해제 (공격 +3, 적중 시 화상 2)'
+    : '"하하하! 재밌군!" — ✦ 봉인 2단계 해제 (공격 +6, 화상 4, 매 막 적 화상 3 / 자신 화상 1)', 'l-day');
+  renderCombat();
+}
+// 합으로 쓴 경우: 합이 끝난 뒤 단계를 넘긴다
+const _clashLaev = clash;
+clash = async function (pc, ec) { const r = await _clashLaev(pc, ec); if (pc && pc.laevAdvance && C && C.P.hp > 0) laevAdvance(C.P); return r; };
+// 이미 레바테인을 지닌 삶에도 스킬을 준다
+const _renderTopLaev = renderTop;
+renderTop = function () { _renderTopLaev(); if (S && (S.relics || []).includes('laevateinn') && !S.flags.laevUnwrap && !S.redMist) { S.flags.laevUnwrap = true; if (!S.deck.includes('canon_laev_unwrap')) { S.deck.push('canon_laev_unwrap'); if (S.phase !== 'combat') print('레바테인을 쥔 손에 익숙한 감각이 돌아온다 — 「포장을 뜯어볼까」를 쓸 수 있다.', 'l-good'); } } };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
