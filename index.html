@@ -7572,6 +7572,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[대상 2]] — 적이 여럿일 때 노릴 적 번호 (카드보다 먼저 적용)
   [[진행]] — 플레이어가 이번 막의 행동을 마쳤을 때 막을 진행한다. 결과는 다음 입력 때 [최근 기록]으로 보이니 그때 이어 서술하세요.
   [[휴전]] — 플레이어가 더 싸울 뜻이 없다고 밝히고 상대도 그 자리에서 받아들일 때만. 전투는 피해 없이 끝난다. 상대의 성격·목적에 맞게 판단하고(임무로 온 암살자나 원한이 깊은 상대는 잘 받아들이지 않는다), 말이 통하지 않는 상대(청소부·뒤틀림·환상체·괴물)는 받아들이지 않는다.
+- 이 서술 모드에서는 시간대가 정해져 있지 않습니다. 플레이어가 원하면 과거·미래의 원작 인물·집단(Library of Ruina의 접대 손님들, Limbus Company의 거미집·라만차랜드·림버스 컴퍼니 수감자, 특색들 등)과도 만날 수 있습니다. 싸움이 벌어지면 원작 이름을 정확히 적으세요.
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 일관성: [기억해 둘 것]과 지난 대화에 나온 인물의 이름·직급·소속·말투·관계, 약속과 사건을 그대로 이어 가세요. 한 번 정해진 직급이나 호칭을 바꾸지 마세요. 원작 인물은 원작의 직급·호칭·말투를 따르세요. 플레이어의 직급은 [현재 상태]의 소속·등급이 기준입니다.
 - 새로 기억해야 할 사실(새 인물의 이름과 직급, 관계 변화, 약속, 빚, 중요한 사건)이 생기면 마지막 줄에 [[기억 짧은 문장]]으로 남기세요(예: [[기억 베르길리우스 — 림버스 컴퍼니의 안내인, 플레이어를 '해결사'라 부름]]). 한 번에 1~3개, 이미 기억된 것은 다시 적지 마세요.
@@ -8568,6 +8569,93 @@ EVENTS.push(
       { t: '맞선다 — 특색 「붉은시선」 (패배 시 사망)', fn() { fight('color_vergilius', { lethal: true, noCow: true, win() { say('붉은 눈이 처음으로 흔들렸다. "…특색감이군." 그는 쓰러지지 않은 채 떠났다.', 'l-day'); merit(10); rep(5, '붉은시선과 맞섬'); S.flags.lcbHostile = false; } }); } },
     ] },
 );
+/* ---------- 서술 모드 전용 — 원작의 손님·집단과 만나기 (시간대가 정해지지 않은 서술 모드에서는 과거·미래의 인물도 나온다)
+   Library of Ruina 접대 손님(뜬소문~도시의 별), Limbus Company의 라만차랜드·거미집.
+   체급은 원작 재해 등급을 따른다: 뜬소문·괴담 → 전설 → 질병 → 악몽 → 도시의 별 → 불순물급 ---------- */
+const NF_TIER = {
+  1: { hp: 70, stg: 30, slots: 2, lo: 4, hi: 9, elite: false, grade: '도시 괴담' },
+  2: { hp: 110, stg: 45, slots: 2, lo: 6, hi: 12, elite: false, grade: '도시 전설' },
+  3: { hp: 170, stg: 65, slots: 3, lo: 8, hi: 14, elite: true, grade: '도시 질병' },
+  4: { hp: 250, stg: 95, slots: 3, lo: 10, hi: 17, elite: true, grade: '도시 악몽' },
+  5: { hp: 380, stg: 140, slots: 4, lo: 12, hi: 20, elite: true, grade: '도시의 별', str: 2 },
+  6: { hp: 480, stg: 170, slots: 4, lo: 14, hi: 24, elite: true, grade: '불순물급', str: 4 },
+};
+const NF_FX = { blade: { bleed: 2 }, blood: { bleed: 3 }, fire: { burn: 3 }, blunt: { para: 1 }, pierce: { bleed: 1 }, none: undefined };
+function makeNamedFoe(key, name, desc, tier, type = '참격', fx = 'none') {
+  const T_ = NF_TIER[tier], mv = AI_MOVE[type] || '공격', hit = NF_FX[fx];
+  ENEMIES[key] = { elite: T_.elite, name, desc: `${desc} (${T_.grade})`, hp: T_.hp, stg: T_.stg, slots: T_.slots, light: T_.slots + 2, lightRegen: T_.elite ? 2 : 1,
+    speed: tier >= 5 ? [4, 8] : tier >= 3 ? [3, 7] : [1, 5], res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [Math.round(30000 * Math.pow(4, tier)), Math.round(60000 * Math.pow(4, tier))],
+    passive: T_.str ? `${T_.grade} — 매 막 위력 +${T_.str}` : undefined, onRound: T_.str ? (e => { e.st.str += T_.str; e.st.end += T_.str; }) : undefined,
+    pool: [{ name: mv, cost: 1, dice: [[type, T_.lo, T_.hi]], onHit: hit }, { name: `연속 ${mv}`, cost: 2, dice: [[type, T_.lo - 2, T_.hi - 2], [type, T_.lo - 2, T_.hi - 2]], onHit: hit },
+      { name: '막기', cost: 1, dice: [['방어', T_.lo, T_.hi]] }, { name: `몰아치는 ${mv}`, cost: 2, dice: [[type, T_.lo - 3, T_.hi - 3], [type, T_.lo - 3, T_.hi - 3], [type, T_.lo - 3, T_.hi - 3]], onHit: hit },
+      { name: '결정타', cost: 3, dice: [[type, T_.lo + 6, T_.hi + 10]], onHit: hit }].map(c => c.onHit ? c : (({ onHit, ...r }) => r)(c)) };
+  return key;
+}
+// [이름 정규식, 키, 이름, 설명, 등급, 공격 속성, 적중 효과]
+const NAMED_FOES = [
+  // Library of Ruina — 손님들
+  [/윤\s*사무소/, 'nf_yun', '윤 사무소', '뒷골목의 작은 해결사 사무소. 사람을 사람으로 보지 않는 의뢰도 받는다.', 1, '참격', 'blade'],
+  [/철의\s*형제/, 'nf_iron', '철의 형제', '강화시술로 몸을 쇳덩이처럼 만든 형제.', 1, '타격', 'blunt'],
+  [/갈고리\s*사무소/, 'nf_hook', '갈고리 사무소', '갈고리로 사람을 끌어당겨 찢는 사무소. 뒷골목 아이들 사이의 괴담.', 1, '참격', 'blade'],
+  [/피에르|고기\s*파이/, 'nf_pierre', '피에르의 고기파이', '뒷골목 고기파이 가게. 재료가 어디서 오는지는 아무도 묻지 않는다.', 1, '참격', 'blade'],
+  [/가로등\s*사무소/, 'nf_streetlight', '가로등 사무소', '밤거리를 지킨다는 사무소.', 1, '관통', 'pierce'],
+  [/버림받은\s*개/, 'nf_dog', '버림받은 개', '버려진 이들이 모인 무리.', 2, '참격', 'blade'],
+  [/어금니\s*사무소/, 'nf_molar', '어금니 사무소', '도시 전설급 해결사 사무소.', 2, '타격', 'blunt'],
+  [/츠바이\s*협회/, 'nf_zwei', '츠바이 협회 해결사', '방패와 대검으로 의뢰인을 지키는 보호 전문 협회.', 2, '참격', 'none'],
+  [/도끼파/, 'nf_axe', '도끼파', '도끼를 든 뒷골목 조직.', 2, '참격', 'blade'],
+  [/사육제/, 'nf_carnival', '사육제', '가면을 쓴 무리. 사람 가죽으로 옷을 짓는다는 소문이 있다.', 3, '참격', 'blade'],
+  [/마침표\s*사무소/, 'nf_period', '마침표 사무소', '의뢰를 반드시 끝맺는다는 사무소.', 3, '관통', 'pierce'],
+  [/새벽\s*사무소/, 'nf_dawn', '새벽 사무소', '불꽃을 다루는 해결사들.', 3, '참격', 'fire'],
+  [/시선\s*사무소/, 'nf_gaze', '시선 사무소', '도시 질병급 해결사 사무소.', 3, '관통', 'pierce'],
+  [/흑운회/, 'nf_blackcloud', '흑운회', '검은 구름 아래 모인 칼잡이들.', 3, '참격', 'blade'],
+  [/브레멘/, 'nf_bremen', '브레멘 음악대', '뒤틀린 음악대. 연주가 끝날 때까지 도망칠 수 없다.', 3, '타격', 'blunt'],
+  [/쐐기\s*사무소/, 'nf_wedge', '쐐기 사무소', '쐐기를 박듯 찔러 넣는 해결사들.', 3, '관통', 'pierce'],
+  [/토머리/, 'nf_tomerry', '토머리', '도시 질병급 재해.', 3, '타격', 'blunt'],
+  [/녹슨\s*사슬/, 'nf_rustchain', '녹슨 사슬파', '사슬을 휘두르는 조직.', 3, '타격', 'blunt'],
+  [/8시의\s*서커스|서커스/, 'nf_circus', '8시의 서커스', '밤 8시에만 막을 올리는 서커스. 관객이 무대의 일부가 된다.', 4, '참격', 'blade'],
+  [/우는\s*아이/, 'nf_cryingchild', '우는 아이', '울음이 들리면 이미 늦었다는 뒤틀림.', 4, '타격', 'fire'],
+  [/세븐\s*협회/, 'nf_seven', '세븐 협회 해결사', '정보 분석과 약점 공략의 협회.', 4, '참격', 'none'],
+  [/검계/, 'nf_geomgye', '검계', '칼을 든 비밀 결사.', 4, '참격', 'blade'],
+  [/리우\s*협회/, 'nf_liu', '리우 협회 해결사', '불꽃을 다루는 협회의 정예.', 5, '참격', 'fire'],
+  [/샤오/, 'nf_xiao', '샤오', '리우 협회의 해결사. 타오르는 무술.', 5, '타격', 'fire'],
+  [/지팡이\s*사무소/, 'nf_cane', '지팡이 사무소', '지팡이를 든 도시의 별급 사무소.', 5, '타격', 'blunt'],
+  [/동환/, 'nf_donghwan', '1급 해결사 동환', '1급 해결사.', 5, '참격', 'blade'],
+  [/밤의\s*송곳/, 'nf_nightawl', '밤의 송곳', '밤에 움직이는 송곳.', 5, '관통', 'pierce'],
+  [/우제트/, 'nf_wadjet', '우제트', '도시의 별급 존재.', 5, '관통', 'pierce'],
+  [/미래\s*생명/, 'nf_futurelife', '미래생명', '도시의 별급 재해.', 5, '타격', 'blunt'],
+  [/이파리\s*공방/, 'nf_leaf', '이파리 공방', '이름난 공방의 해결사들.', 5, '참격', 'blade'],
+  [/베이야드/, 'nf_bayard', '베이야드', '도시의 별급 존재.', 5, '참격', 'blade'],
+  [/잔향\s*악단/, 'nf_reverb', '잔향악단', '푸른잔향이 이끄는 악단. 도시 전체를 무대로 삼는다.', 6, '참격', 'blade'],
+  // Limbus Company — 라만차랜드
+  [/라만차랜드.*설립자|혈귀\s*장로/, 'nf_lm_founder', '라만차랜드의 설립자', '인간과의 공존을 꿈꾸던 혈귀 장로. 맘브리노의 투구에 속아 꿈을 잃었다.', 6, '관통', 'blood'],
+  [/돌시네아/, 'nf_lm_dulcinea', '돌시네아', '라만차랜드 3구역의 관리자. 끝나지 않는 퍼레이드의 공주.', 6, '관통', 'blood'],
+  [/산초/, 'nf_lm_sancho', '산초', '설립자를 따르던 혈귀.', 6, '참격', 'blood'],
+  [/니콜리나|이발사/, 'nf_lm_nicolina', '이발사 니콜리나', '라만차랜드 1구역의 관리자. 옷차림에 집착한다.', 5, '참격', 'blood'],
+  [/쿠리암브로/, 'nf_lm_curiambro', '신부 쿠리암브로', '라만차랜드 2구역의 관리자. 혈귀들의 고해를 들어주던 신부.', 5, '타격', 'blood'],
+  [/산손/, 'nf_lm_sanson', '산손', '라만차랜드의 봉인을 푼 자.', 5, '관통', 'blood'],
+  [/카세티/, 'nf_lm_cassetti', '카세티', '라만차랜드의 혈귀.', 4, '참격', 'blood'],
+  [/로렌소/, 'nf_lm_lorenzo', '로렌소', '라만차랜드의 혈귀.', 4, '참격', 'blood'],
+  [/침식된\s*혈귀/, 'nf_lm_eroded', '침식된 혈귀', '갈증 끝에 무너져 내린 혈귀.', 4, '참격', 'blood'],
+  [/멋쟁이\s*혈귀/, 'nf_lm_dandy', '멋쟁이 혈귀', '1구역의 패션쇼에 집착하는 혈귀.', 3, '참격', 'blood'],
+  [/유령\s*혈귀/, 'nf_lm_ghost', '유령 혈귀', '2구역 귀신의 집의 분장 혈귀.', 3, '관통', 'blood'],
+  [/행렬의\s*혈귀|퍼레이드/, 'nf_lm_parade', '행렬의 혈귀', '3구역의 끝없는 퍼레이드에 선 혈귀.', 3, '타격', 'blood'],
+  [/라만차랜드/, 'nf_lm_dandy', '멋쟁이 혈귀', '1구역의 패션쇼에 집착하는 혈귀.', 3, '참격', 'blood'],
+  // Limbus Company — 거미집
+  [/발렌치나|엄지\s*아비/, 'nf_sp_valencina', '거미집 엄지 아비 발렌치나', '예지안을 가진 엄지의 옛 간부. 거미집에서 검을 기르는 아비.', 6, '참격', 'fire'],
+  [/뤼엔|검지\s*아비/, 'nf_sp_ruen', '거미집 검지 아비 뤼엔', '거미집의 실세. 지령이 빚은 무기를 다룬다.', 6, '관통', 'pierce'],
+  [/마티아스|중지\s*아비/, 'nf_sp_mattias', '거미집 중지 아비 마티아스', '앙갚음 장부를 펼치는 중지의 옛 간부. 봉인된 대검을 든다.', 6, '타격', 'fire'],
+  [/칼리스토|약지\s*아비/, 'nf_sp_callisto', '거미집 약지 아비 칼리스토', '사람을 재료로 작품을 만드는 약지의 아비.', 6, '참격', 'blade'],
+  [/시오미\s*요루|소지\s*아비/, 'nf_sp_yoru', '거미집 소지 아비 시오미 요루', '거미집에 갇힌 소지의 아비.', 6, '참격', 'blade'],
+  [/키라/, 'nf_sp_kira', '거미집 중지 제자 키라', '마티아스가 기른 제자.', 5, '타격', 'blunt'],
+  [/거미집/, 'nf_sp_disciple', '거미집 제자', '아비들이 기른 칼잡이.', 4, '참격', 'blade'],
+];
+for (const [, k, n, d, t, ty, fx] of NAMED_FOES) if (!ENEMIES[k]) makeNamedFoe(k, n, d, t, ty, fx);
+// 거미집 아비들은 원작(Limbus) 인격 기술을 그대로 쓴다 — 아비 체급에 맞게 위력을 올려서
+{ const ABI = { nf_sp_valencina: ['lf_th_taglio', 'lf_th_elef', 'lf_th_dispose'], nf_sp_ruen: ['cd_blood', 'cd_clap', 'cd_fall', 'cd_whim'], nf_sp_mattias: ['lf_md_stomp', 'lf_md_grudge', 'lf_md_rule', 'canon_laev_unwrap'], nf_sp_callisto: ['lf_rg_dismantle', 'lf_rg_bath', 'lf_rg_rib'] };
+  for (const [k, ids] of Object.entries(ABI)) { const cs = ids.filter(id => CARDS[id] && CARDS[id].dice).map(id => { const c = CARDS[id]; return { name: c.name, cost: Math.min(3, c.cost || 1), dice: c.dice.map(d => [d[0], d[1] + 6, d[2] + 8, ...(d[3] ? [d[3]] : [])]), onHit: c.onHit }; });
+    if (cs.length) ENEMIES[k].pool = [...cs, { name: '막기', cost: 1, dice: [['방어', 14, 24]] }]; } }
+// 원작 특색·인물(먼저 등록된 것) 다음, 일반 특색·뒤틀림보다 먼저 찾도록 앞쪽에 끼운다
+AI_FOES.unshift(...NAMED_FOES.map(([re, k]) => [re, k]));   // 손가락 일반(검지·중지…)보다 먼저 — '거미집 검지 아비' 같은 이름을 정확히 잡는다
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
