@@ -845,9 +845,9 @@ function buildOrigin(o, fingerKey) {
   }
   if (o.variant === 'color') {
     const title = makeColorTitle();
-    return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${title}」`, colorName: title, aff: 'color', grade: 1, hp: 170, stg: 85, money: 1500000000, light: 5,
+    return { id: 'color', tier: o.tier, w: o.w, name: `특색 「${title}」`, colorName: title, aff: 'color', grade: 1, hp: 380, stg: 150, money: 1500000000, light: 6, colorBuffed: true,
       trait: `특색 — 하나 협회가 인정한 최고의 해결사. 상징: ${CARDS.col_sig.name.split(' — ')[1]}.`,
-      deck: ['col_sig', 'col_sig', 'col_strike', 'col_mark', 'col_mark', 'col_guard', 'col_guard', 'col_flash', 'col_flash'],
+      deck: ['col_sig', 'col_sig', 'col_strike', 'col_strike', 'col_mark', 'col_guard', 'col_guard', 'col_flash', 'col_overwhelm', 'col_finisher'],
       intro: '하나 협회가 당신에게 색을 부여했다. 도시의 별을 떨어뜨리는 것이 당신의 일이다.' };
   }
   if (o.aff === 'assoc') return { ...o, aff: pick(ASSOC_KEYS) };
@@ -7561,6 +7561,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   · 공방 주인: [[공방 제작 검]] (무기를 만들 때 — 무기 종류 이름) / [[공방 판매]] (진열대의 무기를 손님에게 팔 때)
   · 해결사: [[사무소 이름]] (사무소에 들어갈 때) / [[동료 고용 5급]] (해결사를 고용할 때, 돈이 든다) / [[특색]] (1급 해결사가 하나 협회에서 색을 받을 때만)
   · 누구나: [[집 구입]] (뒷골목 주택, 3천만 안) / [[둥지 이주]] (둥지 이주권, 3억 안 — 위상 5 이상)
+  [[일행 합류 이름]] / [[일행 이탈 이름]] — 함께 다니는 동료(예: 림버스 컴퍼니 버스팀의 수감자들, 사무소 동료, 권속이 아닌 친구)가 생기거나 떠날 때. 일행은 모든 전투에 함께 나서 싸운다. 여러 명이면 쉼표로 (예: [[일행 합류 이상, 로쟈, 히스클리프]], 최대 6명). 플레이어가 "버스팀과 함께" 같은 설정을 말하면 일행으로 등록하세요.
   [[실적 +2]] — 플레이어가 이 장면에서 직접 의뢰를 끝내거나 사건을 해결하거나 눈에 띄는 공을 세웠을 때만 (한 번에 최대 3). 대화·이동·휴식·구경·시간이 흐르는 것만으로는 절대 주지 마세요. 확실하지 않으면 주지 마세요
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급·직급(예: 큰 아우, 카포, 도슨트, 3급, 1과)이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 인물들이 새 직급으로 부르기만 하고 태그를 빠뜨리지 마세요. 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
@@ -7596,6 +7597,7 @@ function aiStateText() {
   L.push(`체력 ${S.hp}/${S.maxHp} · 자금 ${won(S.money)} · 평판 ${repTier()[1]}`);
   L.push(`${S.day}일차 ${TURNS[S.turn] ? TURNS[S.turn].name : ''}${S.aiMode && typeof aiClock === 'function' && TURNS[S.turn] ? ' ' + aiClock() : ''} · 위치 ${S.warp ? '워프 열차 안' : S.exiled ? '외곽' : (S.loc ? S.loc.label : '')}${!S.warp && !S.exiled && typeof isNest === 'function' ? (isNest() ? ' (둥지 안)' : ' (뒷골목)') : ''}`);
   if (S.aiPlace) L.push(`지금 있는 곳: ${S.aiPlace}`);
+  if ((S.aiParty || []).length) L.push('일행(전투에 함께 나선다): ' + S.aiParty.join(', '));
   if ((S.hires || []).length) L.push('고용한 동료: ' + S.hires.map(h => h.name).join(', '));
   let scene = '', choices = '';
   if (S.phase === 'combat' && C) {
@@ -7736,7 +7738,7 @@ async function aiSend(override) {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|휴전|기억|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
@@ -7833,6 +7835,13 @@ function aiLifeFromInput(t) {
   if (/(집|주택)(을|를)\s*(샀|산다|구입|마련)/.test(t)) out.push('집 구입');
   if (/둥지(로|에)\s*(이사|이주)|이주권(을|를)\s*(샀|구입)/.test(t)) out.push('둥지 이주');
   if (/(색을\s*받|특색이\s*되|특색으로\s*인정)/.test(t)) out.push('특색');
+  // 일행: "버스팀과 함께", "이상, 로쟈와 같이"
+  const SINNERS = ['이상', '파우스트', '돈키호테', '료슈', '뫼르소', '홍루', '히스클리프', '이스마엘', '로쟈', '싱클레어', '오티스', '그레고르'];
+  if (/(함께|같이|동행|데리고|합류)/.test(t)) {
+    const named = SINNERS.filter(n => new RegExp('(^|[^가-힣])' + n + '(과|와|이|가|랑|하고|,|\\s|$)').test(t));
+    if (named.length) out.push('일행 합류 ' + named.join(', '));
+    else if (/(버스\s*팀|LCB|수감자들|림버스\s*컴퍼니)/.test(t) && !(S.aiParty || []).length) out.push('일행 합류 ' + shuffle([...SINNERS]).slice(0, 6).join(', '));
+  }
   return out;
 }
 function aiApplyLife(reply) {
@@ -7969,6 +7978,13 @@ function aiApplyTags(reply) {
     if (gr < g) aiOut(`(한 번에 두 단계까지만 오른다 — ${rankText()})`, 'l-sys');
   }
   aiApplyPlace(reply);
+  // 일행 — 합류·이탈
+  for (const m of reply.matchAll(/\[\[\s*일행\s*(합류|이탈)\s*([^\]]+?)\s*\]\]/g)) {
+    const names = m[2].split(/\s*[,·、]\s*/).map(x => x.trim()).filter(Boolean);
+    S.aiParty = S.aiParty || [];
+    if (m[1] === '합류') { for (const n of names) if (!S.aiParty.includes(n) && S.aiParty.length < 6) S.aiParty.push(n); aiOut(`👥 일행 — ${S.aiParty.join(', ')}`, 'l-sys'); }
+    else { S.aiParty = S.aiParty.filter(n => !names.some(x => n.includes(x) || x.includes(n))); aiOut(`👥 일행에서 빠졌다 — ${names.join(', ')}`, 'l-sys'); }
+  }
   if (!inCombat) aiApplyLife(reply);
   const f = reply.match(/\[\[\s*전투\s*(약함|보통|강함|위험)?\s*([^\]]*?)\s*\]\]/);
   renderTop();
@@ -8656,6 +8672,70 @@ for (const [, k, n, d, t, ty, fx] of NAMED_FOES) if (!ENEMIES[k]) makeNamedFoe(k
     if (cs.length) ENEMIES[k].pool = [...cs, { name: '막기', cost: 1, dice: [['방어', 14, 24]] }]; } }
 // 원작 특색·인물(먼저 등록된 것) 다음, 일반 특색·뒤틀림보다 먼저 찾도록 앞쪽에 끼운다
 AI_FOES.unshift(...NAMED_FOES.map(([re, k]) => [re, k]));   // 손가락 일반(검지·중지…)보다 먼저 — '거미집 검지 아비' 같은 이름을 정확히 잡는다
+/* ---------- 특색의 체급 — 하나 협회가 색을 내린 해결사는 원작 특색 적들(붉은시선·보라눈물 등)과 맞설 수 있어야 한다.
+   시작부터 특색: 체력 380 · 흐트러짐 150 · 빛 6. 도중에 색을 받으면 한 번 크게 강해진다.
+   특색은 매 막 위력 +2(공격·수비) — 원작 특색 적들의 '색' 보정과 같은 결 ---------- */
+Object.assign(CARDS.col_strike, { dice: [['참격', 13, 20], ['관통', 11, 17]] });
+Object.assign(CARDS.col_mark, { dice: [['타격', 10, 16]] });
+Object.assign(CARDS.col_guard, { dice: [['방어', 12, 18], ['회피', 11, 16]] });
+Object.assign(CARDS.col_flash, { dice: [['관통', 8, 13]] });
+Object.assign(CARDS, {
+  col_overwhelm: { name: '압도', cost: 3, dice: [['참격', 12, 18], ['타격', 12, 18], ['관통', 12, 18]], desc: '특색의 연격' },
+  col_finisher: { name: '색의 결정타', cost: 3, dice: [['참격', 18, 28]], onHit: { bleed: 3 }, desc: '적중 시 출혈 3' },
+});
+// 상징 고유 기술도 특색의 체급으로 (상징마다 주사위 위력 +5)
+const _makeColorTitleBuff = makeColorTitle;
+makeColorTitle = function () { const t = _makeColorTitleBuff(); CARDS.col_sig.dice = CARDS.col_sig.dice.map(([ty, a, b, ...x]) => [ty, a + 5, b + 6, ...x]); return t; };
+// 매 막 위력 +2 — 특색 소속이든, 협회에 남은 채 색을 받았든
+const COLOR_RS = { roundStart(P) { P.st.str += 2; P.st.end += 2; } };
+const _HColorBuff = H;
+H = function () {
+  if (!S) return {};
+  if (S._h) return S._h;
+  const out = _HColorBuff();
+  if (faction() === 'color' || S.colorBadge) { const prev = out.roundStart; out.roundStart = prev ? (...a) => { prev(...a); COLOR_RS.roundStart(...a); } : COLOR_RS.roundStart; }
+  return (S._h = out);
+};
+AFFS.color.passive = '색을 받은 자 — 최대 빛 6, 매 막 위력 +2, 감정 획득 2배, 전투마다 1번 치명상을 체력 1로 버팀.';
+AFFS.color.light = 6;
+// 도중에 색을 받았거나, 예전 저장의 약한 특색: 한 번 끌어올린다
+function colorBuffOnce() {
+  if (!S || S.flags.colorBuffed || !(faction() === 'color' || S.colorBadge || S.ch.colorName)) return;
+  if (S.ch.colorBuffed && S.flags) { S.flags.colorBuffed = true; return; }
+  S.flags.colorBuffed = true;
+  const hp = Math.max(0, 380 - S.maxHp), stg = Math.max(0, 150 - S.maxStg);
+  S.maxHp += Math.max(hp, 120); S.hp = S.maxHp; S.maxStg += Math.max(stg, 40); S.lightBonus = (S.lightBonus || 0) + 1;
+  for (const id of ['col_overwhelm', 'col_finisher']) if (!S.deck.includes(id)) S.deck.push(id);
+  if (CARDS.col_sig && !S.flags.colSigBuffed) { S.flags.colSigBuffed = true; }
+  print(`✦ 색의 무게 — 특색에 걸맞은 몸이 되었다. 최대 체력 ${S.maxHp}, 흐트러짐 ${S.maxStg}, 최대 빛 +1, 「압도」·「색의 결정타」`, 'l-day');
+  S._h = null;
+}
+const _renderTopColorBuff = renderTop;
+renderTop = function () { _renderTopColorBuff(); if (S && S.phase !== 'combat' && S.phase !== 'over') colorBuffOnce(); };
+/* ---------- 서술 모드의 일행 — 이야기 속 동료(버스팀 수감자, 사무소 동료 등)가 모든 전투에 함께 나선다.
+   원작 인물이면 그 인물의 체급·기술로, 아니면 플레이어 위상에 맞는 해결사로 싸운다 ---------- */
+function aiPartyMate(name) {
+  const key = typeof aiFoeKey === 'function' ? aiFoeKey(name) : null, d = key && ENEMIES[key];
+  if (d && d.pool) {
+    const atkCard = d.pool.find(c => c.dice && c.dice.some(x => OFF(x[0]))) || d.pool[0], die = atkCard.dice.find(x => OFF(x[0])) || atkCard.dice[0];
+    const lcb = /^lcb_/.test(key);
+    return { name: lcb ? d.name : name, maxHp: lcb ? 140 : Math.round(d.hp * 0.7), atk: lcb ? [die[1] + 4, die[2] + 6] : [die[1], die[2]], type: OFF(die[0]) ? die[0] : '참격', skill: atkCard.name, spdRange: d.speed || (d.elite ? [3, 7] : [2, 6]), revive: lcb };
+  }
+  const L = 10 - Math.max(1, S.grade);
+  return { name, maxHp: 40 + L * 18, atk: [3 + L * 2, 7 + L * 3], type: pick(['참격', '관통', '타격']), skill: '공격', spdRange: [1 + Math.floor(L / 3), 4 + Math.floor(L / 2)] };
+}
+const _fightParty = fight;
+fight = function (key, opts = {}) {
+  _fightParty(key, opts);
+  if (!C || S.phase !== 'combat' || !S.aiMode || !(S.aiParty || []).length || C.partyIn) return;
+  C.partyIn = true;
+  const add = S.aiParty.map(n => ({ kind: 'mate', ...aiPartyMate(n) })).map(a => ({ ...a, hp: a.maxHp }));
+  C.allies = [...(C.allies || []), ...add];
+  clog(`👥 일행이 함께 싸운다 — ${add.map(a => a.name).join(', ')}`, 'l-sys');
+  for (const a of add) allyUnit(a);
+  retargetIntents(); renderCombat();
+};
+// 쓰러진 수감자는 관리자의 시계가 되감는다 — 다음 전투에 다시 나선다 (일행은 전투마다 새로 편성)
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
