@@ -8212,6 +8212,30 @@ clash = async function (pc, ec) { const r = await _clashLaev(pc, ec); if (pc && 
 // 이미 레바테인을 지닌 삶에도 스킬을 준다
 const _renderTopLaev = renderTop;
 renderTop = function () { _renderTopLaev(); if (S && (S.relics || []).includes('laevateinn') && !S.flags.laevUnwrap && !S.redMist) { S.flags.laevUnwrap = true; if (!S.deck.includes('canon_laev_unwrap')) { S.deck.push('canon_laev_unwrap'); if (S.phase !== 'combat') print('레바테인을 쥔 손에 익숙한 감각이 돌아온다 — 「포장을 뜯어볼까」를 쓸 수 있다.', 'l-good'); } } };
+/* ---------- 기술 설명에서 '원작에서 누가 썼는지'를 뗀다 (인물·인격 이름).
+   무기·유물·기법 이름(천퇴성도, 카두세우스, 예지안, 혈청 R 등)은 남긴다 ---------- */
+const SRC_KEEP = ['천퇴성도', '카두세우스', '예지안', '혈청 R', '혈청 W', '혈청 K'];
+function cleanCardDesc(c) {
+  if (!c || !c.desc) return;
+  let d = String(c.desc);
+  // 괄호 속 출처: 물건 이름만 남기고 인물은 지운다 — (R사 묘 — 혈청 R) → (혈청 R), (엘레나) → 삭제
+  d = d.replace(/\s*\(([^()]*)\)/g, (m, inner) => {
+    if (/요정|속박|출혈|마비|화상|최대|전투당|봉인|단계|흡혈|피|위력|막|반영|빛|회복/.test(inner)) return m;   // 효과 설명 괄호는 그대로
+    const keep = inner.split(/\s*[—·]\s*/).filter(x => SRC_KEEP.includes(x.trim()));
+    return keep.length ? ` (${keep.join(' · ')})` : '';
+  });
+  // ' · '로 이어 붙은 출처 조각: 인격·인물 이름은 지우고 물건은 남긴다
+  const persona = c.src ? c.src.split(/\s*·\s*/).filter(x => !SRC_KEEP.includes(x)) : [];
+  persona.push(...persona.map(x => x.replace(/\s*\([^)]*\)/g, '').trim()));   // 괄호를 뗀 형태도 같은 출처로
+  d = d.split(' · ').map(x => x.trim()).filter(x => x && !persona.includes(x) && !/의 책장$|의 잔영이 남긴 기술$/.test(x) && x !== c.src).join(' · ');
+  // 꼬리에 붙은 인물 언급
+  d = d.replace(/\s*—\s*(검은침묵이 가장 아끼던 검|붉은안개의 E\.G\.O)\s*$/, '').replace(/^붉은안개의 책장$/, '').trim();
+  if (c.src) { const items = c.src.split(/\s*·\s*/).filter(x => SRC_KEEP.includes(x)); if (items.length && !items.every(i => d.includes(i))) d = [d, ...items.filter(i => !d.includes(i))].filter(Boolean).join(' · '); }
+  c.desc = d;
+}
+Object.values(CARDS).forEach(cleanCardDesc);
+const _libraryRewardCardsSrc = libraryRewardCards;
+libraryRewardCards = function (key) { const r = _libraryRewardCardsSrc(key); if (r) r.forEach(id => cleanCardDesc(CARDS[id])); return r; };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
