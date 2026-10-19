@@ -7571,6 +7571,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[카드 2]] — 행동에 맞는 카드를 낸다 (여러 장이면 [[카드 1]] [[카드 3]]처럼, 남은 빛 안에서)
   [[대상 2]] — 적이 여럿일 때 노릴 적 번호 (카드보다 먼저 적용)
   [[진행]] — 플레이어가 이번 막의 행동을 마쳤을 때 막을 진행한다. 결과는 다음 입력 때 [최근 기록]으로 보이니 그때 이어 서술하세요.
+  [[휴전]] — 플레이어가 더 싸울 뜻이 없다고 밝히고 상대도 그 자리에서 받아들일 때만. 전투는 피해 없이 끝난다. 상대의 성격·목적에 맞게 판단하고(임무로 온 암살자나 원한이 깊은 상대는 잘 받아들이지 않는다), 말이 통하지 않는 상대(청소부·뒤틀림·환상체·괴물)는 받아들이지 않는다.
 - 세계관의 정설(나무위키에 정리된 원작 설정)을 지키세요. 확실하지 않은 고유 설정은 지어내지 말고 흐릿하게 처리하세요.
 - 일관성: [기억해 둘 것]과 지난 대화에 나온 인물의 이름·직급·소속·말투·관계, 약속과 사건을 그대로 이어 가세요. 한 번 정해진 직급이나 호칭을 바꾸지 마세요. 원작 인물은 원작의 직급·호칭·말투를 따르세요. 플레이어의 직급은 [현재 상태]의 소속·등급이 기준입니다.
 - 새로 기억해야 할 사실(새 인물의 이름과 직급, 관계 변화, 약속, 빚, 중요한 사건)이 생기면 마지막 줄에 [[기억 짧은 문장]]으로 남기세요(예: [[기억 베르길리우스 — 림버스 컴퍼니의 안내인, 플레이어를 '해결사'라 부름]]). 한 번에 1~3개, 이미 기억된 것은 다시 적지 마세요.
@@ -7734,7 +7735,7 @@ async function aiSend(override) {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|기억|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|휴전|기억|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
@@ -7999,7 +8000,24 @@ function aiApplyPlace(reply) {
   }
 }
 // 전투 중 태그: 대상 → 카드 → 진행
+// 휴전 — 서로 싸울 뜻을 거두면 보상도 패배도 없이 전투가 끝난다
+const aiNoTalk = e => !e || e.d.monster || /^(sweeper|twisted|twisted_small|smile|impurity|star)$/.test(e.key || '') || /^(city_|canon_|ab_|os_|ruin_)/.test(e.key || '') || /뒤틀림|환상체|청소부|괴물/.test(e.name || '');
+function aiTruce() {
+  if (!C || C.busy) return false;
+  const foes = combatEnemies().filter(e => e.hp > 0);
+  if (foes.some(aiNoTalk)) { clog('말이 통하는 상대가 아니다. 싸움은 계속된다.', 'l-bad'); return false; }
+  const det = C.logDet, names = foes.map(e => e.name).join(', '), rounds = C.round;
+  S.hp = Math.max(1, Math.min(C.P.hp, S.maxHp));
+  $('#combat').classList.add('hidden'); $('#day').classList.remove('hidden');
+  S.phase = 'day'; C = null;
+  if (T) { T.timeLeft = Math.max(T.timeLeft, 8); T.resolved = true; }
+  if (det) { det.open = false; det.querySelector('summary').innerHTML = `⚔ 전투 — ${escAI(names)} · <span class="l-sys">휴전</span> (${rounds}막) <span class="dim" style="font-size:11px">— 눌러서 전투 기록 보기</span>`; }
+  print(`🕊 ${names}와(과) 싸움을 거뒀다. 서로 무기를 내렸다.`, 'l-sys');
+  renderTop();
+  return true;
+}
 function aiCombatTags(reply) {
+  if (/\[\[\s*휴전\s*\]\]/.test(reply) && aiTruce()) return;
   const tg = reply.match(/\[\[\s*대상\s*(\d+)\s*\]\]/);
   if (tg) selectCombatEnemy(+tg[1] - 1);
   const ids = [...reply.matchAll(/\[\[\s*카드\s*(\d+)\s*\]\]/g)].map(x => C.hand[+x[1] - 1]).filter(Boolean);
@@ -8038,6 +8056,25 @@ function aiGenericFoe(baseKey, name, desc) {
   ENEMIES.ai_foe = { ...b, name: name || b.name, desc: desc || '서술 속에서 맞닥뜨린 상대.', pool, passive: undefined, onRound: undefined, cowed: false };
   return 'ai_foe';
 }
+// 특색 — 하나 협회가 색을 부여한 최상위 해결사. 이름의 상징(번개·서리…)에 맞는 고유 기술을 하나 갖는다
+function aiColorFoe(name, desc) {
+  const nm = (name || '').replace(/^특색\s*/, '').replace(/[「」]/g, '').trim() || '이름 없는 색';
+  const sym = Object.keys(COLOR_SYMBOLS).sort((a, b) => b.length - a.length).find(k => nm.endsWith(k));
+  const sig = sym ? { name: `「${nm}」 — ${COLOR_SYMBOLS[sym].kind}`, cost: 3, dice: COLOR_SYMBOLS[sym].dice.map(([t, a, b]) => [t, a + 6, b + 8]), onHit: COLOR_SYMBOLS[sym].onHit } : null;
+  ENEMIES.ai_color = { elite: true, name: `특색 「${nm}」`, desc: desc || '하나 협회가 색을 부여한 해결사. 도시에서 손에 꼽히는 무력이다.', hp: 420, stg: 160, slots: 4, light: 8, lightRegen: 3,
+    res: { 참격: 0.8, 관통: 0.8, 타격: 0.8 }, reward: [150000000, 300000000], speed: [4, 8],
+    passive: '색 — 모든 주사위 위력 +3. 체력이 절반 이하면 매 막 힘 2 추가',
+    onRound: e => { e.st.str += 3; e.st.end += 3; if (e.hp <= e.maxHp / 2) e.st.str += 2; },
+    pool: [
+      { name: '색의 일격', cost: 2, dice: [['참격', 13, 21]], onHit: { bleed: 3 } },
+      { name: '연격', cost: 2, dice: [['참격', 10, 15], ['관통', 10, 15]] },
+      { name: '색의 장막', cost: 1, dice: [['방어', 13, 19], ['회피', 12, 17]] },
+      { name: '압도', cost: 3, dice: [['참격', 11, 17], ['타격', 11, 17], ['관통', 11, 17]] },
+      { name: '결정타', cost: 3, dice: [['타격', 18, 28]], onHit: { para: 2 } },
+      ...(sig ? [sig] : []),
+    ] };
+  return 'ai_color';
+}
 function aiStartFight({ lv, name, desc }) {
   const known = aiFoeKey(name);
   let [key, hpMul] = AI_FIGHT[lv] || AI_FIGHT.보통;
@@ -8047,6 +8084,7 @@ function aiStartFight({ lv, name, desc }) {
   // 원작에 없는 상대(또는 이름만 빌린 뒤틀림)는 고유 설명·특성 없이 서술대로
   let opt = {};
   if (!known || known === 'twisted') key = aiGenericFoe(key, name, desc);
+  else if (known === 'color_rival') { key = aiColorFoe(name, desc); name = ''; }
   else if (name && desc) opt = { desc };
   if (T && T.awaiting) { T.awaiting = null; $('#event').classList.add('hidden'); }
   fight(key, { ...opt, name: name || undefined, hpMul, noCow: true, lethal: lv === '위험', noRob: true,
