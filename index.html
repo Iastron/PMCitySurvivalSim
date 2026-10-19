@@ -7776,11 +7776,11 @@ function aiOut(text, cls) {
 const escAI = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 let aiBusy = false;
 async function aiSend(override) {
-  const box = $('#aiInput'), msg = (override || box.value).trim();
+  const box = $('#aiInput'), msg = (typeof override === 'string' ? override : box.value).trim();
   if (!msg || aiBusy || !S || S.phase === 'over') return;
   const cfg = aiCfg();
   if (!cfg.key) { aiSettings(); return; }
-  if (!override) box.value = '';
+  if (typeof override !== 'string') box.value = '';
   aiBusy = true; $('#aiSend').disabled = true; $('#aiSend').textContent = '…';
   document.querySelectorAll('.ai-tools').forEach(x => x.remove());   // 고치기·다시 쓰기는 가장 최근 응답에만
   // 다시 쓰기를 위해, 응답을 적용하기 전의 상태를 기억해 둔다
@@ -8275,7 +8275,7 @@ document.body.insertAdjacentHTML('beforeend', `<div id="aiBar" class="hidden"><d
   <div class="hint">대화 한 번 = 10분. 시간대는 「다음 시간대로」로 직접 넘깁니다. 선택지는 채팅으로 — 행동이 선택지와 같으면 서술자가 고릅니다.</div></div>`);
 try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); if (v.mode) $('#heroMode').value = v.mode; } catch (_) {}
 $('#heroMode').addEventListener('change', () => { try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); v.mode = $('#heroMode').value; localStorage.setItem('sht_hero', JSON.stringify(v)); } catch (_) {} if ($('#heroMode').value === 'ai' && !aiCfg().key) aiSettings(); });
-$('#aiCfgBtn').onclick = aiSettings; $('#aiMem').onclick = aiNotesModal; $('#aiGear').onclick = aiSettings; $('#aiSend').onclick = aiSend;
+$('#aiCfgBtn').onclick = aiSettings; $('#aiMem').onclick = aiNotesModal; $('#aiGear').onclick = aiSettings; $('#aiSend').onclick = () => aiSend();
 const aiInput = $('#aiInput');
 aiInput.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); aiSend(); } });
 // 입력하는 동안 시간을 멈춘다
@@ -9354,6 +9354,21 @@ renderResume();
   setBar();
 })();
 </script>
+<script>
+/* ---------- 휴대폰: 보내기를 누르는 순간 입력창의 포커스가 빠지며 키보드가 내려가고 화면이 밀려
+   눌림이 버튼을 빗나가던 문제 — 손가락이 닿는 순간(pointerdown) 바로 처리하고 포커스를 잃지 않게 한다 ---------- */
+(() => {
+  const fast = (id, fn) => { const b = document.getElementById(id); if (!b) return;
+    b.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') return; e.preventDefault(); b._tapped = Date.now(); fn(); });
+    b.addEventListener('click', e => { if (b._tapped && Date.now() - b._tapped < 800) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+  };
+  fast('aiSend', () => aiSend());
+  fast('aiNext', () => aiAdvance());
+  fast('aiMem', () => aiNotesModal());
+  fast('aiGear', () => aiSettings());
+})();
+</script>
+
 
 
 </body>
