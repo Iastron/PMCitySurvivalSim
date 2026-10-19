@@ -7557,7 +7557,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
   [[소속 츠바이 협회]] — 플레이어가 조직·협회·손가락에 들어가거나 나올 때. 고를 수 있는 이름: 뒷골목 무소속 · 무소속 해결사 · 뒷골목 조직원 · 날개 소속 깃털 · 츠바이/시/리우/하나/트레스/섕크/세븐/에잇/제뱌찌/디에치/외우피 협회 · 엄지 · 검지 · 중지 · 약지 · 소지
   [[실적 +2]] — 플레이어가 이 장면에서 직접 의뢰를 끝내거나 사건을 해결하거나 눈에 띄는 공을 세웠을 때만 (한 번에 최대 3). 대화·이동·휴식·구경·시간이 흐르는 것만으로는 절대 주지 마세요. 확실하지 않으면 주지 마세요
-  [[등급 7]] — 플레이어가 시간이 흘러 위상·등급이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
+  [[등급 7]] — 플레이어가 시간이 흘러 위상·등급·직급(예: 큰 아우, 카포, 도슨트, 3급, 1과)이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 인물들이 새 직급으로 부르기만 하고 태그를 빠뜨리지 마세요. 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때. 구 번호와 회사 글자는 짝이 정해져 있습니다(A사=1구, B사=2구, … K사=11구, L사=12구, … Y사=25구). 서술에서도 [현재 상태]의 위치(구 번호·회사)를 그대로 쓰고, 다른 구의 회사 이름을 섞지 마세요.
@@ -7726,6 +7726,7 @@ async function aiSend() {
     const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|기억)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
+    if (!/\[\[\s*등급/.test(reply)) { const gIn = aiGradeFromInput(msg); if (gIn) reply += `\n[[등급 ${gIn}]]`; }   // '큰 아우까지 달성했다' 같은 직급 서술도 반영
     if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
@@ -7742,6 +7743,23 @@ async function aiSend() {
   if (reply && typeof aiPassTime === 'function') aiPassTime();
 }
 
+// 플레이어 입력에서 승급 읽기 — "큰 아우까지 달성했다", "카포가 되었다", "3급 해결사로 승급", "1과로 올라갔다", "위상 5단계"
+function aiGradeFromInput(t) {
+  if (!t || !/(달성|됐|되었|되어|올랐|올라|승진|승급|진급|임명|이\s*되|가\s*되|으로\s*인정|자리에\s*앉)/.test(t)) return null;
+  const cands = [];   // [제목, 그 직급의 가장 낮은 위상(등급 숫자)]
+  const a = AFF(), TIER_GRADE = [9, 5, 2];
+  if (a.faction === 'finger' && a.ranks) {
+    a.ranks.forEach((r, i) => { const short = r.replace(a.name, '').trim(); cands.push([short, TIER_GRADE[i]], [short.replace('형님', '누님'), TIER_GRADE[i]]); });
+    if (S.aff === 'f_middle') cands.push(['큰 아우', 6]);
+  }
+  if (a.faction === 'assoc') cands.push(['1과', 2], ['2과', 3], ['3과', 4], ['6과', 9]);
+  let best = null;
+  for (const [title, g] of cands) if (title && t.includes(title) && (best === null || title.length > best[0].length)) best = [title, g];
+  if (best) return best[1];
+  const fx = t.match(/([1-9])\s*급/); if (fx && isFixer()) return +fx[1];
+  const st = t.match(/([1-9])\s*단계/); if (st) return 10 - +st[1];
+  return null;
+}
 // 플레이어 입력에서 이동 읽기 — "K사로 이동", "12구로 간다", "둥지로 들어간다", "뒷골목으로 나간다"
 function aiMoveFromInput(t) {
   if (!t) return null;
