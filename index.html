@@ -7556,6 +7556,11 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[압박 +5]] — 공포·상실·굴욕 같은 괴로운 일로 정신 압박이 쌓일 때(나쁜 일) / [[압박 -5]] — 안도·위안·기쁜 일로 압박이 풀릴 때(좋은 일). 좋은 일에 +를 쓰지 마세요
   [[평판 +3]] / [[평판 -3]] — 소문이 날 만한 행동
   [[소속 츠바이 협회]] — 플레이어가 조직·협회·손가락에 들어가거나 나올 때. 고를 수 있는 이름: 뒷골목 무소속 · 무소속 해결사 · 뒷골목 조직원 · 날개 소속 깃털 · 츠바이/시/리우/하나/트레스/섕크/세븐/에잇/제뱌찌/디에치/외우피 협회 · 엄지 · 검지 · 중지 · 약지 · 소지
+  삶(소속·직업)마다 쓰는 태그 — [현재 상태]에 맞는 것만:
+  · 혈귀: [[권속 +1]] (피를 나눠 권속을 만들 때, 피 3 소모) / [[피주머니 +1]] (사람을 피주머니로 삼을 때) / [[피 +3]] (전투 밖에서 피를 마셨을 때, 최대 10)
+  · 공방 주인: [[공방 제작 검]] (무기를 만들 때 — 무기 종류 이름) / [[공방 판매]] (진열대의 무기를 손님에게 팔 때)
+  · 해결사: [[사무소 이름]] (사무소에 들어갈 때) / [[동료 고용 5급]] (해결사를 고용할 때, 돈이 든다) / [[특색]] (1급 해결사가 하나 협회에서 색을 받을 때만)
+  · 누구나: [[집 구입]] (뒷골목 주택, 3천만 안) / [[둥지 이주]] (둥지 이주권, 3억 안 — 위상 5 이상)
   [[실적 +2]] — 플레이어가 이 장면에서 직접 의뢰를 끝내거나 사건을 해결하거나 눈에 띄는 공을 세웠을 때만 (한 번에 최대 3). 대화·이동·휴식·구경·시간이 흐르는 것만으로는 절대 주지 마세요. 확실하지 않으면 주지 마세요
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급·직급(예: 큰 아우, 카포, 도슨트, 3급, 1과)이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 인물들이 새 직급으로 부르기만 하고 태그를 빠뜨리지 마세요. 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
@@ -7729,11 +7734,12 @@ async function aiSend(override) {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|기억)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|기억|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
     if (!/\[\[\s*등급/.test(reply)) { const gIn = aiGradeFromInput(msg); if (gIn) reply += `\n[[등급 ${gIn}]]`; }   // '큰 아우까지 달성했다' 같은 직급 서술도 반영
+    for (const tg of aiLifeFromInput(msg)) if (!reply.includes('[[' + tg.split(' ')[0])) reply += `\n[[${tg}]]`;   // 권속·피주머니·제작·판매·사무소 같은 삶의 행동도 입력대로
     if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
@@ -7803,6 +7809,82 @@ document.addEventListener('click', e => {
   else if (k === 'mesave') { const v = b.parentElement.querySelector('input').value.trim(); if (v) aiRegenerate(v); }
 });
 document.head.insertAdjacentHTML('beforeend', '<style>.ai-tools{margin-left:6px;white-space:nowrap}.ai-tools button,.ai-line button[data-ai]{padding:1px 7px;font-size:11px;margin-left:3px;border-radius:4px;opacity:.75}.ai-tools button:hover{opacity:1}</style>');
+
+// 삶마다의 행동 — 혈귀·공방·해결사·거처
+const isVamp = () => faction() === 'vampire' || !!S.vampRank;
+function aiLifeFromInput(t) {
+  const out = []; if (!t) return out;
+  if (isVamp()) {
+    if (/권속(으로|을)\s*(만들|삼|들이|맞이)|피를\s*나눠/.test(t)) out.push('권속 +1');
+    if (/피주머니(로|를)\s*(만들|삼|데려|끌고|가두)/.test(t)) out.push('피주머니 +1');
+    if (/(피를|목을)\s*(마셨|마시|빨았|빨아|물었|들이켰)|흡혈(했|한다)/.test(t) && S.phase !== 'combat') out.push('피 +2');
+  }
+  if (S.ws) {
+    const ty = wsTypesOpen().find(x => t.includes(x.n));
+    if (ty && /(만들|제작|벼리|단조|두드려|완성)/.test(t)) out.push('공방 제작 ' + ty.n);
+    if (/(팔았|팔아|판매|넘겼|팔렸)/.test(t) && (S.ws.stock || []).length) out.push('공방 판매');
+  }
+  const of = t.match(/[「"']?([가-힣A-Za-z0-9 ]{1,12}?)\s*사무소[」"']?(에|으로|로)?\s*(들어|입사|가입|합류)/);
+  if (of && !S.office && isFixer()) out.push('사무소 ' + of[1].trim());
+  const hr = t.match(/([1-9])\s*급\s*해결사(를|들을)?\s*(고용|부르|데려|계약)/);
+  if (hr) out.push('동료 고용 ' + hr[1] + '급');
+  if (/(집|주택)(을|를)\s*(샀|산다|구입|마련)/.test(t)) out.push('집 구입');
+  if (/둥지(로|에)\s*(이사|이주)|이주권(을|를)\s*(샀|구입)/.test(t)) out.push('둥지 이주');
+  if (/(색을\s*받|특색이\s*되|특색으로\s*인정)/.test(t)) out.push('특색');
+  return out;
+}
+function aiApplyLife(reply) {
+  const has = re => re.test(reply);
+  if (isVamp()) {
+    if (has(/\[\[\s*권속\s*\+?\s*1?\s*\]\]/)) {
+      if ((S.thralls || 0) >= 5) aiOut('권속은 이미 다섯이다. 더는 거느릴 수 없다.', 'l-sys');
+      else if ((S.vampRank || 9) >= 9) aiOut('제9권속은 권속을 만들 수 없다.', 'l-sys');
+      else if ((S.blood || 0) < 3) aiOut('나눌 피가 모자라다 (피 3 필요).', 'l-bad');
+      else { S.blood -= 3; S.thralls = (S.thralls || 0) + 1; S.thrallPow = (S.thrallPow || 0) + 1; infamy(3, '새 혈귀 출현'); aiOut(`🩸 새 권속이 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. (권속 ${S.thralls}/5, 피 ${S.blood})`, 'l-day'); }
+    }
+    if (has(/\[\[\s*피주머니\s*\+?\s*1?\s*\]\]/)) {
+      if ((S.pouches || 0) >= 5 && !S.warp) aiOut('은신처에 더 가둘 자리가 없다. (피주머니 5)', 'l-sys');
+      else { S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + 1; if (S.warp && S.warp.stow) { S.warp.pouchesMade = (S.warp.pouchesMade || 0) + 1; S.warp.yieldMade = (S.warp.yieldMade || 0) + 1; } infamy(2, '실종 사건'); aiOut(`🩸 피주머니가 하나 늘었다. (피주머니 ${S.pouches})`, 'l-day'); }
+    }
+    const bl = reply.match(/\[\[\s*피\s*([+-]?\s*\d+)\s*\]\]/);
+    if (bl) { const v = Math.max(-10, Math.min(10, parseInt(bl[1].replace(/\s/g, ''), 10))); S.blood = Math.max(0, (S.blood || 0) + v); aiOut(`🩸 피 ${v >= 0 ? '+' : ''}${v} (피 ${S.blood})`, v >= 0 ? 'l-good' : 'l-bad'); }
+  }
+  if (S.ws) {
+    const mk = reply.match(/\[\[\s*공방\s*제작\s*([^\]]*?)\s*\]\]/);
+    if (mk) {
+      const ty = wsTypesOpen().find(x => mk[1] && (mk[1].includes(x.n) || x.n.includes(mk[1]))) || wsTypesOpen()[0];
+      const before = S.ws.stock.length;
+      if (wsCraftsLeft() <= 0) aiOut('오늘은 더 만들 기력이 없다. (하루 제작 횟수 소진)', 'l-sys');
+      else if (S.ws.stock.length >= 6) aiOut('진열대가 꽉 찼다. 먼저 팔아야 한다.', 'l-sys');
+      else { const q = wsMaxQ(S.ws.lv), cost = Math.round(ty.price * WS_QMUL[q] * 0.4); if (S.money < cost) aiOut(`재료비가 모자라 만들지 못했다 (${won(cost)}).`, 'l-bad'); else { wsCraft(ty.k, q); closeModal(); } }
+    }
+    if (/\[\[\s*공방\s*판매\s*\]\]/.test(reply) && S.ws.stock.length) {
+      const id = S.ws.stock.shift(), v = Math.round(CARDS[id].wsValue * (0.9 + Math.random() * 0.25));
+      S.money += v; S.ws.sold++; S.ws.revenue += v; aiOut(`🔨 「${CARDS[id].name}」을(를) 팔았다. +${won(v)} (보유 ${won(S.money)})`, 'l-good'); wsLevelCheck();
+    }
+  }
+  const of = reply.match(/\[\[\s*사무소\s*([^\]]+?)\s*\]\]/);
+  if (of && !S.office && isFixer()) { const name = of[1].replace(/사무소|「|」/g, '').trim().slice(0, 12) || '이름 없는'; S.office = { name, tier: 0, joined: S.day }; S._h = null; aiOut(`◆ 「${name} 사무소」에 들어갔다. 책상 하나와 낡은 사물함이 생겼다.`, 'l-day'); }
+  const hr = reply.match(/\[\[\s*동료\s*고용\s*([1-9])\s*급?\s*\]\]/);
+  if (hr) { const g = +hr[1];
+    if ((S.hires || []).length >= HIRE_MAX) aiOut(`고용할 수 있는 동료는 ${HIRE_MAX}명까지다.`, 'l-sys');
+    else if (!hireOk(g)) aiOut(`${g}급 해결사는 평판이 「신뢰」 이상이어야 계약해 준다.`, 'l-sys');
+    else if (S.money < HIRE_PRICE[g]) aiOut(`${g}급 해결사를 부를 돈이 모자라다 (${won(HIRE_PRICE[g])}).`, 'l-bad');
+    else { S.money -= HIRE_PRICE[g]; const x = makeHire(g); S.hires = [...(S.hires || []), x]; aiOut(`🤝 ${x.name}과(와) ${HIRE_DAYS}일 계약했다. -${won(HIRE_PRICE[g])}`, 'l-good'); } }
+  if (/\[\[\s*(집\s*구입|둥지\s*이주)\s*\]\]/.test(reply) && S.exiled) aiOut('외곽에서는 도시의 집을 구할 수 없다. 도시로 돌아가야 한다.', 'l-sys');
+  if (/\[\[\s*집\s*구입\s*\]\]/.test(reply) && !S.ownHome && !S.exiled) {
+    if (S.money >= 30000000) { S.money -= 30000000; S.ownHome = 'alley'; aiOut(`🏠 뒷골목에 내 집이 생겼다. -${won(30000000)}`, 'l-day'); } else aiOut('집을 살 돈이 모자라다 (3천만 안).', 'l-bad');
+  }
+  if (/\[\[\s*둥지\s*이주\s*\]\]/.test(reply) && S.ownHome !== 'nest' && !S.exiled) {
+    if (!(S.grade <= 5 || ['wing', 'head'].includes(faction()))) aiOut('둥지 이주는 날개의 허가가 필요하다 (위상 5 이상).', 'l-sys');
+    else if (S.money >= 300000000) { S.money -= 300000000; S.ownHome = 'nest'; aiOut(`🏙 둥지의 집으로 이주했다. -${won(300000000)}`, 'l-day'); } else aiOut('둥지 이주권을 살 돈이 모자라다 (3억 안).', 'l-bad');
+  }
+  if (/\[\[\s*특색\s*\]\]/.test(reply) && !S.ch.colorName) {
+    if (!(isFixer() && S.grade === 1)) aiOut('색은 1급 해결사에게만 부여된다.', 'l-sys');
+    else { const c = makeColorTitle(); S.ch.colorName = c; aiOut(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day');
+      if (faction() === 'assoc') { S.colorBadge = true; S._h = null; } else changeAff('color'); addCard('col_sig'); }
+  }
+}
 
 // 플레이어 입력에서 승급 읽기 — "큰 아우까지 달성했다", "카포가 되었다", "3급 해결사로 승급", "1과로 올라갔다", "위상 5단계"
 function aiGradeFromInput(t) {
@@ -7885,6 +7967,7 @@ function aiApplyTags(reply) {
     if (gr < g) aiOut(`(한 번에 두 단계까지만 오른다 — ${rankText()})`, 'l-sys');
   }
   aiApplyPlace(reply);
+  if (!inCombat) aiApplyLife(reply);
   const f = reply.match(/\[\[\s*전투\s*(약함|보통|강함|위험)?\s*([^\]]*?)\s*\]\]/);
   renderTop();
   if (!f) return null;
