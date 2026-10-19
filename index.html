@@ -7703,14 +7703,20 @@ function aiOut(text, cls) {
 }
 const escAI = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 let aiBusy = false;
-async function aiSend() {
-  const box = $('#aiInput'), msg = box.value.trim();
+async function aiSend(override) {
+  const box = $('#aiInput'), msg = (override || box.value).trim();
   if (!msg || aiBusy || !S || S.phase === 'over') return;
   const cfg = aiCfg();
   if (!cfg.key) { aiSettings(); return; }
-  box.value = ''; aiBusy = true; $('#aiSend').disabled = true; $('#aiSend').textContent = '…';
+  if (!override) box.value = '';
+  aiBusy = true; $('#aiSend').disabled = true; $('#aiSend').textContent = '…';
+  document.querySelectorAll('.ai-tools').forEach(x => x.remove());   // 고치기·다시 쓰기는 가장 최근 응답에만
+  // 다시 쓰기를 위해, 응답을 적용하기 전의 상태를 기억해 둔다
+  const logEl = S.phase === 'combat' ? $('#clog') : $('#log');
+  aiLast = { msg, snap: JSON.stringify(S, (k, v) => (typeof v === 'function' || k === '_h') ? undefined : v), queue: T ? T.queue.slice() : [], tRef: T, awaitRef: T && T.awaiting, phase: S.phase, day: S.day, turn: S.turn, logEl, mark: logEl.children.length };
   aiHoldTime();
-  aiOut(`<span class="ai-me">▸ ${escAI(S.heroName || '나')}: ${escAI(msg)}</span>`, 'ai-line');
+  aiOut(`<span class="ai-me">▸ ${escAI(S.heroName || '나')}: ${escAI(msg)}</span><span class="ai-tools"><button data-ai="editme" title="내 입력을 고쳐 다시 보낸다">✎</button></span>`, 'ai-line');
+  aiLast.userEl = logEl.lastElementChild;
   aiOut('<span class="dim ai-wait">서술자가 장면을 쓰는 중… (그동안 시간은 멈춰 있다)</span>', 'ai-line');
   S.aiHist = (S.aiHist || []).slice(-AI_HIST);
   const turn = { role: 'user', content: `${aiStateText()}\n\n[플레이어의 입력]\n${msg}` };
@@ -7725,7 +7731,8 @@ async function aiSend() {
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
     const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|소속|전투|장소|이동|카드|대상|진행|기억)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
-    aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span>`, 'ai-line');
+    aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
+    aiLast.body = body;
     if (!/\[\[\s*등급/.test(reply)) { const gIn = aiGradeFromInput(msg); if (gIn) reply += `\n[[등급 ${gIn}]]`; }   // '큰 아우까지 달성했다' 같은 직급 서술도 반영
     if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
@@ -7742,6 +7749,60 @@ async function aiSend() {
   aiReleaseTime();
   if (reply && typeof aiPassTime === 'function') aiPassTime();
 }
+
+// 답변 다시 쓰기·고치기
+let aiLast = null;
+// 이번 응답 이후로 시간대·사건·전투가 바뀌지 않았을 때만 되돌릴 수 있다
+const aiCanRewind = () => aiLast && !aiBusy && S && S.phase === 'day' && aiLast.phase === 'day' && T === aiLast.tRef && T.awaiting === aiLast.awaitRef && S.day === aiLast.day && S.turn === aiLast.turn;
+function aiRewind() {
+  const keepPrompt = S.aiMode;
+  S = JSON.parse(aiLast.snap); S._h = null; S.aiMode = keepPrompt;
+  if (T) T.queue = aiLast.queue.slice();
+  const u = aiLast.userEl; if (u && u.parentElement) { while (u.nextSibling) u.parentElement.removeChild(u.nextSibling); u.remove(); }
+  renderTop();
+}
+function aiRegenerate(newMsg) {
+  if (!aiLast || aiBusy) return;
+  if (!aiCanRewind()) { print('이 응답 뒤로 시간대·사건·전투가 이미 바뀌어 되돌릴 수 없다. (서술 문장 고치기는 할 수 있다)', 'l-sys'); return; }
+  const msg = newMsg || aiLast.msg;
+  aiRewind();
+  aiSend(msg);
+}
+function aiEditBody(btn) {
+  const line = btn.closest('.ai-line'), span = line && line.querySelector('.ai-text'); if (!span || !aiLast) return;
+  const old = aiLast.body || span.innerText;
+  span.innerHTML = `<textarea class="ai-edit" style="width:100%;min-height:90px;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px">${escAI(old)}</textarea><button data-ai="editsave">저장</button><button data-ai="editcancel">취소</button>`;
+  line.querySelector('.ai-tools') && (line.querySelector('.ai-tools').style.display = 'none');
+}
+function aiEditFinish(btn, save) {
+  const line = btn.closest('.ai-line'), span = line.querySelector('.ai-text'), ta = span.querySelector('textarea');
+  const text = save ? ta.value.trim() : (aiLast.body || '');
+  if (save && text) {
+    const h = S.aiHist || []; for (let i = h.length - 1; i >= 0; i--) if (h[i].role === 'assistant' && h[i].content === aiLast.body) { h[i].content = text; break; }
+    aiLast.body = text;   // 고친 서술은 다음 대화부터 서술자가 사실로 이어 간다
+  }
+  span.innerHTML = escAI(text).replace(/\n+/g, '<br>');
+  const tools = line.querySelector('.ai-tools'); if (tools) tools.style.display = '';
+}
+function aiEditMine(btn) {
+  if (!aiLast) return;
+  const line = btn.closest('.ai-line'), me = line.querySelector('.ai-me');
+  me.innerHTML = `▸ <input class="ai-edit-me" value="${escAI(aiLast.msg)}" style="width:70%;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 6px"> <button data-ai="mesave">다시 보내기</button>`;
+  line.querySelector('.ai-tools').style.display = 'none';
+  const inp = me.querySelector('input'); inp.focus();
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); me.querySelector('[data-ai="mesave"]').click(); } });
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-ai]'); if (!b) return;
+  const k = b.dataset.ai;
+  if (k === 'regen') aiRegenerate();
+  else if (k === 'edit') aiEditBody(b);
+  else if (k === 'editsave') aiEditFinish(b, true);
+  else if (k === 'editcancel') aiEditFinish(b, false);
+  else if (k === 'editme') aiEditMine(b);
+  else if (k === 'mesave') { const v = b.parentElement.querySelector('input').value.trim(); if (v) aiRegenerate(v); }
+});
+document.head.insertAdjacentHTML('beforeend', '<style>.ai-tools{margin-left:6px;white-space:nowrap}.ai-tools button,.ai-line button[data-ai]{padding:1px 7px;font-size:11px;margin-left:3px;border-radius:4px;opacity:.75}.ai-tools button:hover{opacity:1}</style>');
 
 // 플레이어 입력에서 승급 읽기 — "큰 아우까지 달성했다", "카포가 되었다", "3급 해결사로 승급", "1과로 올라갔다", "위상 5단계"
 function aiGradeFromInput(t) {
