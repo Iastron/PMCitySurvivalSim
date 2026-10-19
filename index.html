@@ -8765,7 +8765,8 @@ fight = function (key, opts = {}) {
   _fightParty(key, opts);
   if (!C || S.phase !== 'combat' || !S.aiMode || !(S.aiParty || []).length || C.partyIn) return;
   C.partyIn = true;
-  const add = S.aiParty.map(n => ({ kind: 'mate', ...aiPartyMate(n) })).map(a => ({ ...a, hp: a.maxHp }));
+  const add = S.aiParty.map(n => aiPartyMate(n)).filter(Boolean).map(m => ({ kind: 'mate', ...m, hp: m.maxHp }));
+  if (!add.length) return;
   C.allies = [...(C.allies || []), ...add];
   clog(`👥 일행이 함께 싸운다 — ${add.map(a => a.name).join(', ')}`, 'l-sys');
   for (const a of add) allyUnit(a);
@@ -9026,6 +9027,49 @@ fight = function (key, opts = {}) {
     for (const e of C.enemies.slice(1)) { e.maxHp = e.hp = Math.round(ENEMIES[e.key].hp * r); e.maxStg = e.stg = Math.round(ENEMIES[e.key].stg * rs); e.power = e0.power || 0; e.st.str = e0.st.str; }
     renderCombat();
   }
+};
+/* ---------- 서술 속 환상체·뒤틀림의 위험 등급(ZAYIN~ALEPH)을 그대로 따른다 — 'ALEPH와 싸운다'면 ALEPH급이 나온다.
+   등급 숫자(ALEPH-7 등)가 있으면 그 숫자, 없으면 그 등급의 상위권에서 고른다 ---------- */
+const RISK_ORDER = ['ZAYIN', 'TETH', 'HE', 'WAW', 'ALEPH'];
+function aiRiskFoe(name) {
+  const m = (name || '').match(/(ZAYIN|TETH|HE|WAW|ALEPH|자인|테스|헤|와우|알레프)(?:\s*[-‐–]?\s*(\d{1,2}))?/i); if (!m) return null;
+  const KO = { 자인: 'ZAYIN', 테스: 'TETH', 헤: 'HE', 와우: 'WAW', 알레프: 'ALEPH' };
+  const cls = (KO[m[1]] || m[1]).toUpperCase(), num = m[2] ? Math.max(1, Math.min(10, +m[2])) : null;
+  const all = Object.keys(ENEMIES).map(k => { const mm = (ENEMIES[k].name || '').match(/^\[(ZAYIN|TETH|HE|WAW|ALEPH)(?:-(\d+))?\]/); return mm ? { k, cls: mm[1], n: mm[2] ? +mm[2] : 10 } : null; }).filter(x => x && x.cls === cls);
+  if (!all.length) return null;
+  if (num) { const same = all.filter(x => x.n === num); if (same.length) return pick(same).k; }
+  // 숫자가 없으면 등급에 맞는 전투 위험도 구간에서: ZAYIN 1~4 · TETH 3~6 · HE 4~7 · WAW 6~9 · ALEPH 8~10
+  const BAND = { ZAYIN: [1, 4], TETH: [3, 6], HE: [4, 7], WAW: [6, 9], ALEPH: [8, 10] }[cls];
+  const inBand = all.filter(x => x.n >= BAND[0] && x.n <= BAND[1]);
+  return pick(inBand.length ? inBand : all).k;
+}
+const _aiFoeKeyRisk = aiFoeKey;
+aiFoeKey = function (name) {
+  const k = _aiFoeKeyRisk(name);
+  // 이름으로 원작 환상체(큰 새, 아무것도 없는 등)를 찾았으면 그대로, 아니면 위험 등급으로
+  if (k && /^(canon_|ab_)/.test(k)) return k;
+  const r = aiRiskFoe(name);
+  if (r && (!k || /^(city_|ab_|twisted)/.test(k) || !/^(nf_|color_|lcb_|rep_|claw|arbiter|gebura|roland|binah|rift_)/.test(k))) return r;
+  return k;
+};
+
+/* ---------- 단테는 싸우지 않는다 — 관리자는 전투에 나서지 않고 시계를 감아 쓰러진 수감자를 되살린다 (전투당 한 번) ---------- */
+const NONCOMBAT_PARTY = /^(단테|관리자|카론)$/;
+const _aiPartyMateNC = aiPartyMate;
+aiPartyMate = function (name) { return NONCOMBAT_PARTY.test(String(name).trim()) ? null : _aiPartyMateNC(name); };
+const _fightPartyNC = fight;
+fight = function (key, opts = {}) {
+  _fightPartyNC(key, opts);
+  if (C && C.allies) C.allies = C.allies.filter(a => a);
+  if (C && S.aiMode && (S.aiParty || []).some(n => /^(단테|관리자)$/.test(n))) { C.danteRewind = 1; clog('째깍 — 관리자가 뒤에서 시계를 쥐고 있다. (수감자가 쓰러지면 한 번 되감는다)', 'l-sys'); }
+};
+const _processAllyDeathsNC = processAllyDeaths;
+processAllyDeaths = function () {
+  if (C && C.allies && C.danteRewind > 0) {
+    const down = C.allies.find(a => a.hp <= 0 && !a.dead && /LCB 수감자/.test(a.name));
+    if (down) { C.danteRewind--; down.hp = Math.round(down.maxHp * 0.6); down.staggered = false; down.stg = down.maxStg; clog(`⏱ 째깍째깍 — 관리자의 시계가 되감긴다. ${down.name}이(가) 다시 일어선다.`, 'l-day'); }
+  }
+  return _processAllyDeathsNC();
 };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
