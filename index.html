@@ -7739,7 +7739,7 @@ async function aiSend(override) {
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
     if (!/\[\[\s*등급/.test(reply)) { const gIn = aiGradeFromInput(msg); if (gIn) reply += `\n[[등급 ${gIn}]]`; }   // '큰 아우까지 달성했다' 같은 직급 서술도 반영
-    for (const tg of aiLifeFromInput(msg)) if (!reply.includes('[[' + tg.split(' ')[0])) reply += `\n[[${tg}]]`;   // 권속·피주머니·제작·판매·사무소 같은 삶의 행동도 입력대로
+    for (const tg of aiLifeFromInput(msg)) if (!reply.replace(/\s/g, '').includes('[[' + tg.split(' ')[0])) reply += `\n[[${tg}]]`;   // 권속·피주머니·제작·판매·사무소 같은 삶의 행동도 입력대로
     if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
@@ -7815,8 +7815,8 @@ const isVamp = () => faction() === 'vampire' || !!S.vampRank;
 function aiLifeFromInput(t) {
   const out = []; if (!t) return out;
   if (isVamp()) {
-    if (/권속(으로|을)\s*(만들|삼|들이|맞이)|피를\s*나눠/.test(t)) out.push('권속 +1');
-    if (/피주머니(로|를)\s*(만들|삼|데려|끌고|가두)/.test(t)) out.push('피주머니 +1');
+    if (/권속\s*(으로|로|을|를)?\s*(하나|한\s*명|새로)?\s*(만들|만든|삼|들이|들인|맞이|늘)|피를\s*나눠|권속이\s*(하나\s*)?(생겼|늘었)/.test(t)) out.push('권속 +1');
+    if (/피\s*주머니\s*(으로|로|를|을)?\s*(하나|한\s*명|새로)?\s*(만들|만든|삼|데려|끌고|가두|가둔|확보|들였|늘)|피\s*주머니가\s*(하나\s*)?(생겼|늘었)/.test(t)) out.push('피주머니 +1');
     if (/(피를|목을)\s*(마셨|마시|빨았|빨아|물었|들이켰)|흡혈(했|한다)/.test(t) && S.phase !== 'combat') out.push('피 +2');
   }
   if (S.ws) {
@@ -7836,13 +7836,13 @@ function aiLifeFromInput(t) {
 function aiApplyLife(reply) {
   const has = re => re.test(reply);
   if (isVamp()) {
-    if (has(/\[\[\s*권속\s*\+?\s*1?\s*\]\]/)) {
+    if (has(/\[\[\s*권속(?!\s*-)[^\]]*\]\]/)) {
       if ((S.thralls || 0) >= 5) aiOut('권속은 이미 다섯이다. 더는 거느릴 수 없다.', 'l-sys');
       else if ((S.vampRank || 9) >= 9) aiOut('제9권속은 권속을 만들 수 없다.', 'l-sys');
       else if ((S.blood || 0) < 3) aiOut('나눌 피가 모자라다 (피 3 필요).', 'l-bad');
       else { S.blood -= 3; S.thralls = (S.thralls || 0) + 1; S.thrallPow = (S.thrallPow || 0) + 1; infamy(3, '새 혈귀 출현'); aiOut(`🩸 새 권속이 눈을 떴다. 제${Math.min(9, S.vampRank + 1)}권속. (권속 ${S.thralls}/5, 피 ${S.blood})`, 'l-day'); }
     }
-    if (has(/\[\[\s*피주머니\s*\+?\s*1?\s*\]\]/)) {
+    if (has(/\[\[\s*피\s*주머니(?!\s*-)[^\]]*\]\]/)) {
       if ((S.pouches || 0) >= 5 && !S.warp) aiOut('은신처에 더 가둘 자리가 없다. (피주머니 5)', 'l-sys');
       else { S.pouches = (S.pouches || 0) + 1; S.pouchYield = (S.pouchYield || 0) + 1; if (S.warp && S.warp.stow) { S.warp.pouchesMade = (S.warp.pouchesMade || 0) + 1; S.warp.yieldMade = (S.warp.yieldMade || 0) + 1; } infamy(2, '실종 사건'); aiOut(`🩸 피주머니가 하나 늘었다. (피주머니 ${S.pouches})`, 'l-day'); }
     }
