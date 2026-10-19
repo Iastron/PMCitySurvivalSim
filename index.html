@@ -239,6 +239,39 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
   #clog{height:96px}
   #combat .status:empty{display:none}
 }
+
+/* ---------- 모바일 보강 (2) — 늘어난 메뉴 버튼, 서술 모드 입력창, 하단 고정 요소 겹침 ---------- */
+:root{--aibar:0px}
+@media (max-width:600px){
+  /* 메뉴 버튼: 한 줄로 가로 스크롤 (잘려 보이지 않게) */
+  .menu-btns{flex:1 1 100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  .menu-btns::-webkit-scrollbar{display:none}
+  .menu-btns button{flex:0 0 auto !important;min-height:34px}
+  /* 시작 화면: 이름·성별·모드를 두 칸 격자로 */
+  .hero-controls{display:grid !important;grid-template-columns:auto 1fr;gap:8px 10px;align-items:center}
+  .hero-controls input,.hero-controls select{width:100%;min-height:40px}
+  .hero-controls #aiCfgBtn{grid-column:1 / -1;min-height:40px}
+  /* 서술 모드: 시간은 대화로 흐르니 배속·제한시간 막대는 숨기고, 기록창을 넓게 */
+  body.ai-on .speed,body.ai-on .timer{display:none}
+  body.ai-on #log{max-height:none;height:calc(100dvh - 210px - var(--aibar));min-height:220px}
+  body.ai-on{padding-bottom:calc(var(--aibar) + 8px) !important}
+  /* 서술 모드 입력창: 첫 줄은 입력, 둘째 줄은 버튼 */
+  body #aiBar{padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+  body #aiBar .in{flex-wrap:wrap;gap:6px}
+  body #aiInput{flex:1 1 100%;height:52px;font-size:16px}
+  body #aiBar .in button{min-height:40px;padding:6px 10px}
+  body #aiSend{flex:1 1 auto}
+  body #aiNext{flex:1 1 auto;font-size:13px}
+  /* 하단에 붙는 사건창·전투 버튼이 입력창에 가려지지 않게 */
+  body.ai-on #event{bottom:var(--aibar);max-height:calc(58vh - var(--aibar))}
+  body.ai-on #combat .ctrl{bottom:var(--aibar)}
+  body.ai-on #modal .box{margin-bottom:0}
+  /* 서술 줄의 다시 쓰기·고치기 버튼은 손가락으로 누를 만한 크기로 */
+  .ai-tools button,.ai-line button[data-ai]{padding:4px 9px;font-size:12px;min-height:30px}
+  .ai-line .ai-text{display:block}
+  /* 이야기 기록의 전투 묶음 */
+  #log details.fight-log .fl-body{max-height:220px}
+}
 </style>
 </head>
 <body>
@@ -838,7 +871,7 @@ function buildOrigin(o, fingerKey) {
   if (o.variant === 'fixer') {   // 해결사: 등급과 소속(무소속/협회)을 따로 굴린다
     const g = pick(o.grades), band = FIXER_BANDS[g >= 7 ? 0 : g >= 5 ? 1 : g >= 3 ? 2 : 3];
     const aff = Math.random() < 0.5 ? 'fixer' : pick(ASSOC_KEYS);
-    const post = { 8: '협회 직속 사무소', 7: '협회 직속 사무소', 6: '6과', 5: '6과 부장', 4: '3과', 3: '2과', 2: '1과' }[g];
+    const post = { 8: '직속 사무소', 7: '직속 사무소', 6: '6과', 5: '6과 부장', 4: '3과', 3: '2과', 2: '1과' }[g];
     return { id: 'fixer', tier: o.tier, w: o.w, name: `${g}급 해결사` + (aff === 'fixer' ? ' (무소속)' : ` (${AFFS[aff].name} ${post})`),
       aff, grade: g, hp: 50 + (9 - g) * 11, stg: 30 + (9 - g) * 6, money: FIXER_MONEY[g], light: g <= 4 ? 4 : 3,
       trait: `${g}급 해결사 — 하나 협회가 실적으로 인정한 등급.`, deck: [...(aff === 'fixer' ? FREE_DECKS[g >= 7 ? 0 : g >= 5 ? 1 : g >= 3 ? 2 : 3] : band.deck)], intro: band.intro };
@@ -9311,6 +9344,17 @@ renderResume();
   };
 })();
 </script>
+<script>
+(() => {
+  const setBar = () => { const b = document.getElementById('aiBar'); const h = b && !b.classList.contains('hidden') ? b.offsetHeight : 0; document.documentElement.style.setProperty('--aibar', h + 'px'); };
+  window.addEventListener('resize', setBar);
+  new MutationObserver(setBar).observe(document.getElementById('aiBar'), { attributes: true, attributeFilter: ['class'] });
+  document.getElementById('aiInput').addEventListener('input', setBar);
+  setInterval(setBar, 1500);
+  setBar();
+})();
+</script>
+
 
 </body>
 </html>
