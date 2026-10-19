@@ -8437,6 +8437,138 @@ Object.values(CARDS).forEach(cleanCardDesc);
 const _libraryRewardCardsSrc = libraryRewardCards;
 libraryRewardCards = function (key) { const r = _libraryRewardCardsSrc(key); if (r) r.forEach(id => cleanCardDesc(CARDS[id])); return r; };
 /* =========================================================
+   원작 특색 — 붉은시선 · 보라눈물 · 노란작살 · 쪽빛노인
+   보라눈물의 기술명·자세는 Library of Ruina 접대 「보라눈물」 기준
+========================================================= */
+Object.assign(ENEMIES, {
+  color_vergilius: { elite: true, name: '특색 「붉은시선」', desc: '하나 협회가 붉은색을 내린 해결사. 고열기전이 든 글라디우스 한 자루와, 상대의 모든 빈틈을 보는 붉은 눈.',
+    hp: 460, stg: 170, slots: 4, light: 8, lightRegen: 3, speed: [4, 8], res: { 참격: 0.7, 관통: 0.8, 타격: 0.8 }, reward: [200000000, 400000000],
+    passive: '붉은 시선 — 흐트러진 상대에게 모든 위력 +5. 고열기전 — 매 막 위력 +3, 체력 절반 이하에서 +2 추가',
+    onRound: e => { e.st.str += 3 + (e.hp <= e.maxHp / 2 ? 2 : 0); e.st.end += 3; if (C && C.P.staggered) e.st.str += 5; },
+    pool: [{ name: '고열기전 베기', cost: 2, dice: [['참격', 12, 20]], onHit: { burn: 3 } }, { name: '꿰뚫는 찌르기', cost: 2, dice: [['관통', 14, 22]] },
+      { name: '연속 베기', cost: 2, dice: [['참격', 10, 16], ['참격', 10, 16]], onHit: { burn: 2 } }, { name: '빈틈 읽기', cost: 1, dice: [['회피', 14, 20], ['방어', 12, 18]], onUse: { enemy: { para: 2 } } },
+      { name: '단죄', cost: 3, dice: [['참격', 20, 32]], onHit: { burn: 5 } }] },
+  color_purple: { elite: true, name: '특색 「보라눈물」', desc: '여러 차원을 넘나든다는 특색. 참수도·레이피어·카타나를 필요에 따라 바꿔 든다.',
+    hp: 440, stg: 160, slots: 4, light: 8, lightRegen: 3, speed: [4, 8], res: { 참격: 0.8, 관통: 0.8, 타격: 0.8 }, reward: [200000000, 400000000],
+    passive: '차원을 걷는 자 — 매 막 자세가 바뀐다. 참격 자세: 위력 +4 / 관통 자세: 출혈 기술 위주 / 타격 자세: 흐트러짐 기술 위주 / 방어 자세: 인내 +5, 상태 이상 제거',
+    onRound: e => {
+      e.priorityCard = null; const st = pick(['참격', '관통', '타격', '방어']); e.stance = st; e.st.str += 2; e.st.end += 2;
+      if (st === '참격') e.st.str += 4;
+      if (st === '관통') e.priorityCard = e.d.pool.find(c => c.name === '독니');
+      if (st === '타격') e.priorityCard = e.d.pool.find(c => c.name === '거대한 뱀의 충격');
+      if (st === '방어') { e.st.end += 5; e.st.bleed = 0; e.st.burn = 0; e.st.para = 0; e.priorityCard = e.d.pool.find(c => c.name === '뱀의 장벽'); }
+      clog(`보라눈물 — ${st} 자세`, 'l-bad');
+    },
+    pool: [{ name: '사검술', cost: 2, dice: [['참격', 8, 14], ['참격', 8, 14]] }, { name: '뱀의 표적', cost: 2, dice: [['관통', 9, 15]], onHit: { bleed: 3 } },
+      { name: '내려찍기', cost: 2, dice: [['타격', 12, 20]] }, { name: '거대한 뱀의 충격', cost: 2, dice: [['타격', 10, 16], ['타격', 10, 16]], onHit: { stg: 6 } },
+      { name: '흘려보내기', cost: 1, dice: [['회피', 12, 18], ['참격', 8, 12]] }, { name: '뱀 가르기', cost: 2, dice: [['참격', 10, 16], ['참격', 10, 16]] },
+      { name: '열상', cost: 2, dice: [['참격', 7, 12], ['참격', 7, 12], ['참격', 7, 12]], onHit: { bleed: 2 } }, { name: '뱀의 장벽', cost: 1, dice: [['방어', 14, 20], ['방어', 12, 18]] },
+      { name: '약점 파악', cost: 1, dice: [['관통', 8, 13]], onUse: { nextStr: 2 } }, { name: '독니', cost: 2, dice: [['관통', 10, 16]], onHit: { bleed: 4 } },
+      { name: '자색검', cost: 3, dice: [['참격', 14, 22], ['참격', 12, 18]] }, { name: '결투', cost: 3, dice: [['참격', 10, 16], ['관통', 10, 16], ['타격', 10, 16]] }] },
+  color_vespa: { elite: true, name: '특색 「노란작살」', desc: '유적 심층의 유물, 작살 궁니르를 자유자재로 다루는 특색. 박힌 작살은 맞을수록 떨림이 쌓여 끝내 상대를 무너뜨린다.',
+    hp: 420, stg: 150, slots: 4, light: 8, lightRegen: 3, speed: [4, 8], res: { 참격: 0.8, 관통: 0.7, 타격: 0.9 }, reward: [200000000, 400000000],
+    passive: '궁니르 — 적중 시 진동. 상대의 진동이 15 이상이면 붕괴(진동×2 피해)',
+    onRound: e => { e.st.str += 3; e.st.end += 2; const P = C && C.P; if (P && (P.st.tremor || 0) >= 15) { const t = P.st.tremor; P.hp -= t * 2; stgDmg(P, t * 2); P.st.tremor = 0; lastStand(P); clog(`✦ 붕괴 — 쌓인 진동이 터진다 (${t * 2} 피해·흐트러짐)`, 'l-bad'); } },
+    pool: [{ name: '궁니르 투척', cost: 2, dice: [['관통', 14, 22]], onHit: { tremor: 4 } }, { name: '작살 연타', cost: 2, dice: [['관통', 9, 14], ['관통', 9, 14], ['관통', 9, 14]], onHit: { tremor: 2 } },
+      { name: '회수', cost: 1, dice: [['회피', 12, 18]], onUse: { heal: 10 } }, { name: '휘둘러 치기', cost: 2, dice: [['타격', 12, 18], ['관통', 10, 16]], onHit: { tremor: 2 } },
+      { name: '관통', cost: 3, dice: [['관통', 22, 34]], onHit: { tremor: 6 } }] },
+  color_indigo: { elite: true, name: '특색 「쪽빛노인」', desc: '오재앙의 하나를 잡았다는 노인. 자기 키만 한 작살 석궁과, 푸른 빛으로 타는 시가.',
+    hp: 480, stg: 170, slots: 3, light: 8, lightRegen: 3, speed: [3, 7], res: { 참격: 0.8, 관통: 0.8, 타격: 0.7 }, reward: [200000000, 400000000],
+    passive: '고래잡이 — 덩치(체력)가 남아 있는 상대일수록 노린다: 상대 체력이 절반을 넘으면 위력 +4',
+    onRound: e => { e.st.str += 2; e.st.end += 3; if (C && C.P.hp > C.P.maxHp / 2) e.st.str += 4; },
+    pool: [{ name: '작살 석궁', cost: 2, dice: [['관통', 16, 26]] }, { name: '노 젓기', cost: 1, dice: [['타격', 10, 16], ['방어', 10, 16]] },
+      { name: '푸른 시가', cost: 1, dice: [['방어', 12, 18]], onUse: { heal: 15 } }, { name: '작살 끌어당기기', cost: 2, dice: [['관통', 12, 18], ['타격', 12, 18]], onHit: { para: 1 } },
+      { name: '고래 사냥', cost: 3, dice: [['관통', 24, 38]], onHit: { para: 2, bleed: 3 } }] },
+});
+STATUS_NAME.tremor = STATUS_NAME.tremor || '진동';
+// 서술 속 이름으로 원작 특색을 불러온다 (특색 일반보다 먼저)
+AI_FOES.unshift([/붉은\s*시선|베르길리우스/, 'color_vergilius'], [/보랏?빛?\s*눈물|보라\s*눈물|이오리/, 'color_purple'], [/노란\s*작살|베스파/, 'color_vespa'], [/쪽빛\s*노인/, 'color_indigo']);
+
+/* =========================================================
+   Limbus Company — 메피스토펠레스와 LCB 수감자들
+   수감자 기술명은 Limbus Company 「LCB 수감자」 인격의 스킬 1~3 기준
+========================================================= */
+const LCB_SINNERS = {
+  이상: [['쳐내기', '참격'], ['밀어찌르기', '관통'], ['연격', '참격']],
+  파우스트: [['내려베기', '타격'], ['올려베기', '타격'], ['후벼찌르기', '관통']],
+  돈키호테: [['찌르기', '관통'], ['모아 찌르기', '관통'], ['정의를 위해!', '관통']],
+  료슈: [['칠하기', '참격'], ['흩뿌리기', '참격'], ['그려내기', '참격']],
+  뫼르소: [['원, 투', '타격'], ['주먹꽂기', '타격'], ['연격', '타격']],
+  홍루: [['내려베기', '타격'], ['이연격', '참격'], ['선풍', '타격']],
+  히스클리프: [['배트 치기', '타격'], ['내려박기', '타격'], ['분풀기', '타격']],
+  이스마엘: [['강타', '타격'], ['슬라이딩', '타격']],
+  로쟈: [['내려찍기', '참격'], ['연속 베기', '참격'], ['처단', '참격']],
+  싱클레어: [['내려베기', '참격'], ['연속 베기', '참격'], ['헤집어 베기', '참격']],
+  오티스: [['칼날 빼기', '관통'], ['배후 베기', '참격'], ['뚫어내기', '관통']],
+  그레고르: [['베기', '참격'], ['후비기', '관통'], ['썰어내기', '관통']],
+};
+for (const [n, sk] of Object.entries(LCB_SINNERS)) {
+  ENEMIES['lcb_' + n] = { elite: false, name: `LCB 수감자 ${n}`, desc: 'Limbus Company 버스 「메피스토펠레스」의 수감자. 죽어도 관리자의 시계가 되감아 다시 일어난다.',
+    hp: 80, stg: 34, slots: 2, light: 4, lightRegen: 2, res: { 참격: 1, 관통: 1, 타격: 1 }, reward: [0, 0],
+    pool: sk.map(([nm, t], i) => ({ name: nm, cost: i === 2 ? 2 : 1, dice: Array.from({ length: i + 1 }, () => [t, 4 + i, 8 + i * 2]) })).concat([{ name: '방어', cost: 1, dice: [['방어', 5, 9]] }]) };
+}
+const _aiFoeKeyLcb = aiFoeKey;
+aiFoeKey = function (name) { const m = (name || '').match(/(?:^|[\s「]|수감자)(이상|파우스트|돈키호테|료슈|뫼르소|홍루|히스클리프|이스마엘|로쟈|싱클레어|오티스|그레고르)(?=$|[\s」])/); if (m) return 'lcb_' + m[1]; return _aiFoeKeyLcb(name); };
+const lcbPick = n => shuffle(Object.keys(LCB_SINNERS)).slice(0, n);
+// 뒤틀림 이벤트의 상대: 무작위 수감자 셋 (관리자의 지휘)
+ENEMIES.lcb_team.name = 'LCB 수감자들'; ENEMIES.lcb_team.desc = '버스 「메피스토펠레스」에서 내린 수감자들. 시계 머리의 관리자 단테가 지휘하고, 붉은 눈의 길잡이가 지켜본다.';
+(() => {
+  const ev = EVENTS.find(e => e.id === 'tw_lcb'); if (!ev) return;
+  ev.text = '긴 버스 한 대가 골목에 멈춘다. 차체에 적힌 이름 — 「메피스토펠레스」. 시계 머리의 관리자와 열두 명의 수감자가 내리고, 붉은 눈의 길잡이가 그 뒤에 선다. "황금가지는 아니군. 그래도 그냥 지나칠 수는 없지." 그들은 뒤틀림을 「해소」할 수 있다고 한다.';
+  ev.choices[0].fn = function () {
+    const ks = lcbPick(3).map(n => 'lcb_' + n);
+    fight(ks[0], { enemies: ks, lethal: false, win() { say('수감자들이 물러났다. 관리자의 시계가 째깍거리자 쓰러졌던 수감자가 다시 일어선다. "다음에 다시 오죠."'); }, lose() { untwist(); } });
+  };
+})();
+// 기본 모드 — 림버스 컴퍼니와 마주치는 일들
+const LCB_TALK = {
+  이상: '창백한 청년이 하늘을 올려다보며 말한다. "날개가 꺾인 새도, 하늘을 기억하오." 무슨 뜻인지는 끝내 설명하지 않았다.',
+  파우스트: '은발의 여성이 당신을 위아래로 훑는다. "당신이 무엇을 물을지, 파우스트는 이미 알고 있습니다." 그리고 정말로 물으려던 것을 먼저 답했다.',
+  돈키호테: '작은 체구의 수감자가 눈을 반짝인다. "해결사인가?! 정의의 해결사인가?!" 대답하기도 전에 악수를 청한다.',
+  료슈: '담배를 문 여자가 짧게 말한다. "구경꾼. 비켜." 연기 너머로 붉은 칼집이 보였다.',
+  뫼르소: '거구의 남자가 무표정하게 고개를 끄덕인다. "그렇군." 그 말 외에는 아무것도 하지 않았다.',
+  홍루: '단정한 차림의 청년이 웃으며 인사한다. "길을 묻고 싶으신가요? 저도 이 근처는 처음이라서요." 말투에 귀한 집 냄새가 난다.',
+  히스클리프: '배트를 어깨에 걸친 남자가 인상을 쓴다. "뭘 봐. 볼일 없으면 꺼져." 그래도 당신이 가는 길의 쥐들을 먼저 노려봐 주었다.',
+  이스마엘: '주황 머리의 여자가 한숨을 쉰다. "이 사람들이랑 같이 다니면 피곤해요. 진심으로요." 말과 달리 동료들을 꼼꼼히 챙긴다.',
+  로쟈: '긴 머리의 수감자가 손을 흔든다. "어머, 귀여운 손님이네~ 사탕 먹을래?" 도끼에는 아직 핏자국이 남아 있다.',
+  싱클레어: '어린 수감자가 머뭇거리다 고개를 숙인다. "저, 저기… 혹시 다치신 데는 없으세요?" 손이 떨리고 있었다.',
+  오티스: '군인 같은 여자가 경례하듯 말한다. "민간인은 물러나 있도록. 작전 구역이다." 버스 문 앞을 지킨다.',
+  그레고르: '벌레 팔을 한 남자가 담배를 비벼 끈다. "에휴, 오늘도 일이군." 피곤한 얼굴로 웃어 보였다.',
+};
+EVENTS.push(
+  { id: 'lcb_bus', when: [0, 1, 2], w: 0.6, notFac: ['twisted'], cond: () => !S.exiled && !S.warp && S.day >= 2, title: '메피스토펠레스',
+    build() {
+      const who = pick(Object.keys(LCB_TALK));
+      this.text = '골목 끝에 기다란 버스가 서 있다. 차체에 적힌 이름은 「메피스토펠레스」. 운전석의 여자는 내리지 않고, 시계 머리를 한 사람이 째깍거리는 소리로 무언가를 말한다 — 알아듣는 건 수감자들뿐이다. 붉은 눈의 길잡이가 주변을 살핀다. 무언가를 찾는 중인 모양이다.';
+      return [
+        { t: '수감자에게 말을 건다', fn() { say(LCB_TALK[who]); S.flags.metLcb = true; stress(-4); } },
+        { t: '무엇을 찾는지 묻는다', fn() { say('붉은 눈의 길잡이가 짧게 답했다. "황금가지. 그 이상은 알 필요 없다." 그리고 대화는 거기서 끝났다. 시계 머리가 미안하다는 듯 째깍거렸다.'); S.flags.metLcb = true; } },
+        { t: '버스를 노린다 — 수감자들과 싸운다', fn() {
+          say('당신이 다가서자 수감자 셋이 앞을 막는다. 길잡이는 팔짱을 낀 채 지켜볼 뿐이다.', 'l-bad');
+          const ks = lcbPick(3).map(n => 'lcb_' + n);
+          fight(ks[0], { enemies: ks, lethal: false, noRob: true, win() { say('쓰러뜨린 수감자들이 시계 소리와 함께 다시 일어선다. 붉은 눈의 길잡이가 처음으로 당신을 똑바로 보았다. "…거기까지." 버스는 떠났다.'); rep(-3, '림버스 컴퍼니를 습격'); S.flags.lcbHostile = true; } });
+        } },
+        { t: '못 본 척 지나간다', def: true, fn() { say('버스는 한참을 그 자리에 서 있다가, 아무 일 없었다는 듯 사라졌다.'); } },
+      ];
+    }, text: '' },
+  { id: 'lcb_help', when: [1, 2], w: 0.5, notFac: ['twisted'], cond: () => !S.exiled && !S.warp && S.flags.metLcb && !S.flags.lcbHostile, title: '지나가던 수감자들',
+    build() {
+      const [a, b] = lcbPick(2);
+      this.text = `쥐떼에게 둘러싸였다. 그때 낯익은 버스가 골목 어귀에 멈추고, 수감자 둘이 뛰어내린다 — ${a}와(과) ${b}. "관리자님이 도와주래요!"`;
+      const mate = n => ({ name: `LCB 수감자 ${n}`, maxHp: 90, atk: [6, 12], type: LCB_SINNERS[n][0][1], skill: LCB_SINNERS[n][0][0] });
+      return [
+        { t: '함께 싸운다', def: true, fn() { fight('rat', { count: 3, noCow: true, lethal: false, mates: [mate(a), mate(b)], win() { say(`${a}와(과) ${b}이(가) 손을 흔들고 버스로 돌아갔다. 시계 머리가 째깍, 하고 인사했다.`); stress(-5); rep(1, '림버스 컴퍼니와 함께 싸움'); } }); } },
+        { t: '혼자 하겠다고 말한다', fn() { say('수감자들은 어깨를 으쓱하고 돌아갔다. 쥐떼는 그 틈에 흩어졌다.'); } },
+      ];
+    }, text: '' },
+  { id: 'lcb_guide', when: [1, 2], w: 0.35, notFac: ['twisted', 'head'], cond: () => !S.exiled && !S.warp && S.flags.lcbHostile, title: '붉은 시선',
+    text: '붉은 눈의 사내가 골목 한가운데 서 있다. 길잡이 — 특색 「붉은시선」. "회사의 일을 방해한 놈이 너였군. 경고는 한 번이다."',
+    choices: [
+      { t: '고개를 숙이고 물러난다', def: true, fn() { say('그는 더 말하지 않고 등을 돌렸다. 등 뒤의 글라디우스에서 열기가 피어올랐다.'); S.flags.lcbHostile = false; stress(5); } },
+      { t: '맞선다 — 특색 「붉은시선」 (패배 시 사망)', fn() { fight('color_vergilius', { lethal: true, noCow: true, win() { say('붉은 눈이 처음으로 흔들렸다. "…특색감이군." 그는 쓰러지지 않은 채 떠났다.', 'l-day'); merit(10); rep(5, '붉은시선과 맞섬'); S.flags.lcbHostile = false; } }); } },
+    ] },
+);
+/* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
 ========================================================= */
