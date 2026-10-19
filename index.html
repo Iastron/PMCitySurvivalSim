@@ -7561,6 +7561,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   삶(소속·직업)마다 쓰는 태그 — [현재 상태]에 맞는 것만:
   · 혈귀: [[권속 +1]] (피를 나눠 권속을 만들 때, 피 3 소모) / [[피주머니 +1]] (사람을 피주머니로 삼을 때) / [[피 +3]] (전투 밖에서 피를 마셨을 때, 최대 10)
   · 공방 주인: [[공방 제작 검]] (무기를 만들 때 — 무기 종류 이름) / [[공방 판매]] (진열대의 무기를 손님에게 팔 때)
+  · 특색의 이름: [[특색 백색번개]] — 플레이어가 원하는 색·명칭을 말하면 그대로 (이미 특색이면 이름만 바뀐다)
   · 해결사: [[사무소 이름]] (사무소에 들어갈 때) / [[사무소 설립 이름]] (자기 사무소를 차릴 때 — 6급 이상, 설립비가 든다) / [[동료 고용 5급]] (해결사를 고용할 때, 돈이 든다) / [[특색]] (1급 해결사가 하나 협회에서 색을 받을 때만)
   · 누구나: [[집 구입]] (뒷골목 주택, 3천만 안) / [[둥지 이주]] (둥지 이주권, 3억 안 — 위상 5 이상)
   [[일행 합류 이름]] / [[일행 이탈 이름]] — 함께 다니는 동료(예: 림버스 컴퍼니 버스팀의 수감자들, 사무소 동료, 권속이 아닌 친구)가 생기거나 떠날 때. 일행은 모든 전투에 함께 나서 싸운다. 여러 명이면 쉼표로 (예: [[일행 합류 이상, 로쟈, 히스클리프]], 최대 6명). 플레이어가 "버스팀과 함께" 같은 설정을 말하면 일행으로 등록하세요.
@@ -7867,7 +7868,7 @@ function aiLifeFromInput(t) {
   if (hr) out.push('동료 고용 ' + hr[1] + '급');
   if (/(집|주택)(을|를)\s*(샀|산다|구입|마련)/.test(t)) out.push('집 구입');
   if (/둥지(로|에)\s*(이사|이주)|이주권(을|를)\s*(샀|구입)/.test(t)) out.push('둥지 이주');
-  if (/(색을\s*받|특색이\s*되|특색으로\s*인정)/.test(t)) out.push('특색');
+  if (/(색을\s*받|특색이\s*되|특색으로\s*인정|이명을\s*받|라는\s*(색|이명))/.test(t)) { const nm = (t.match(/「([^」]{2,8})」/) || t.match(/([가-힣]{2,8})(?:이|가)?라는\s*(?:색|이명|이름)/) || [])[1]; out.push('특색' + (nm ? ' ' + nm : '')); }
   // 일행: "버스팀과 함께", "이상, 로쟈와 같이"
   const SINNERS = ['이상', '파우스트', '돈키호테', '료슈', '요시히데', '뫼르소', '홍루', '히스클리프', '이스마엘', '로쟈', '싱클레어', '오티스', '그레고르'];
   if (/(함께|같이|동행|데리고|합류)/.test(t)) {
@@ -7925,9 +7926,11 @@ function aiApplyLife(reply) {
     if (!(S.grade <= 5 || ['wing', 'head'].includes(faction()))) aiOut('둥지 이주는 날개의 허가가 필요하다 (위상 5 이상).', 'l-sys');
     else if (S.money >= 300000000) { S.money -= 300000000; S.ownHome = 'nest'; aiOut(`🏙 둥지의 집으로 이주했다. -${won(300000000)}`, 'l-day'); } else aiOut('둥지 이주권을 살 돈이 모자라다 (3억 안).', 'l-bad');
   }
-  if (/\[\[\s*특색\s*\]\]/.test(reply) && !S.ch.colorName) {
+  const cm = reply.match(/\[\[\s*특색\s*([^\]]*?)\s*\]\]/);
+  if (cm && S.ch.colorName && cleanColorName(cm[1])) { const c = cleanColorName(cm[1]); S.ch.colorName = c; applyColorSig(c); aiOut(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day'); }
+  else if (cm && !S.ch.colorName) {
     if (!(isFixer() && S.grade === 1)) aiOut('색은 1급 해결사에게만 부여된다.', 'l-sys');
-    else { const c = makeColorTitle(); S.ch.colorName = c; aiOut(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day');
+    else { const want = cleanColorName(cm[1]); const c = want || makeColorTitle(); if (want) applyColorSig(want); S.ch.colorName = c; aiOut(`이제 도시는 당신을 「${c}」(이)라 부른다.`, 'l-day');
       if (faction() === 'assoc') { S.colorBadge = true; S._h = null; } else changeAff('color'); addCard('col_sig'); }
   }
 }
@@ -9102,6 +9105,30 @@ aiStartFight = function (tag) {
 // 일행에 자기 자신을 넣지 않는다
 const _aiPartyMateSelf = aiPartyMate;
 aiPartyMate = function (name) { const k = aiFoeKey(name); return aiIsSelfFoe(k, name) ? null : _aiPartyMateSelf(name); };
+/* ---------- 특색 명칭 — 플레이어가 고른 색·명칭을 그대로 쓴다. 상징(번개·서리…)으로 끝나면 그 상징의 고유 기술, 아니면 '색의 일격'
+   시작 화면의 「특색 이름」 칸은 특색으로 태어났을 때 쓰인다 ---------- */
+const cleanColorName = t => { const v = String(t || '').replace(/[「」"'\s]/g, '').replace(/^특색/, '').slice(0, 10); return v.length >= 2 ? v : ''; };
+function applyColorSig(title) {
+  const sym = Object.keys(COLOR_SYMBOLS).sort((a, b) => b.length - a.length).find(k => title.endsWith(k));
+  if (sym) { const y = COLOR_SYMBOLS[sym]; Object.assign(CARDS.col_sig, { name: `「${title}」 — ${y.kind}`, dice: y.dice.map(([ty, a, b, ...x]) => [ty, a + 5, b + 6, ...x]), onHit: y.onHit, onUse: y.onUse }); }
+  else Object.assign(CARDS.col_sig, { name: `「${title}」 — 색의 일격`, dice: [['참격', 15, 22], ['관통', 12, 18]], onHit: { bleed: 2 }, onUse: undefined, desc: '적중 시 출혈 2' });
+}
+$('.hero-controls').insertAdjacentHTML('beforeend', ' <label for="heroColor" title="특색으로 태어났을 때 쓸 색과 명칭 (예: 백색번개). 비우면 무작위">특색 이름</label><input id="heroColor" maxlength="10" placeholder="특색일 때 · 비우면 무작위" style="width:150px" autocomplete="off">');
+try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); if (v.color) $('#heroColor').value = v.color; } catch (_) {}
+$('#heroColor').addEventListener('input', () => { try { const v = JSON.parse(localStorage.getItem('sht_hero') || '{}'); v.color = $('#heroColor').value; localStorage.setItem('sht_hero', JSON.stringify(v)); } catch (_) {} });
+const _newGameColorName = newGame;
+newGame = function (ch) {
+  const want = cleanColorName($('#heroColor') && $('#heroColor').value);
+  if (want && ch && ch.id === 'color') { ch.colorName = want; ch.name = `특색 「${want}」`; applyColorSig(want); ch.trait = `특색 — 하나 협회가 인정한 최고의 해결사. 상징: ${CARDS.col_sig.name.split(' — ')[1]}.`; }
+  _newGameColorName(ch);
+  if (want && S && S.ch.id === 'color') S.ch.colorName = want;
+};
+// 출신을 뽑는 순간부터 원하는 이름으로 보이게
+const _buildOriginColorName = buildOrigin;
+buildOrigin = function (o, ...rest) { const ch = _buildOriginColorName(o, ...rest); const want = cleanColorName($('#heroColor') && $('#heroColor').value); if (want && ch && ch.id === 'color') { ch.colorName = want; ch.name = `특색 「${want}」`; applyColorSig(want); ch.trait = `특색 — 하나 협회가 인정한 최고의 해결사. 상징: ${CARDS.col_sig.name.split(' — ')[1]}.`; } return ch; };
+// 이어하기·새로고침 뒤에도 내 색의 고유 기술이 맞게 보이도록
+const _renderTopColorSig = renderTop;
+renderTop = function () { _renderTopColorSig(); if (S && S.ch.colorName && S.phase !== 'over' && CARDS.col_sig._for !== S.ch.colorName) { applyColorSig(S.ch.colorName); CARDS.col_sig._for = S.ch.colorName; } };
 /* =========================================================
    삶의 기록 — 주요 사건 연대기, 사망 시 상세 기록
    이어하기 — 새로고침해도 삶이 끝나지 않는다. 진행 중이던 턴의 처음부터 다시 시작
