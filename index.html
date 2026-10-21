@@ -1043,10 +1043,10 @@ function saveHistory(reason) {
 }
 function renderHistory() {
   const e = escapeHistory;
-  $('#historyArea').innerHTML = '<h2>최근 플레이 기록 · 최대 7회</h2><div class="dim">이 브라우저에 저장됩니다. 중단한 삶은 마지막 상태만 기록되며 이어하기는 지원하지 않습니다.</div>' +
-    (historyRows.length ? historyRows.map(r => '<article class="history-row"><b>' + e(r.origin) + '</b> · ' + e(r.day) + '일차 ' + e(r.turn) + ' · ' + (r.ended ? '사망' : '마지막 기록') +
-      '<div class="dim">' + e(r.affiliation) + ' · ' + e(r.rank) + ' · 실적 ' + e(r.merit) + ' · 처치 ' + e(r.kills) + ' · 자금 ' + e(r.money) +
-      '</div>' + (r.reason ? '<div class="dim">' + e(r.reason) + '</div>' : '') + '<div class="dim">' + e(r.updated.replace('T',' ').slice(0,16)) + ' UTC</div></article>').join('') : '<p class="dim">아직 기록이 없습니다. 첫 삶을 시작하면 여러 출신 뽑기가 열립니다.</p>');
+  $('#historyArea').innerHTML = '<h2>지난 삶들 <span class="dim" style="font-size:13px;font-weight:400">최근 7회 · 이 브라우저에 저장</span></h2>' +
+    (historyRows.length ? historyRows.map(r => '<article class="history-row"><b>' + e(r.origin) + '</b> · ' + e(r.day) + '일차 ' + e(r.turn) + ' · ' + (r.ended ? '<span class="l-bad">사망</span>' : '<span class="dim">마지막 기록</span>') +
+      '<div class="dim">' + e(r.affiliation) + ' · ' + e(r.rank) + ' · 실적 ' + e(r.merit) + ' · 처치 ' + e(r.kills) + ' · 자금 ' + e(Number.isFinite(+r.money) ? won(+r.money) : r.money) +
+      '</div>' + (r.reason ? '<div class="dim">' + e(r.reason) + '</div>' : '') + '<div class="dim hist-time">' + e((() => { const d = new Date(r.updated); return isNaN(d) ? r.updated : d.toLocaleString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); })()) + '</div></article>').join('') : '<p class="dim">아직 기록이 없습니다. 첫 삶을 시작하면 여러 출신 뽑기가 열립니다.</p>');
   $('#rollCountBtn').classList.toggle('hidden', !historyRows.length);
   if (typeof syncRollCount === 'function') syncRollCount();
 }
@@ -7462,7 +7462,7 @@ const HIRE_PRICE = { 9: 500000, 8: 800000, 7: 1200000, 6: 2000000, 5: 3500000, 4
 const HIRE_SKILLS = { 참격: ['베기', '연속 베기', '역베기'], 관통: ['찌르기', '꿰뚫기', '연속 찌르기'], 타격: ['내려치기', '후려치기', '짓누르기'] };
 function makeHire(g) {
   const L = 10 - g, type = pick(['참격', '관통', '타격']);
-  return { id: 'h' + Date.now() + Math.floor(Math.random() * 1000), g, name: `${pick([...HERO_NAMES.m, ...HERO_NAMES.f].filter(n => n !== S.heroName && !(S.hires || []).some(h => h.name.startsWith(n + ' '))))} (${g}급 해결사)`,
+  return { id: 'h' + Date.now() + Math.floor(Math.random() * 1000), g, name: `${pick([...HERO_NAMES.m, ...HERO_NAMES.f].filter(n => n !== S.heroName && !staffNamesInUse().includes(n)))} (${g}급 해결사)`,
     maxHp: 40 + L * 18, hp: 40 + L * 18, atk: [3 + L * 2, 7 + L * 3], type, skill: pick(HIRE_SKILLS[type]),
     spdRange: [1 + Math.floor(L / 3), 4 + Math.floor(L / 2)], until: S.day + HIRE_DAYS, healDay: S.day };
 }
@@ -7581,6 +7581,11 @@ async function aiResolveModel(cfg) {
 
 const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Library of Ruina · Limbus Company 세계관)를 배경으로 한 텍스트 생존 게임 「뒷골목의 나날」의 서술자입니다.
 플레이어가 자기 캐릭터의 행동·묘사·대사를 입력하면, 그 장면을 한국어로 2~6문장 서술하고 주변 인물의 반응과 대사를 씁니다.
+
+최우선 규칙 — 플레이어의 말을 그대로 따르세요
+- 플레이어가 "~했다", "~가 되었다", "~에게 줬다", "~로 갔다"처럼 자기 캐릭터·동료의 행동이나 결과를 단정해 쓰면, 그것은 이미 일어난 사실입니다. 되묻거나, 다르게 바꾸거나, 실패시키거나, 다른 사건으로 덮지 말고 그대로 이어 쓰고 알맞은 태그를 붙이세요.
+- 플레이어가 하겠다고 한 일을 서술자가 대신 막지 마세요. 막을 수 있는 건 다른 인물이 자기 뜻으로 거절하는 경우(받기 싫은 선물 등)와, 지금 장면과 전혀 상관없는 갑작스러운 비약뿐입니다.
+- 플레이어가 묻지 않은 새 사건·습격·선택지를 끼워 넣지 마세요. 답은 짧고 정확하게, 플레이어가 쓴 순서대로.
 
 규칙
 - 매번 함께 오는 [현재 상태]가 지금의 사실입니다. 소속·위상·기술·아이템은 바꾸지 마세요.
@@ -7803,7 +7808,7 @@ async function aiSend(override) {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|행동|시간|체력|돈|정신|압박|평판|실적|등급|승격|소속|직함|획득|뒤틀림|해소|혈귀화|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|행동|직원|시간|체력|돈|정신|압박|평판|실적|등급|승격|소속|직함|획득|뒤틀림|해소|혈귀화|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
     aiOut(`<span class="ai-text">${escAI(body).replace(/\n\s*\n+/g, '<span class="pgap"></span>').replace(/\n/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
@@ -9336,10 +9341,12 @@ function renderResume() {
   const v = loadLife();
   if (!v) { box.innerHTML = ''; return; }
   const s = v.S;
-  box.innerHTML = `<div class="history-row" style="border:1px solid var(--gold);border-radius:8px;padding:10px 12px;margin-bottom:10px">
-    <b>진행 중인 삶</b> — ${escapeHistory(s.heroName || '')} · ${escapeHistory(s.ch.name)} · ${s.warp ? '워프 열차 안' : s.day + '일차 ' + TURNS[s.turn].name}${v.combat ? ' · <span class="l-bad">전투 중</span>' : ''}
-    <div class="dim" style="font-size:12px">새로운 출신을 뽑아 시작하면 이 삶은 기록만 남고 끝난다.</div>
-    <button id="resumeBtn" style="margin-top:6px;border-color:var(--gold)">이어하기</button></div>`;
+  box.innerHTML = `<div class="resume-card">
+    <div class="rc-label">진행 중인 삶${s.aiMode ? ' · 서술 모드' : ''}</div>
+    <div class="rc-name">${escapeHistory(s.heroName || s.ch.name)}</div>
+    <div class="dim">${escapeHistory(s.ch.name)} · ${s.warp ? '워프 열차 안' : s.day + '일차 ' + TURNS[s.turn].name}${v.combat ? ' · <span class="l-bad">전투 중</span>' : ''}</div>
+    <button id="resumeBtn">이어하기 ▶</button>
+    <div class="dim rc-note">새 출신을 뽑아 시작하면 이 삶은 기록만 남고 끝난다.</div></div>`;
   $('#resumeBtn').onclick = resumeLife;
 }
 $('#rollArea').insertAdjacentHTML('afterbegin', '<div id="resumeBox"></div>');
@@ -9656,6 +9663,162 @@ body.ai-on #log > div{animation:none}
   new MutationObserver(() => { if (atEnd && document.body.classList.contains('ai-on')) log.scrollTop = log.scrollHeight; }).observe(log, { childList: true });
 })();
 </script>
+<style>
+/* ---------- 시작 화면 ---------- */
+#title{max-width:720px;margin:0 auto}
+#title h1{font-size:34px;letter-spacing:6px;margin:34px 0 4px;text-align:center}
+#title .tagline{text-align:center;color:var(--dim);font-size:13px;letter-spacing:2px;margin-bottom:22px}
+#title .sub{margin-bottom:20px;line-height:1.8;font-size:14.5px}
+#title .sub p{margin:0 0 8px;word-break:keep-all}
+#title .night-rule{margin-top:12px;padding:10px 14px;border-left:3px solid var(--red);background:#cf4a4012;border-radius:0 8px 8px 0;color:var(--text)}
+.resume-card{border:1px solid var(--gold);border-radius:12px;padding:14px 16px;margin-bottom:14px;background:linear-gradient(180deg,#d8b15c14,transparent);line-height:1.6}
+.resume-card .rc-label{font-size:12px;color:var(--gold);letter-spacing:1px}
+.resume-card .rc-name{font-size:19px;font-weight:700;margin:2px 0}
+.resume-card #resumeBtn{width:100%;margin:10px 0 6px;padding:11px;font-size:16px;border-color:var(--gold);color:var(--gold)}
+.resume-card .rc-note{font-size:12px}
+.newlife{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+.newlife > h2{font-size:15px;color:var(--gold);margin:0 0 12px;letter-spacing:1px}
+.newlife .hero-controls{display:grid!important;grid-template-columns:auto 1fr auto 1fr;gap:10px 12px;align-items:center;margin-bottom:14px}
+.newlife .hero-controls input,.newlife .hero-controls select{width:100%;min-height:40px}
+.newlife .hero-controls #aiCfgBtn{grid-column:1 / -1;min-height:38px;font-size:13px}
+.newlife .birth-controls .roll-btn{flex:1;font-size:17px;padding:15px 18px;background:#d8b15c18}
+.newlife .birth-controls #rollCountBtn{align-self:stretch;min-width:52px}
+#codeTitleBtns{justify-content:center;margin:12px 0 0!important}
+#codeTitleBtns button{background:transparent;border-color:transparent;color:var(--dim);font-size:13px;padding:6px 10px;text-decoration:underline;text-underline-offset:3px}
+#codeTitleBtns button:hover{color:var(--gold)}
+#historyArea{margin-top:30px}
+#historyArea h2{font-size:17px;margin:0 0 8px}
+#historyArea .history-row{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 14px;margin-bottom:8px}
+#historyArea .history-row .hist-time{font-size:12px}
+#title .odds{text-align:center}
+@media (max-width:600px){
+  #title h1{font-size:27px;letter-spacing:4px;margin-top:22px}
+  #title .sub{font-size:13.5px}
+  .newlife{padding:14px 12px}
+  .newlife .hero-controls{grid-template-columns:auto 1fr}
+}
+</style>
+<script>
+(() => {
+  const t = document.getElementById('title');
+  t.querySelector('h1').insertAdjacentHTML('afterend', '<div class="tagline">PROJECT MOON · 도시 생존기</div>');
+  t.querySelector('.sub').innerHTML = `<p>26개의 구로 나뉜 거대한 도시. 날개는 둥지를 품고, 둥지 바깥의 뒷골목은 방치된다.</p>
+    <p>당신이 무엇으로 태어날지는 아무도 모른다. 고아나 쥐, 둥지의 깃털이나 해결사 — 아주 드물게는 손가락의 간부, 특색, 혹은 <b style="color:var(--red)">머리의 발톱이나 조율자</b>일 수도 있다.</p>
+    <p>하루 네 번의 시간대를 버티고, 실적을 쌓아 위상을 올려라.</p>
+    <div class="night-rule">기억할 것 — <b style="color:var(--red)">오전 3시 13분부터 4시 34분까지, 뒷골목의 밤</b>에는 어떤 규칙도 당신을 지켜주지 않는다.</div>`;
+  const area = document.getElementById('rollArea'), hc = area.querySelector('.hero-controls');
+  const card = document.createElement('div'); card.className = 'newlife'; card.innerHTML = '<h2>새로운 삶</h2>';
+  hc.before(card);
+  for (const el of [hc, area.querySelector('.birth-controls'), document.getElementById('rollSettings')]) if (el) card.appendChild(el);
+  const code = document.getElementById('codeTitleBtns'); if (code) card.after(code);
+  const rr = document.getElementById('rollResult'); if (rr && code) code.after(rr);
+  if (typeof renderHistory === 'function') renderHistory();
+})();
+</script>
+<script>
+/* ---------- 사무소 직원·고용 동료 — 이름 겹침 없애기, 채팅으로 무기 주기·등급 올리기 ---------- */
+function staffAll() { return [...((S && S.office && S.office.staff) || []), ...((S && S.hires) || [])]; }
+const staffBase = n => String(n || '').replace(/\s*\(.*\)\s*$/, '').trim();
+function staffNamesInUse() { return [...staffAll().map(h => staffBase(h.name)), ...((S && S.aiParty) || []).map(staffBase)]; }
+function staffStats(h) {
+  const L = 10 - h.g, ratio = h.maxHp ? h.hp / h.maxHp : 1;
+  h.maxHp = 40 + L * 18; h.hp = Math.max(1, Math.round(h.maxHp * ratio));
+  h.atk = [3 + L * 2, 7 + L * 3]; h.spdRange = [1 + Math.floor(L / 3), 4 + Math.floor(L / 2)];
+  if (h.wdie) { h.atk = [Math.max(h.atk[0], h.wdie[1]) + 1, Math.max(h.atk[1], h.wdie[2]) + 2]; h.type = h.wdie[0]; h.skill = h.weapon; }
+  else if (h.weapon) { h.atk = [h.atk[0] + 1 + Math.floor(L / 3), h.atk[1] + 2 + Math.floor(L / 2)]; h.skill = h.weapon; }
+}
+function staffFind(name) {
+  const n = staffBase(name).replace(/\s/g, ''); if (!n) return null;
+  return staffAll().find(h => staffBase(h.name).replace(/\s/g, '') === n) || staffAll().find(h => n.length >= 2 && staffBase(h.name).replace(/\s/g, '').startsWith(n));
+}
+function staffSetGrade(h, g) {
+  g = Math.max(1, Math.min(9, +g)); if (!g || g === h.g) return false;
+  const up = g < h.g; h.g = g;
+  h.name = /\(\d급/.test(h.name) ? h.name.replace(/\(\d급/, `(${g}급`) : `${staffBase(h.name)} (${g}급 해결사)`;
+  staffStats(h);
+  aiOut(`${up ? '⬆' : '⬇'} ${escAI(h.name)} — ${g}급 (체력 ${h.maxHp} · 공격 ${h.atk[0]}-${h.atk[1]})`, up ? 'l-good' : 'l-bad');
+  return true;
+}
+function staffGiveWeapon(h, w) {
+  w = String(w || '').replace(/[「」"'\[\]]/g, '').trim().slice(0, 24); if (!w) return false;
+  const id = [...new Set(S.deck)].find(x => CARDS[x] && (w.includes(CARDS[x].name) || CARDS[x].name.includes(w)));
+  const c = id && CARDS[id], die = c && c.dice && c.dice.find(d => OFF(d[0]));
+  if (id && S.deck.length > 6) S.deck.splice(S.deck.indexOf(id), 1);
+  h.weapon = c ? c.name : w; h.wdie = die ? die.slice(0, 3) : null;
+  staffStats(h);
+  aiOut(`🗡 ${escAI(h.name)}이(가) 「${escAI(h.weapon)}」을(를) 쓴다 — 공격 ${h.atk[0]}-${h.atk[1]}${id ? ' (덱에서 건넸다)' : ''}`, 'l-good');
+  return true;
+}
+// 이미 같은 이름이 둘 이상이면 뒤쪽 사람에게 새 이름을
+function staffDedupe() {
+  if (!S) return;
+  const seen = new Set([S.heroName]);
+  for (const h of staffAll()) {
+    const b = staffBase(h.name);
+    if (seen.has(b)) {
+      const used = new Set([...seen, ...staffNamesInUse()]);
+      const nn = pick([...HERO_NAMES.m, ...HERO_NAMES.f].filter(n => !used.has(n))) || b + '2';
+      h.name = h.name.replace(b, nn); seen.add(nn);
+    } else seen.add(b);
+  }
+  if (S.aiParty) S.aiParty = S.aiParty.filter((n, i, a) => !staffFind(n) && a.findIndex(x => staffBase(x) === staffBase(n)) === i);
+}
+// 전투: 같은 사람이 일행과 직원으로 두 번 나오지 않게 — 실제 능력치를 가진 쪽(직원·고용)을 남긴다
+(() => {
+  const _fightDedupe = fight;
+  fight = function (key, opts = {}) {
+    _fightDedupe(key, opts);
+    if (!C || !C.allies || C.allies.length < 2) return;
+    const keep = [], seen = new Map();
+    for (const a of C.allies) {
+      const b = staffBase(a.name);
+      if (!seen.has(b)) { seen.set(b, keep.length); keep.push(a); }
+      else if ((a.staffId || a.hireId) && !(keep[seen.get(b)].staffId || keep[seen.get(b)].hireId)) keep[seen.get(b)] = a;
+    }
+    if (keep.length !== C.allies.length) { C.allies = keep; if (typeof retargetIntents === 'function') retargetIntents(); renderCombat(); }
+  };
+  const _rtStaff = renderTop;
+  renderTop = function () { try { staffDedupe(); } catch (_) {} _rtStaff(); };
+  // 서술자에게 직원 목록과 태그를 알려 준다
+  const _stStaff = aiStateText;
+  aiStateText = function () {
+    const base = _stStaff(), all = staffAll(); if (!all.length) return base;
+    const line = h => `${h.name} · 체력 ${h.hp}/${h.maxHp} · 공격 ${h.atk[0]}-${h.atk[1]}${h.weapon ? ` · 무기 「${h.weapon}」` : ''}`;
+    return base + `\n\n[동료 — 사무소 직원·고용 해결사. 일행 태그 없이도 전투에 함께 나선다. 같은 사람을 [[일행 합류]]로 또 넣지 말 것]\n`
+      + ((S.office && S.office.staff) || []).map(h => '직원: ' + line(h)).join('\n') + (S.office && S.office.staff && S.office.staff.length && (S.hires || []).length ? '\n' : '')
+      + (S.hires || []).map(h => '고용: ' + line(h)).join('\n')
+      + `\n동료의 등급이 올랐거나(플레이어가 그렇다고 쓰면 그대로) 동료가 무기를 받아들였으면 서술 끝에: [[직원 이름 등급 7]] / [[직원 이름 무기 무기 이름]]. 동료가 무기를 거절했으면 무기 태그는 붙이지 않는다.`;
+  };
+  const GIVE = /(?:에게|한테|께)\s*(?:「)?([^」\n]{1,24}?)(?:」)?\s*(?:을|를)?\s*(?:준다|줬|주었|주고|건넨|건넸|건네|넘겨|넘긴|선물|쥐여|쥐어|맡긴|맡겼)/;
+  const NO = /거절|사양|받지\s*않|안\s*받|돌려주|돌려준|거부|필요\s*없|싫다/;
+  const RANK = /(\d)\s*급\s*(?:으로|이|가|에)?\s*(?:승급|승격|진급|올랐|올라|됐|되었|된다|달성|붙었|합격)/;
+  const _applyStaff = aiApplyTags;
+  aiApplyTags = function (reply) {
+    const r = _applyStaff(reply);
+    try {
+      if (!S || !staffAll().length) return r;
+      const done = new Set();
+      for (const m of reply.matchAll(/\[\[\s*직원\s*([^\]]+?)\s*\]\]/g)) {
+        const t = m[1], g = t.match(/^(.+?)\s+등급\s*(\d)/), w = t.match(/^(.+?)\s+무기\s+(.+)$/);
+        if (g) { const h = staffFind(g[1]); if (h && staffSetGrade(h, g[2])) done.add(h.id + 'g'); }
+        if (w) { const h = staffFind(w[1]); if (h && staffGiveWeapon(h, w[2])) done.add(h.id + 'w'); }
+      }
+      // 서술자가 태그를 빠뜨려도 플레이어 입력대로 — 이름이 들어 있는 동료만
+      const msg = (aiLast && aiLast.msg) || '';
+      for (const h of staffAll()) {
+        const b = staffBase(h.name); if (!b || !msg.includes(b)) continue;
+        const seg = msg.slice(msg.indexOf(b));
+        const rk = seg.match(RANK); if (rk && !done.has(h.id + 'g')) staffSetGrade(h, rk[1]);
+        const gv = seg.match(GIVE); if (gv && !done.has(h.id + 'w') && !NO.test(reply)) staffGiveWeapon(h, gv[1]);
+      }
+      renderTop();
+    } catch (_) {}
+    return r;
+  };
+})();
+</script>
+
+
 
 
 
