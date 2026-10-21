@@ -9817,6 +9817,93 @@ function staffDedupe() {
   };
 })();
 </script>
+<style>
+#preFight{background:var(--panel2);border:1px solid var(--red);border-radius:10px;padding:14px 16px;margin-bottom:10px}
+#preFight h3{margin:0 0 6px;color:var(--red);font-size:17px}
+#preFight .pf-foe{margin:4px 0;font-size:13.5px;line-height:1.6}
+#preFight .pf-btns{display:flex;gap:8px;margin-top:12px}
+#preFight .pf-btns button{flex:1;min-height:46px;font-size:15px}
+#preFight #pfFight{border-color:var(--red);color:var(--red)}
+#combat.pre .hand,#combat.pre .played,#combat.pre .ctrl,#combat.pre .intents{display:none!important}
+</style>
+<script>
+/* ---------- 전투 직전 — 맞서 싸울지, 도망칠지 (기본·서술 모드 공통).
+   이미 싸우기로 고른 경우(‘맞선다’ 선택지, 서술 모드에서 먼저 공격함), 도망칠 수 없는 싸움, 이어하기 복원은 묻지 않는다 ---------- */
+(() => {
+  const FIGHT_WORDS = /맞선|맞서|싸운|싸우|싸움|덤빈|덤벼|전투|제압|처단|공격|상대한|쓰러뜨|처치|막아선|베어|벤다|찌른|때린|쏜다|쏘|사냥|토벌|소탕|응전|받아친|습격|선제|덮친|달려든|죽인|죽이|해치|칼을\s*뽑|무기를\s*뽑|수행/;
+  const FLEE_WORDS = /도망|도주|달아나|달아난|피한다|피해\s*간|물러난|물러서|빠져나|숨는|숨었|후퇴|줄행랑|튄다|튀자/;
+  let chosenAt = 0, restoring = false;
+  const _choosePF = choose;
+  choose = function (i, auto = false) {
+    const c = T && T.awaiting && T.awaiting.choices && T.awaiting.choices[i];
+    if (c && !c.flee && !auto && FIGHT_WORDS.test(c.t || '')) chosenAt = Date.now();
+    return _choosePF(i, auto);
+  };
+  const _restorePF = restoreCombat;
+  restoreCombat = function (cb) { restoring = true; try { return _restorePF(cb); } finally { restoring = false; } };
+  let aiMsgNow = '';
+  const _sendPF = aiSend;
+  aiSend = async function (override) {
+    const msg = (typeof override === 'string' ? override : ($('#aiInput').value || '')).trim();
+    // 전투 직전 화면에서 채팅으로 고른다 — 도망치겠다는 말이면 도망, 그 밖의 말은 맞서 싸우는 것으로
+    if (C && C.pre && msg && !aiBusy) { if (FLEE_WORDS.test(msg)) preFlee(); else preFight(); }
+    aiMsgNow = msg;
+    try { return await _sendPF(override); } finally { aiMsgNow = ''; }
+  };
+  const fleeRate = () => {
+    const base = H().flee || (S.grade <= 3 ? 0.95 : 0.6);
+    const elite = combatEnemies().some(e => e.d && e.d.elite);
+    return Math.max(0.15, Math.min(0.95, elite ? base * 0.6 : base));
+  };
+  const noAsk = (key, opts) => restoring || opts.noFlee || opts.boss || /^(arbiter_enemy|star)$/.test(key) || faction() === 'head'
+    || Date.now() - chosenAt < 1500 || (S.aiMode && aiMsgNow && FIGHT_WORDS.test(aiMsgNow) && !FLEE_WORDS.test(aiMsgNow));
+  function preRender() {
+    const foes = combatEnemies();
+    const box = document.getElementById('preFight') || (() => { $('#combat').insertAdjacentHTML('afterbegin', '<div id="preFight"></div>'); return document.getElementById('preFight'); })();
+    box.innerHTML = `<h3>⚔ 적이 앞을 막아섰다</h3>
+      ${foes.map(e => `<div class="pf-foe"><b>${escapeHistory(e.name)}</b> <span class="dim">체력 ${e.maxHp}${e.d && e.d.elite ? ' · 강적' : ''}${C.opts.lethal ? ' · <span class="l-bad">패배하면 죽는다</span>' : ''}</span><div class="dim">${escapeHistory(e.desc || '')}</div></div>`).join('')}
+      <div class="pf-btns"><button id="pfFight">맞서 싸운다</button><button id="pfFlee">도망친다 (성공률 ${Math.round(fleeRate() * 100)}%)</button></div>
+      ${S.aiMode ? '<div class="dim" style="font-size:12px;margin-top:8px">채팅으로도 고를 수 있다 — "도망친다" 또는 하고 싶은 행동</div>' : ''}`;
+    $('#combat').classList.add('pre');
+    $('#pfFight').onclick = preFight; $('#pfFlee').onclick = preFlee;
+  }
+  function preClose() { if (C) C.pre = false; $('#combat').classList.remove('pre'); const b = document.getElementById('preFight'); if (b) b.remove(); }
+  function preFight() { if (!C || !C.pre) return; preClose(); clog('⚔ 맞서 싸운다.', 'l-sys'); renderCombat(); }
+  function preFlee() {
+    if (!C || !C.pre) return;
+    const ok = Math.random() < fleeRate(), names = combatEnemies().map(e => e.name).join(', ');
+    preClose();
+    if (!ok) { clog('도망치려 했지만 막혔다. 싸울 수밖에 없다.', 'l-bad'); stress(3); renderCombat(); return; }
+    const det = C.logDet, opts = C.opts;
+    $('#combat').classList.add('hidden'); $('#day').classList.remove('hidden');
+    S.phase = 'day'; C = null;
+    if (T) { T.timeLeft = Math.max(T.timeLeft, 8); T.resolved = true; }
+    if (det) { det.open = false; const sm = det.querySelector('summary'); if (sm) sm.innerHTML = `⚔ ${escapeHistory(names)} · <span class="l-sys">도주</span>`; }
+    print(`🏃 ${names}에게서 도망쳤다.`, 'l-sys');
+    stress(2); if (typeof rep === 'function' && opts && opts.rival) rep(-1);
+    renderTop();
+  }
+  const _fightPF = fight;
+  fight = function (key, opts = {}) {
+    const ask = !(S && noAsk(key, opts || {}));
+    _fightPF(key, opts);
+    if (!ask || !C || S.phase !== 'combat' || C.pre === false) return;
+    C.pre = true; preRender();
+  };
+  // 고르기 전에는 막을 진행하거나 카드를 낼 수 없다
+  const _resolvePF = resolveRound;
+  resolveRound = function (...a) { if (C && C.pre) return; return _resolvePF(...a); };
+  const _playPF = playCard;
+  playCard = function (...a) { if (C && C.pre) return; return _playPF(...a); };
+  const _renderPF = renderCombat;
+  renderCombat = function (...a) { const r = _renderPF(...a); if (C && C.pre && !document.getElementById('preFight')) preRender(); return r; };
+  // 서술자에게: 지금 싸울지 도망칠지 고르는 순간
+  const _statePF = aiStateText;
+  aiStateText = function () { const b = _statePF(); return C && C.pre ? b + '\n\n[전투 직전 — 플레이어가 맞서 싸울지 도망칠지 아직 고르지 않았다. 플레이어의 입력이 곧 그 선택이다]' : b; };
+  window.preFlee = preFlee; window.preFight = preFight;
+})();
+</script>
+
 
 
 
