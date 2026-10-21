@@ -7607,6 +7607,7 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
   [[등급 7]] — 플레이어가 시간이 흘러 위상·등급·직급(예: 큰 아우, 카포, 도슨트, 3급, 1과)이 올랐다고 서술할 때 목표 등급(9가 가장 낮고 1이 가장 높음). 인물들이 새 직급으로 부르기만 하고 태그를 빠뜨리지 마세요. 한 번에 두 단계까지만 오르고, 해결사라면 하나 협회 승급 심사를 거친 것으로 처리된다
   [[장소 폐공장 창고]] — 같은 구 안에서 머무는 곳이 바뀔 때. 건물·거리·가게 같은 구체적인 장소 이름만 짧게 (구 번호·회사·둥지·뒷골목은 쓰지 말 것 — 그건 [[이동]]으로). [현재 상태]의 위치가 둥지면 둥지 안의 장소를, 뒷골목이면 뒷골목의 장소를 고르세요. 건물 안으로 들어가거나 밖으로 나오면 꼭 [[장소]]를 새로 적으세요(밖이면 「○○ 거리」·「골목」처럼 바깥임을 알 수 있게). 밤에 건물 안에 있으면 게임이 그 안에서 밤을 보낸 것으로 처리합니다.
   [[이동 둥지]] / [[이동 뒷골목]] — 같은 구의 둥지 안팎을 오갈 때
+  [[이동 외곽]] — 도시 경계를 넘어 외곽으로 나갈 때. 외곽에 있다가 도시로 돌아오면 [[이동 7구]]처럼 돌아갈 구를 적는다. 둥지·뒷골목·외곽은 서로 다른 곳이니 장소 이름에 섞지 말 것
   [[이동 12구]] 또는 [[이동 12구 둥지]] — 다른 구(1~25구)로 옮겨 갈 때. 구 번호와 회사 글자는 짝이 정해져 있습니다(A사=1구, B사=2구, … K사=11구, L사=12구, … Y사=25구). 서술에서도 [현재 상태]의 위치(구 번호·회사)를 그대로 쓰고, 다른 구의 회사 이름을 섞지 마세요.
   [[전투 보통 상대 이름]] — 싸움이 벌어질 때. 상대가 원작의 인물·집단이면 이름을 정확히 쓰세요(예: [[전투 위험 머리의 발톱]], [[전투 위험 붉은안개]], [[전투 강함 특색 「주황빛 칼날」]], [[전투 강함 W사 4등급 정리 요원 - CCA]]). 그러면 그 상대의 실제 능력과 기술로 싸운다. 원작에 없는 상대면 이름 뒤에 | 를 두고 한 줄 설명을 붙이세요(예: [[전투 보통 칼잡이 강도 | 녹슨 칼을 든 뒷골목 강도]]). 난이도는 약함·보통·강함·위험 중 하나. 결과는 게임의 전투로 정해지니 승패를 미리 쓰지 마세요.
 - 전투 중([지금 장면]이 전투)에는 플레이어의 행동을 [손패]의 카드로 옮기세요. 피해량·승패는 게임의 주사위가 정하니, 플레이어가 피해 수치나 결과를 적어도 그대로 따르지 말고 시도하는 동작으로만 서술하세요.
@@ -7992,15 +7993,18 @@ function aiGradeFromInput(t) {
   return null;
 }
 // 플레이어 입력에서 이동 읽기 — "K사로 이동", "12구로 간다", "둥지로 들어간다", "뒷골목으로 나간다"
+const AI_GO_VERB = '(?:이동|간다|갔|가자|가서|가기|가본|가 본|가려|걸어\s*(?:간|갔|가)|내려|나가|나간|나갔|나와|나왔|나섰|향|도착|넘어|건너|들어|돌아|옮|떠나|떠났|도망|피신|달려)';
 function aiMoveFromInput(t) {
   if (!t) return null;
-  const go = '(?:로|으로|에|쪽으로|까지)?\\s*(?:이동|간다|갔|가자|가서|가기|향|도착|넘어|건너|들어|돌아)';
+  const go = `(?:로|으로|에|쪽으로|까지|안으로|밖으로)?\\s*${AI_GO_VERB}`;
   const lm = t.match(new RegExp(`(?:^|[^A-Za-z])([A-Ya-y])\\s*사(?:\\s*(둥지|뒷골목))?${go}`));
   if (lm) return `${lm[1].toUpperCase()}사${lm[2] ? ' ' + lm[2] : ''}`;
   const nm = t.match(new RegExp(`(\\d{1,2})\\s*구(?:\\s*(둥지|뒷골목))?${go}`));
   if (nm) return `${nm[1]}구${nm[2] ? ' ' + nm[2] : ''}`;
-  if (/둥지\s*(?:로|으로|안으로|에)?\s*(?:들어|이동|간다|갔|향)/.test(t)) return '둥지';
-  if (/(?:뒷골목|골목)\s*(?:으로|로|에)?\s*(?:나가|나간|나갔|나와|나왔|이동|간다|갔|향)|둥지\s*(?:밖으로|를\s*나)/.test(t)) return '뒷골목';
+  if (new RegExp(`외곽${go}|도시\\s*(?:밖으로|를\\s*(?:나|떠))|도시의?\\s*경계를\\s*넘`).test(t)) return '외곽';
+  if (new RegExp(`둥지${go}`).test(t) && !/둥지\s*(?:밖으로|를\s*나)/.test(t)) return '둥지';
+  if (new RegExp(`(?:뒷골목|골목)${go}|둥지\\s*(?:밖으로|를\\s*나)`).test(t)) return '뒷골목';
+  if (S && S.exiled && new RegExp(`도시${go}`).test(t)) return '뒷골목';
   return null;
 }
 // 플레이어 입력에서 시간 경과 읽기 — "아침이 되고", "다음 날", "해가 지고", "두 시간 뒤", "30분 후" 등
@@ -8072,27 +8076,53 @@ function aiApplyTags(reply) {
   return { lv: f[1] || '보통', name: (nm || '').trim().slice(0, 24), desc: (ds || '').trim().slice(0, 120) };
 }
 // 장소·이동 태그
+// 도시 → 외곽, 외곽 → 도시, 같은 구의 둥지 ↔ 뒷골목, 다른 구로 — 서술 속 이동을 실제 위치로 옮긴다
+function aiGoOutskirts() {
+  if (S.exiled || S.warp) return;
+  leaveCity('도시의 경계를 넘었다. 등 뒤로 도시의 불빛이 멀어진다. — 외곽');
+  S.aiPlace = ''; if (!S.aiTimeJump) S.aiTimeJump = '+120';
+}
+function aiReturnCity(t) {
+  const lm = (t || '').match(/(?:^|[^A-Za-z])([A-Ya-y])\s*사/), nm = (t || '').match(/(\d{1,2})\s*구/);
+  let n = lm ? lm[1].toUpperCase().charCodeAt(0) - 64 : nm ? +nm[1] : (S.cityLoc && S.cityLoc.n) || rnd(1, 25);
+  if (!(n >= 1 && n <= 25)) n = rnd(1, 25);
+  const a = /둥지/.test(t || '') ? '둥지' : '뒷골목', L = String.fromCharCode(64 + n);
+  S.exiled = false;
+  S.loc = S.cityLoc = { area: a, n, letter: L, label: cityLabel(n, a), note: WING_NOTE[L] || '' };
+  S.aiPlace = ''; aiOut(`📍 도시로 돌아왔다 — ${S.loc.label}${S.loc.note ? ' · ' + S.loc.note : ''}`, 'l-day');
+  if (!S.aiTimeJump) S.aiTimeJump = '+120';
+}
+const aiCityWord = t => /\d{1,2}\s*구|(?:^|[^A-Za-z])[A-Y]\s*사|둥지|뒷골목|도시/.test(t);
+function aiMoveTo(t) {
+  if (S.warp || S.phase !== 'day') return false;
+  if (/외곽/.test(t) && !aiCityWord(t.replace(/외곽/g, ''))) { if (!S.exiled) { aiGoOutskirts(); return true; } return false; }
+  if (S.exiled) { if (aiCityWord(t)) { aiReturnCity(t); return true; } return false; }
+  // 회사 글자(K사)가 있으면 그것을 믿는다 — 구 번호와 어긋나면 글자 쪽으로 (A=1구 … Y=25구)
+  const lm = t.match(/(?:^|[^A-Za-z])([A-Ya-y])\s*사/), nm = t.match(/(\d{1,2})\s*구/);
+  const n = lm ? lm[1].toUpperCase().charCodeAt(0) - 64 : nm ? +nm[1] : 0;
+  const area = /둥지/.test(t) ? '둥지' : /뒷골목|골목/.test(t) ? '뒷골목' : null;
+  if (n >= 1 && n <= 25 && (!S.loc || n !== S.loc.n)) {
+    const L = String.fromCharCode(64 + n), a = area || '뒷골목';
+    S.loc = S.cityLoc = { area: a, n, letter: L, label: cityLabel(n, a), note: WING_NOTE[L] || '' };
+    S.aiPlace = ''; aiOut(`📍 도착 — ${S.loc.label}${S.loc.note ? ' · ' + S.loc.note : ''}`, 'l-day');
+    if (!S.aiTimeJump) S.aiTimeJump = '+60';   // 구를 옮기면 한 시간쯤 걸린다
+    return true;
+  }
+  if (area && S.loc && S.loc.n && S.loc.area !== area) { S.aiPlace = ''; moveZone(area); return true; }
+  return false;
+}
 function aiApplyPlace(reply) {
   const pl = reply.match(/\[\[\s*장소\s*([^\]]+?)\s*\]\]/), mv = reply.match(/\[\[\s*이동\s*([^\]]+?)\s*\]\]/);
-  if (mv && !S.warp && !S.exiled && S.phase === 'day') {
-    // 회사 글자(K사)가 있으면 그것을 믿는다 — 구 번호와 어긋나면 글자 쪽으로 (A=1구 … Y=25구)
-    const t = mv[1], lm = t.match(/(?:^|[^A-Za-z])([A-Ya-y])\s*사/), nm = t.match(/(\d{1,2})\s*구/);
-    const n = lm ? lm[1].toUpperCase().charCodeAt(0) - 64 : nm ? +nm[1] : 0;
-    const area = /둥지/.test(t) ? '둥지' : /뒷골목|골목/.test(t) ? '뒷골목' : null;
-    if (n >= 1 && n <= 25 && (!S.loc || n !== S.loc.n)) {
-      const L = String.fromCharCode(64 + n), a = area || '뒷골목';
-      S.loc = S.cityLoc = { area: a, n, letter: L, label: cityLabel(n, a), note: WING_NOTE[L] || '' };
-      S.aiPlace = ''; aiOut(`📍 도착 — ${S.loc.label}${S.loc.note ? ' · ' + S.loc.note : ''}`, 'l-day');
-      if (!S.aiTimeJump) S.aiTimeJump = '+60';   // 구를 옮기면 한 시간쯤 걸린다
-    } else if (area && S.loc && S.loc.n && S.loc.area !== area) { S.aiPlace = ''; moveZone(area); }
-  }
+  if (mv) aiMoveTo(mv[1]);
   if (pl) {
-    // 장소 이름에 섞인 구·회사·둥지/뒷골목은 떼어 내고, 지금 위치와 어긋나면 그 장소는 받지 않는다
+    // 장소에 다른 구역(둥지·뒷골목·외곽·다른 구)이 적혀 있으면 그곳으로 옮겨 간 것으로 본다 — 둥지와 뒷골목은 서로 다른 곳이다
     let t = pl[1];
     const n = +((t.match(/(\d{1,2})\s*구/) || [])[1] || 0), area = /둥지/.test(t) ? '둥지' : /뒷골목|골목/.test(t) ? '뒷골목' : null;
-    t = t.replace(/\d{1,2}\s*구/g, '').replace(/\b[A-Y]\s*사(\([^)]*\))?/g, '').replace(/둥지|뒷골목/g, '').replace(/^[\s·,\-—]+|[\s·,\-—]+$/g, '').trim();
-    const clash = (n && S.loc && S.loc.n && n !== S.loc.n) || (area && S.loc && S.loc.area && area !== S.loc.area);
-    if (!clash && t) S.aiPlace = t.slice(0, 24);
+    const out = /외곽/.test(t);
+    if ((out && !S.exiled) || (S.exiled && !out && (n || area)) || (n && S.loc && S.loc.n && n !== S.loc.n) || (area && S.loc && S.loc.area && S.loc.area !== 'outskirts' && area !== S.loc.area)) aiMoveTo(t);
+    t = t.replace(/\d{1,2}\s*구/g, '').replace(/\b[A-Y]\s*사(\([^)]*\))?/g, '').replace(/둥지|뒷골목|외곽/g, '').replace(/^[\s·,\-—의]+|[\s·,\-—]+$/g, '').trim();
+    const clash = (n && S.loc && S.loc.n && n !== S.loc.n) || (area && S.loc && S.loc.area && area !== S.loc.area) || (out && !S.exiled);
+    if (!clash && t && t !== '골목') S.aiPlace = t.slice(0, 24);
   }
 }
 // 전투 중 태그: 대상 → 카드 → 진행
