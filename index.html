@@ -7789,7 +7789,7 @@ async function aiSend(override) {
   const logEl = S.phase === 'combat' ? $('#clog') : $('#log');
   aiLast = { msg, snap: JSON.stringify(S, (k, v) => (typeof v === 'function' || k === '_h') ? undefined : v), queue: T ? T.queue.slice() : [], tRef: T, awaitRef: T && T.awaiting, phase: S.phase, day: S.day, turn: S.turn, logEl, mark: logEl.children.length };
   aiHoldTime();
-  aiOut(`<span class="ai-me">▸ ${escAI(S.heroName || '나')}: ${escAI(msg)}</span><span class="ai-tools"><button data-ai="editme" title="내 입력을 고쳐 다시 보낸다">✎</button></span>`, 'ai-line');
+  aiOut(`<span class="ai-me">${escAI(msg)}</span><span class="ai-tools"><button data-ai="editme" title="내 입력을 고쳐 다시 보낸다">✎</button></span>`, 'ai-line');
   aiLast.userEl = logEl.lastElementChild;
   aiOut('<span class="dim ai-wait">서술자가 장면을 쓰는 중… (그동안 시간은 멈춰 있다)</span>', 'ai-line');
   S.aiHist = (S.aiHist || []).slice(-AI_HIST);
@@ -7803,9 +7803,9 @@ async function aiSend(override) {
   if (reply) {
     const m = reply.match(/\[\[\s*선택\s*(\d+)\s*\]\]/);
     const tm = reply.match(/\[\[\s*시간\s*([^\]]+?)\s*\]\]/);
-    const body = reply.replace(/\[\[\s*(선택|시간|체력|돈|정신|압박|평판|실적|등급|승격|소속|직함|획득|뒤틀림|해소|혈귀화|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
+    const body = reply.replace(/\[\[\s*(선택|행동|시간|체력|돈|정신|압박|평판|실적|등급|승격|소속|직함|획득|뒤틀림|해소|혈귀화|전투|장소|이동|카드|대상|진행|휴전|기억|일행|권속|피주머니|피|공방|사무소|동료|특색|집|둥지)[^\]]*\]\]/g, '').trim();
     S.aiTimeJump = tm ? tm[1] : aiTimeFromInput(msg);   // 서술자가 태그를 빠뜨려도 플레이어의 입력에서 시간 경과를 읽는다
-    aiOut(`<span class="ai-text">${escAI(body).replace(/\n+/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
+    aiOut(`<span class="ai-text">${escAI(body).replace(/\n\s*\n+/g, '<span class="pgap"></span>').replace(/\n/g, '<br>')}</span><span class="ai-tools"><button data-ai="regen" title="같은 입력으로 다시 쓴다 (이번 응답의 변화는 되돌린다)">↻ 다시 쓰기</button><button data-ai="edit" title="서술 문장을 직접 고친다">✎ 고치기</button></span>`, 'ai-line');
     aiLast.body = body;
     if (!/\[\[\s*등급/.test(reply)) { const gIn = aiGradeFromInput(msg); if (gIn) reply += `\n[[등급 ${gIn}]]`; }   // '큰 아우까지 달성했다' 같은 직급 서술도 반영
     for (const g of aiGainFromInput(msg)) if (!reply.replace(/\s/g, '').includes('[[' + g.replace(/\s/g, ''))) reply += `\n[[${g}]]`;   // 얻었다·발현했다·뒤틀렸다 같은 서술도 입력대로
@@ -7858,7 +7858,7 @@ function aiEditFinish(btn, save) {
     const h = S.aiHist || []; for (let i = h.length - 1; i >= 0; i--) if (h[i].role === 'assistant' && h[i].content === aiLast.body) { h[i].content = text; break; }
     aiLast.body = text;   // 고친 서술은 다음 대화부터 서술자가 사실로 이어 간다
   }
-  span.innerHTML = escAI(text).replace(/\n+/g, '<br>');
+  span.innerHTML = escAI(text).replace(/\n\s*\n+/g, '<span class="pgap"></span>').replace(/\n/g, '<br>');
   const tools = line.querySelector('.ai-tools'); if (tools) tools.style.display = '';
 }
 function aiEditMine(btn) {
@@ -9500,6 +9500,164 @@ renderResume();
   window.makeSaveCode = makeSaveCode; window.readSaveCode = readSaveCode;
 })();
 </script>
+<script>
+/* ---------- 서술 모드: 메뉴로만 되던 일도 채팅으로 — 도시 시설·의뢰 게시판·공방·사무소·붉은안개의 책의 버튼을
+   보이지 않게 펼쳐 목록으로 만들어 서술자에게 건네고, 서술자가 [[행동 N]]을 붙이면 그 버튼을 대신 누른다 ---------- */
+(() => {
+  document.head.insertAdjacentHTML('beforeend', '<style>#modal.ghost{visibility:hidden!important;pointer-events:none!important}</style>');
+  const PANELS = [
+    ['cityBtn', () => cityRender()], ['boardBtn', () => boardRender()], ['wsBtn', () => wsRender()],
+    ['officeBtn', () => officeRender()], ['rmBtn', () => redMistBookModal(false)],
+  ];
+  const modal = $('#modal'), box = $('#modalBox');
+  const clean = t => String(t || '').replace(/\s+/g, ' ').trim();
+  const skipBtn = b => b.disabled || /close|cancel/i.test(b.id || '') || /^(닫기|취소|돌아가기|뒤로)$/.test(clean(b.textContent));
+  function describe(b, panel) {
+    let head = '';
+    for (const h of box.querySelectorAll('h4')) if (h.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) head = clean(h.textContent);
+    const row = b.closest('.fac-row'), title = row && row.querySelector('b') ? clean(row.querySelector('b').textContent) : '';
+    const text = clean(b.textContent);
+    return { panel, head, title, text, key: [panel, head, title, text].join('|'),
+      label: [panel, head, title && title !== text ? `${title} — ${text}` : text].filter(Boolean).join(' › ').slice(0, 110) };
+  }
+  const panelOn = id => { const b = document.getElementById(id); return b && !b.classList.contains('hidden'); };
+  // 패널을 보이지 않게 열어 누를 수 있는 버튼을 모은다 (이미 사람이 창을 열어 둔 때는 건드리지 않는다)
+  function withPanel(id, open, fn) {
+    if (!modal.classList.contains('hidden') && !modal.classList.contains('ghost')) return null;
+    modal.classList.add('ghost');
+    try { open(); if (modal.classList.contains('hidden')) return null; const name = clean((box.querySelector('h3') || {}).textContent || document.getElementById(id).textContent).split(/\s{2,}| 보유 | — /)[0]; return fn(name); }
+    catch (_) { return null; }
+    finally { if (modal.classList.contains('ghost')) { modal.classList.remove('ghost'); if (!modal._keep) closeModal(); modal._keep = false; } }
+  }
+  function aiActions() {
+    if (!S || S.phase !== 'day' || S.warp) return [];
+    const out = [];
+    for (const [id, open] of PANELS) {
+      if (!panelOn(id)) continue;
+      withPanel(id, open, name => { for (const b of box.querySelectorAll('button')) if (!skipBtn(b)) out.push({ id, ...describe(b, name) }); });
+    }
+    return out.slice(0, 60);
+  }
+  function runAction(a) {
+    const open = (PANELS.find(p => p[0] === a.id) || [])[1]; if (!open || !panelOn(a.id)) return false;
+    let done = false;
+    withPanel(a.id, open, name => {
+      const all = [...box.querySelectorAll('button')].filter(b => !skipBtn(b)).map(b => ({ b, d: describe(b, name) }));
+      const hit = all.find(x => x.d.key === a.key) || all.find(x => x.d.title && x.d.title === a.title && x.d.text === a.text) || all.find(x => x.d.title && x.d.title === a.title);
+      if (!hit) return;
+      const before = clean((box.querySelector('h3') || {}).textContent).slice(0, 8);
+      hit.b.click(); done = true;
+      // 버튼이 새 창(이름 입력·확인 등)을 띄웠다면 그 창은 보여 준다
+      if (!modal.classList.contains('hidden') && clean((box.querySelector('h3,h2') || {}).textContent).slice(0, 8) !== before) modal._keep = true;
+    });
+    return done;
+  }
+  let lastActs = [];
+  const _stateActs = aiStateText;
+  aiStateText = function () {
+    const base = _stateActs();
+    lastActs = aiActions();
+    if (!lastActs.length) return base;
+    return base + `\n\n[메뉴 행동 — 플레이어가 이 중 하나를 하려 하면(사다·받다·맞다·수락하다·고용하다·갚다·잊다 등) 서술 끝에 [[행동 번호]]를 붙인다. 여러 개면 여러 번. 돈이 모자라 버튼이 없는 것은 서술로만 다룬다. [[행동]]으로 한 일에는 [[돈]]·[[동료 고용]] 같은 다른 태그를 겹쳐 쓰지 않는다(값은 자동으로 치러진다). 목록에 없는 거래는 [[돈 ±금액]]·[[획득 …]]으로]\n`
+      + lastActs.map((a, i) => `${i + 1}. ${a.label}`).join('\n');
+  };
+  const BUY = /(사|산다|샀|사서|살래|구매|구입|받|맞|고용|수락|맡|갚|투여|제거|잊|파쇄|들이|들여|입|주문|계약|읽|펼)/;
+  function runFromReply(reply, msg) {
+    if (!lastActs.length || !S || S.phase !== 'day') return;
+    let nums = [...reply.matchAll(/\[\[\s*행동\s*(\d+)\s*\]\]/g)].map(x => +x[1]);
+    if (!nums.length && msg && BUY.test(msg)) {   // 서술자가 태그를 빠뜨렸어도, 입력에 메뉴의 이름이 그대로 있으면
+      const m = msg.replace(/\s/g, '');
+      const hits = lastActs.map((a, i) => [a, i + 1]).filter(([a]) => { const t = (a.title || '').replace(/[★()\d회받음\s]/g, ''); return t.length >= 3 && m.includes(t); });
+      if (hits.length === 1) nums = [hits[0][1]];
+    }
+    // 같은 일을 다른 태그([[동료 고용]]·[[사무소]]·[[공방]] 등)가 이미 처리했으면 두 번 하지 않는다
+    const dup = [[/\[\[\s*동료\s*고용/, /동료 고용/], [/\[\[\s*사무소/, /사무소/], [/\[\[\s*(공방|제작|판매)/, /공방 운영|제작|판매/]].filter(([t]) => t.test(reply)).map(x => x[1]);
+    const acts = nums.map(n => lastActs[n - 1]).filter(a => a && !dup.some(r => r.test(a.label)));
+    for (const a of acts) {
+      const n0 = $('#log').children.length;
+      if (runAction(a)) { if ($('#log').children.length === n0) aiOut(`▸ ${escAI(a.label)}`, 'l-choice'); }
+      else aiOut(`▸ 할 수 없었다 — ${escAI(a.label)}`, 'l-bad');
+    }
+    if (acts.length) renderTop();
+  }
+  const _applyTagsActs = aiApplyTags;
+  aiApplyTags = function (reply) { const r = _applyTagsActs(reply); try { runFromReply(reply, aiLast && aiLast.msg); } catch (_) {} return r; };
+  window.aiActions = aiActions;
+})();
+</script>
+<style>
+/* ---------- 서술 모드 화면 정리 — 위: 상태 3줄 + 메뉴(접힘), 가운데: 이야기(화면을 꽉 채움), 아래: 입력창 ---------- */
+:root{--topbar:0px}
+body.ai-on .speed,body.ai-on .timer,body.ai-on #nextBtn{display:none!important}
+body.ai-on{padding-bottom:0!important}
+body.ai-on .wrap{padding-bottom:0}
+body.ai-on #topbar{padding:6px 0 5px}
+body.ai-on .bar-row{gap:3px 12px;font-size:13px;line-height:1.5}
+body.ai-on .bar-row .brk{flex-basis:100%;height:0}
+body.ai-on #clock{order:1;font-size:14.5px}
+body.ai-on #sLoc{order:2;flex:1 1 0;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.ai-on #menuToggle{order:3;padding:4px 12px;font-size:13px}
+body.ai-on .bar-row .brk1{order:4}
+body.ai-on .bar-row .stat:has(#sHp),body.ai-on .bar-row .stat:has(#sMoney),body.ai-on #sPress,body.ai-on #sPay,body.ai-on #sDebt{order:5}
+body.ai-on #sDebt:empty,body.ai-on #sPay:empty{display:none}
+body.ai-on .bar-row .brk2{order:6}
+body.ai-on .role-stat{order:7;flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--dim)}
+body.ai-on .bar-row .stat:has(#sMerit){order:8;font-size:12px}
+body.ai-on .menu-btns{order:9;display:none!important}
+body.ai-on.menu-open .menu-btns{display:flex!important;flex:1 1 100%;flex-wrap:wrap!important;gap:6px;overflow:visible;padding:6px 0 2px;border-top:1px solid var(--line);margin-top:3px}
+body.ai-on.menu-open .menu-btns button{flex:0 0 auto!important;padding:7px 12px!important;font-size:13px!important;min-height:36px}
+#menuToggle{display:none}
+body.ai-on #menuToggle{display:inline-block}
+body.ai-on .turns{margin-top:4px}
+body.ai-on .turns span{font-size:10.5px;padding:1px}
+/* 이야기 창이 남은 높이를 전부 쓴다 */
+body.ai-on #day:not(.hidden){display:flex;flex-direction:column;height:calc(100dvh - var(--topbar) - var(--aibar) - 10px)}
+body.ai-on #day > #log{flex:1 1 auto;min-height:0;height:auto;max-height:none;margin-top:8px;padding:14px 16px 18px;font-size:15.5px;line-height:1.85}
+body.ai-on #day > #event{position:static;flex:0 0 auto;max-height:42%;overflow-y:auto;margin:8px 0 4px;box-shadow:none}
+/* 줄의 종류를 한눈에: 내 말은 오른쪽 말풍선, 서술은 본문, 시스템은 작은 알림 */
+body.ai-on #log > div{margin:3px 0}
+body.ai-on #log .l-amb{display:none}
+body.ai-on #log .l-turn,body.ai-on #log .l-day,body.ai-on #log .l-night{display:flex;align-items:center;gap:10px;font-size:12.5px;margin:18px 0 8px;padding:0;border:none;text-align:center}
+body.ai-on #log .l-turn::before,body.ai-on #log .l-turn::after,body.ai-on #log .l-day::before,body.ai-on #log .l-day::after,body.ai-on #log .l-night::before,body.ai-on #log .l-night::after{content:"";flex:1;border-top:1px solid var(--line)}
+body.ai-on #log .l-sys{font-size:12.5px;line-height:1.6;opacity:.85;border-left:2px solid #a07ad866;padding:1px 0 1px 9px;margin:5px 0}
+body.ai-on #log .l-good,body.ai-on #log .l-bad,body.ai-on #log .l-choice{font-size:13.5px;line-height:1.6;padding-left:11px}
+body.ai-on .ai-line:has(.ai-me){display:flex;justify-content:flex-end;align-items:flex-end;gap:4px;margin:16px 0 8px}
+body.ai-on .ai-line .ai-me{display:inline-block;max-width:85%;background:#15302d;border:1px solid #2b5550;color:#d6f1ec;border-radius:14px 14px 4px 14px;padding:7px 13px;font-size:14.5px;line-height:1.6;text-align:left;white-space:pre-wrap;word-break:keep-all;overflow-wrap:anywhere}
+body.ai-on .ai-line .ai-text{display:block;font-style:normal;color:var(--text);border-left:none;padding:0;margin:2px 0 0;word-break:keep-all;overflow-wrap:anywhere}
+body.ai-on .ai-line .ai-tools{display:flex;justify-content:flex-end;gap:4px;margin:4px 0 6px}
+body.ai-on .ai-line:has(.ai-me) .ai-tools{margin:0;order:-1}
+body.ai-on .ai-line .ai-tools button{opacity:.55}
+body.ai-on .ai-line .ai-tools button:hover{opacity:1}
+body.ai-on .ai-wait{font-style:italic}
+.ai-text .pgap{display:block;height:.6em}
+body.ai-on #log > div{animation:none}
+@media (max-width:600px){
+  body.ai-on #topbar .wrap{padding-left:12px;padding-right:12px}
+  body.ai-on .bar-row{font-size:12.5px;gap:2px 10px}
+  body.ai-on #day > #log{padding:12px 12px 16px;font-size:15px;line-height:1.8;border-radius:6px}
+  body.ai-on .ai-line .ai-me{font-size:14px;max-width:88%}
+  body.ai-on #day > #event{max-height:46%}
+}
+</style>
+<script>
+(() => {
+  const row = document.querySelector('#topbar .bar-row');
+  row.insertAdjacentHTML('beforeend', '<button id="menuToggle" aria-expanded="false">☰ 메뉴</button><span class="brk brk1"></span><span class="brk brk2"></span>');
+  const tg = document.getElementById('menuToggle');
+  tg.onclick = () => { const on = document.body.classList.toggle('menu-open'); tg.setAttribute('aria-expanded', on); tg.textContent = on ? '✕ 닫기' : '☰ 메뉴'; };
+  // 메뉴 안의 버튼을 누르면 메뉴는 접는다
+  document.querySelector('.menu-btns').addEventListener('click', e => { if (e.target.closest('button') && document.body.classList.contains('menu-open')) tg.click(); });
+  const setTop = () => { const t = document.getElementById('topbar'); document.documentElement.style.setProperty('--topbar', (t && !t.classList.contains('hidden') ? t.offsetHeight : 0) + 'px'); };
+  if (window.ResizeObserver) new ResizeObserver(setTop).observe(document.getElementById('topbar'));
+  window.addEventListener('resize', setTop); setInterval(setTop, 1500); setTop();
+  // 새 줄이 붙으면 맨 아래로 (위로 올려 읽는 중이면 그대로 둔다)
+  const log = document.getElementById('log'); let atEnd = true;
+  log.addEventListener('scroll', () => { atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 80; });
+  new MutationObserver(() => { if (atEnd && document.body.classList.contains('ai-on')) log.scrollTop = log.scrollHeight; }).observe(log, { childList: true });
+})();
+</script>
+
+
 
 
 
