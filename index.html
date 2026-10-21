@@ -290,7 +290,8 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
       <span class="menu-btns"><button id="cityBtn" style="padding:3px 9px;font-size:13px;border-color:var(--gold)">도시 시설</button>
       <button id="boardBtn" class="hidden" style="padding:3px 9px;font-size:13px;border-color:var(--cyan)">의뢰 게시판</button>
       <button id="deckBtn" style="padding:3px 9px;font-size:13px">덱 보기</button>
-      <button id="helpBtn" style="padding:3px 9px;font-size:13px">도움말</button></span>
+      <button id="helpBtn" style="padding:3px 9px;font-size:13px">도움말</button>
+      <button id="codeBtn" style="padding:3px 9px;font-size:13px" title="다른 기기에서 이어 하기 위한 저장 코드">저장 코드</button></span>
       <div class="speed">
         <button data-sp="0" title="Space">⏸ 정지</button>
         <button data-sp="1" class="on">1x</button>
@@ -9368,6 +9369,108 @@ renderResume();
   fast('aiGear', () => aiSettings());
 })();
 </script>
+<script>
+/* ---------- 저장 코드 — 진행 중인 삶을 글자 코드로 내보내고, 다른 기기에서 그 코드로 이어 한다.
+   AI 설정(API 키)은 절대 넣지 않는다. 압축(deflate) 후 base64url, 앞에 판본 표시 SHT1.(압축) / SHT0.(비압축) ---------- */
+(() => {
+  const b64 = bytes => { let t = ''; for (let i = 0; i < bytes.length; i += 0x8000) t += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(t).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  const unb64 = str => { const t = atob(str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4)); const u = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; };
+  const pipe = async (bytes, stream) => new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer());
+  const canZip = typeof CompressionStream === 'function' && typeof DecompressionStream === 'function';
+
+  async function makeSaveCode() {
+    saveLife(true);
+    const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null;
+    let hero = null; try { hero = JSON.parse(localStorage.getItem('sht_hero') || 'null'); } catch (_) {}
+    const data = new TextEncoder().encode(JSON.stringify({ v: 1, save: JSON.parse(raw), hero, at: new Date().toISOString() }));
+    if (canZip) { try { return 'SHT1.' + b64(await pipe(data, new CompressionStream('deflate-raw'))); } catch (_) {} }
+    return 'SHT0.' + b64(data);
+  }
+  async function readSaveCode(code) {
+    const c = String(code || '').replace(/\s+/g, '');
+    const m = c.match(/^SHT([01])\.([A-Za-z0-9_-]+)$/); if (!m) throw new Error('저장 코드 형식이 아닙니다. (SHT1. 로 시작해야 합니다)');
+    let bytes;
+    try { bytes = unb64(m[2]); } catch (_) { throw new Error('코드가 잘렸거나 글자가 바뀌었습니다.'); }
+    if (m[1] === '1') {
+      if (!canZip) throw new Error('이 브라우저는 압축된 코드를 풀 수 없습니다. 브라우저를 최신으로 업데이트해 주세요.');
+      try { bytes = await pipe(bytes, new DecompressionStream('deflate-raw')); } catch (_) { throw new Error('코드가 잘렸거나 글자가 바뀌었습니다. 처음부터 끝까지 전부 복사했는지 확인해 주세요.'); }
+    }
+    let v; try { v = JSON.parse(new TextDecoder().decode(bytes)); } catch (_) { throw new Error('코드를 읽을 수 없습니다.'); }
+    if (!v || !v.save || !v.save.S || !v.save.S.ch) throw new Error('삶의 기록이 들어 있지 않은 코드입니다.');
+    if (v.save.S.phase === 'over') throw new Error('이미 끝난 삶의 코드입니다.');
+    return v;
+  }
+  const lifeLabel = s => `${escapeHistory(s.heroName || '')} · ${escapeHistory(s.ch.name)} · ${s.warp ? '워프 열차 안' : s.day + '일차 ' + (TURNS[s.turn] ? TURNS[s.turn].name : '')}`;
+
+  async function exportModal() {
+    if (!S || S.phase === 'over') { if (!loadLife()) { openModal('<h2>저장 코드</h2><p class="dim">진행 중인 삶이 없습니다.</p><button onclick="closeModal()">닫기</button>'); return; } }
+    const wasPaused = S && S.paused; if (S && S.phase !== 'over') S.paused = true;
+    const code = await makeSaveCode();
+    if (!code) { openModal('<h2>저장 코드</h2><p class="l-bad">저장소를 읽을 수 없어 코드를 만들지 못했습니다.</p><button onclick="closeModal()">닫기</button>'); return; }
+    const v = loadLife();
+    openModal(`<h2>저장 코드</h2>
+      <p style="line-height:1.6">${v ? lifeLabel(v.S) : ''}${v && v.combat ? ' · <span class="l-bad">전투 중</span>' : ''}<br>
+      <span class="dim" style="font-size:12px">이 코드를 다른 기기의 시작 화면에서 「코드로 불러오기」에 붙여 넣으면 지금 이 자리에서 이어집니다. (${code.length.toLocaleString()}자 · AI API 키는 들어 있지 않습니다)</span></p>
+      <textarea id="codeOut" readonly style="width:100%;height:140px;font-size:11px;word-break:break-all;font-family:monospace;background:rgba(0,0,0,.35);color:inherit;border:1px solid #555;border-radius:6px;padding:6px;box-sizing:border-box">${code}</textarea>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        <button id="codeCopy" style="border-color:var(--gold)">복사</button>
+        <button id="codeFile">파일로 저장</button>
+        <button id="codeClose">닫기</button> <span id="codeMsg" class="dim" style="align-self:center;font-size:12px"></span></div>`);
+    const out = $('#codeOut'), msg = $('#codeMsg');
+    out.onclick = () => out.select();
+    $('#codeCopy').onclick = async () => {
+      try { await navigator.clipboard.writeText(code); msg.textContent = '복사했습니다.'; }
+      catch (_) { out.focus(); out.select(); try { document.execCommand('copy'); msg.textContent = '복사했습니다.'; } catch (__) { msg.textContent = '자동 복사가 막혀 있습니다 — 칸을 길게 눌러 직접 복사해 주세요.'; } }
+    };
+    $('#codeFile').onclick = () => {
+      const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([code], { type: 'text/plain' }));
+      a.download = `SHT_저장코드_${v && v.S ? (v.S.heroName || 'life') + '_' + v.S.day + '일차' : 'life'}.txt`; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000); msg.textContent = '파일을 내려받았습니다.';
+    };
+    $('#codeClose').onclick = () => { closeModal(); if (S && S.phase !== 'over') S.paused = wasPaused; };
+  }
+
+  function importModal() {
+    const cur = loadLife();
+    openModal(`<h2>코드로 불러오기</h2>
+      <p class="dim" style="font-size:12px;line-height:1.6">다른 기기에서 만든 저장 코드(SHT1. 으로 시작)를 붙여 넣거나, 저장한 .txt 파일을 고르세요.${cur ? `<br><span class="l-bad">이 기기에서 진행 중인 삶(${lifeLabel(cur.S)})은 불러온 삶으로 바뀝니다.</span>` : ''}</p>
+      <textarea id="codeIn" placeholder="SHT1.…" style="width:100%;height:140px;font-size:11px;word-break:break-all;font-family:monospace;background:rgba(0,0,0,.35);color:inherit;border:1px solid #555;border-radius:6px;padding:6px;box-sizing:border-box" autocomplete="off" spellcheck="false"></textarea>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <button id="codeLoad" style="border-color:var(--gold)">불러와서 이어하기</button>
+        <label style="font-size:13px;cursor:pointer;border:1px solid var(--line, #555);border-radius:6px;padding:5px 10px">파일 고르기<input id="codeFileIn" type="file" accept=".txt,text/plain" style="display:none"></label>
+        <button id="codeClose2">닫기</button></div>
+      <div id="codeMsg2" style="margin-top:6px;font-size:13px"></div>`);
+    const inp = $('#codeIn'), msg = $('#codeMsg2');
+    $('#codeFileIn').onchange = async e => { const f = e.target.files[0]; if (f) inp.value = (await f.text()).trim(); };
+    $('#codeClose2').onclick = closeModal;
+    $('#codeLoad').onclick = async () => {
+      msg.className = 'dim'; msg.textContent = '읽는 중…';
+      let v; try { v = await readSaveCode(inp.value); } catch (err) { msg.className = 'l-bad'; msg.textContent = err.message; return; }
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(v.save));
+        if (v.hero && typeof v.hero === 'object') { const h = JSON.parse(localStorage.getItem('sht_hero') || '{}'); localStorage.setItem('sht_hero', JSON.stringify({ ...v.hero, ...h })); }
+      } catch (_) { msg.className = 'l-bad'; msg.textContent = '이 기기의 저장소에 쓸 수 없습니다. (사생활 보호 모드인지 확인해 주세요)'; return; }
+      if (!loadLife()) { msg.className = 'l-bad'; msg.textContent = '불러온 삶을 읽지 못했습니다.'; return; }
+      closeModal();
+      resumeLife();
+      if (v.save.S.aiMode && !aiCfg().key) print('— 이 삶은 서술 모드였습니다. 이 기기에는 AI 설정이 없으니 ⚙ 설정에서 API 키를 다시 넣어 주세요. (키는 코드에 담기지 않습니다)', 'l-sys');
+      if (typeof saveHistory === 'function') saveHistory();
+    };
+  }
+
+  $('#codeBtn').onclick = exportModal;
+  // 시작 화면: 진행 중인 삶 옆에 「저장 코드 만들기」, 언제나 「코드로 불러오기」
+  $('#rollArea').insertAdjacentHTML('afterbegin', '<div id="codeTitleBtns" style="margin-bottom:10px;display:flex;gap:6px;flex-wrap:wrap"><button id="codeImportBtn">코드로 불러오기</button><button id="codeExportBtn" class="hidden">저장 코드 만들기</button></div>');
+  const box = $('#resumeBox'); if (box) box.after($('#codeTitleBtns'));
+  $('#codeImportBtn').onclick = importModal;
+  $('#codeExportBtn').onclick = exportModal;
+  const _renderResumeCode = renderResume;
+  renderResume = function () { _renderResumeCode(); $('#codeExportBtn').classList.toggle('hidden', !loadLife()); };
+  renderResume();
+  window.makeSaveCode = makeSaveCode; window.readSaveCode = readSaveCode;
+})();
+</script>
+
 
 
 
