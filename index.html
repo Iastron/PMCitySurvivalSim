@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>뒷골목의 나날</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<script>try { const t = localStorage.getItem('sht_theme'); if (t === 'light' || t === 'dark' || t === 'system') document.documentElement.dataset.theme = t; } catch (_) {}</script>
 <style>
 :root{
   --bg:#0c0c0f;--panel:#15151a;--panel2:#1c1c23;--line:#2b2b35;--text:#dcd7ca;--dim:#8b877d;
@@ -7654,6 +7656,8 @@ const AI_SYSTEM = `당신은 Project Moon의 '도시'(Lobotomy Corporation · Li
 - 게임·AI·프롬프트 같은 메타 발언, 마크다운 제목·목록은 쓰지 마세요. 소설처럼 평문으로 씁니다.`;
 
 const stripTagsAI = h => String(h || '').replace(/<br\s*\/?>/g, ' ').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+// 기록 한 줄의 글만 (다시 쓰기·고치기 같은 버튼 글자는 뺀다)
+function lineText(d) { const c = d.cloneNode(true); c.querySelectorAll('.ai-tools,button').forEach(x => x.remove()); return c.textContent.replace(/\s+/g, ' ').trim(); }
 function aiStateText() {
   const L = [];
   L.push(`플레이어 캐릭터(= 플레이어 본인): ${S.heroName || '이름 없음'} (${S.gender === 'f' ? '여성' : '남성'}) · 출신: ${S.ch.name} · 소속: ${affName()} · ${rankText()}`);
@@ -7683,7 +7687,7 @@ function aiStateText() {
     choices = T.awaiting.choices.map((c, i) => `${i + 1}. ${stripTagsAI(c.t)}`).join('\n');
   }
   const logSel = S.phase === 'combat' ? '#clog' : '#log';
-  const recent = [...document.querySelectorAll(logSel + ' > div')].slice(-14).map(d => d.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+  const recent = [...document.querySelectorAll(logSel + ' > div')].slice(-14).map(lineText).filter(Boolean).join('\n');
   return `[현재 상태]\n${L.join('\n')}\n\n[지금 장면]\n${scene || '특별한 사건은 없다.'}${choices ? `\n\n[${S.phase === 'combat' ? '손패' : '선택지'}]\n${choices}` : ''}${(S.aiNotes || []).length ? `\n\n[기억해 둘 것]\n${S.aiNotes.map(n => '- ' + n).join('\n')}` : ''}\n\n[최근 기록]\n${recent}`;
 }
 
@@ -8452,10 +8456,10 @@ document.head.insertAdjacentHTML('beforeend', `<style>
 #log details.fight-log .fl-body{padding:4px 12px 8px;font-size:12.5px;line-height:1.6;max-height:280px;overflow-y:auto}
 #clog .story-ctx{color:var(--dim);font-size:12px;border-left:2px solid var(--line);padding-left:6px}
 </style>`);
-const storyLines = n => [...document.querySelectorAll('#log > div')].filter(d => d.innerText.trim()).slice(-n);
+const storyLines = n => [...document.querySelectorAll('#log > div')].filter(d => lineText(d)).slice(-n);
 const _fightLink = fight;
 fight = function (key, opts = {}) {
-  const ctx = S && S.phase !== 'combat' ? storyLines(4).map(d => d.innerText.replace(/\s+/g, ' ').trim()) : [];
+  const ctx = S && S.phase !== 'combat' ? storyLines(4).map(lineText) : [];
   _fightLink(key, opts);
   if (!C || S.phase !== 'combat' || C.logBody) return;
   // 직전 이야기 → 전투 기록 맨 위
@@ -9941,6 +9945,145 @@ body.ai-on #clog .l-sys{font-size:12.5px;opacity:.85}
   if (typeof aiRegenerate === 'function') { const _regScroll = aiRegenerate; aiRegenerate = function (...a) { arm(); return _regScroll(...a); }; }
 })();
 </script>
+<style>
+/* =========================================================
+   테마 — 다크(기본) · 라이트 · 시스템 설정 따르기
+========================================================= */
+:root{
+  --on-accent:#141110;--topbar-bg:rgba(12,12,15,.86);--overlay:rgba(0,0,0,.72);--shadow:0 6px 24px rgba(0,0,0,.35);
+  --input-bg:#111116;--clog-bg:var(--panel);--hb-bg:#07070a;--die-bg:rgba(0,0,0,.4);--light-off:#34343c;
+  --intent-bg:#1d1416;--intent-line:#4a2a2e;--bubble-bg:#15302d;--bubble-line:#2b5550;--bubble-text:#d6f1ec;
+  --night-bg:rgba(207,74,64,.08);--gold-soft:rgba(216,177,92,.12);--scroll:#3a3a44;
+  color-scheme:dark;
+}
+:root[data-theme="light"]{
+  --bg:#f3efe6;--panel:#fffdf8;--panel2:#f1ece1;--line:#ddd5c4;--text:#2b2620;--dim:#7c7466;
+  --gold:#94701f;--red:#b4372d;--blue:#2c68ae;--green:#3b8231;--purple:#7650bd;--orange:#bb5f18;--cyan:#1b8279;
+  --on-accent:#fffdf8;--topbar-bg:rgba(243,239,230,.88);--overlay:rgba(40,32,20,.38);--shadow:0 6px 22px rgba(80,60,30,.12);
+  --input-bg:#fffdf8;--hb-bg:#e7e0d1;--die-bg:rgba(60,45,20,.07);--light-off:#d6cfbf;
+  --intent-bg:#fbefec;--intent-line:#e6c3bd;--bubble-bg:#dcefeb;--bubble-line:#a9d3cc;--bubble-text:#16403b;
+  --night-bg:rgba(180,55,45,.07);--gold-soft:rgba(148,112,31,.1);--scroll:#cfc6b3;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: light){
+  :root[data-theme="system"]{
+    --bg:#f3efe6;--panel:#fffdf8;--panel2:#f1ece1;--line:#ddd5c4;--text:#2b2620;--dim:#7c7466;
+    --gold:#94701f;--red:#b4372d;--blue:#2c68ae;--green:#3b8231;--purple:#7650bd;--orange:#bb5f18;--cyan:#1b8279;
+    --on-accent:#fffdf8;--topbar-bg:rgba(243,239,230,.88);--overlay:rgba(40,32,20,.38);--shadow:0 6px 22px rgba(80,60,30,.12);
+    --input-bg:#fffdf8;--hb-bg:#e7e0d1;--die-bg:rgba(60,45,20,.07);--light-off:#d6cfbf;
+    --intent-bg:#fbefec;--intent-line:#e6c3bd;--bubble-bg:#dcefeb;--bubble-line:#a9d3cc;--bubble-text:#16403b;
+    --night-bg:rgba(180,55,45,.07);--gold-soft:rgba(148,112,31,.1);--scroll:#cfc6b3;
+    color-scheme:light;
+  }
+}
+/* 하드코딩된 색을 토큰으로 */
+html,body{background:var(--bg);font-family:"Pretendard Variable","Pretendard","Noto Sans KR","Malgun Gothic",sans-serif;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;transition:background-color .25s,color .25s}
+button.on,.turns span.cur,.card .cost{color:var(--on-accent)}
+#topbar{background:var(--topbar-bg);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#modal{background:var(--overlay)}
+#clog{background:var(--clog-bg)}
+.hb{background:var(--hb-bg)}
+.die{background:var(--die-bg)}
+.light i{background:var(--light-off)}
+.intent{background:var(--intent-bg);border-color:var(--intent-line)}
+.turns span.done{color:var(--dim);opacity:.55}
+#modal textarea,#aiInput,.hero-controls input,.hero-controls select,#rollCount,.ai-form input,.ai-form select,#modal input,#modal select{background:var(--input-bg)!important;color:var(--text)!important;border-color:var(--line)!important}
+body.ai-on .ai-line .ai-me{background:var(--bubble-bg);border-color:var(--bubble-line);color:var(--bubble-text)}
+#title .night-rule{background:var(--night-bg)}
+.resume-card{background:linear-gradient(180deg,var(--gold-soft),transparent)}
+.newlife .birth-controls .roll-btn{background:var(--gold-soft)}
+@media (max-width:600px){ #event{box-shadow:0 -8px 24px var(--overlay)} }
+
+/* =========================================================
+   다듬기 — 둥근 모서리·그림자·부드러운 전환
+========================================================= */
+button{border-radius:8px;transition:background-color .15s,border-color .15s,color .15s,transform .08s}
+button:active:not(:disabled){transform:scale(.98)}
+button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+#log,#clog,#event,#combat .unit,.newlife,#historyArea .history-row,.origin{border-radius:12px}
+#log,#event,#combat .unit,.newlife,#modal .box{box-shadow:var(--shadow)}
+#modal .box{border-radius:14px;border-color:var(--line);animation:modalIn .18s ease-out}
+#modal h3{letter-spacing:.3px}
+@keyframes modalIn{from{opacity:0;transform:translateY(6px) scale(.985)}to{opacity:1;transform:none}}
+.fac-row{padding:9px 0}
+.fac-row:last-child{border-bottom:none}
+#event{border-color:var(--gold);border-width:1px}
+.choices button{border-radius:10px;padding:10px 14px;line-height:1.5}
+.choices button:hover:not(:disabled){background:var(--gold-soft)}
+.card{border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+.turns span{border-radius:999px}
+.timer{border-radius:999px}
+/* 스크롤바 */
+*{scrollbar-width:thin;scrollbar-color:var(--scroll) transparent}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:var(--scroll);border-radius:8px}
+::-webkit-scrollbar-track{background:transparent}
+/* 새 줄은 살짝 떠오르듯 */
+body.ai-on #log > div,body.ai-on #clog > div{animation:lineIn .28s ease-out}
+@keyframes lineIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ body.ai-on #log > div,body.ai-on #clog > div,#modal .box{animation:none} }
+/* 서술 모드 입력창 */
+#aiBar{background:var(--topbar-bg);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(0,0,0,.12)}
+#aiInput{border-radius:12px!important;padding:10px 12px!important;line-height:1.5;transition:border-color .15s}
+#aiInput:focus{border-color:var(--gold)!important;outline:none}
+#aiSend{background:var(--gold)!important;color:var(--on-accent)!important;border-color:var(--gold)!important;font-weight:700;border-radius:10px}
+#aiSend:disabled{opacity:.55}
+#aiBar .in button{border-radius:10px}
+/* 서술 본문 */
+body.ai-on #day > #log{background:var(--panel);border-color:var(--line)}
+body.ai-on .ai-line .ai-text{letter-spacing:.1px}
+body.ai-on .ai-line .ai-me{box-shadow:0 1px 3px rgba(0,0,0,.12)}
+/* 테마 버튼 */
+.theme-btn{font-size:13px;padding:5px 11px}
+#titleTheme{position:absolute;top:12px;right:16px;z-index:5}
+@media (max-width:600px){ #titleTheme{position:static;display:block;margin:10px 0 -10px auto} }
+#title{position:relative}
+</style>
+<script>
+/* ---------- 테마 고르기 — 다크 → 라이트 → 시스템 순서로 바뀐다 ---------- */
+(() => {
+  const ORDER = ['dark', 'light', 'system'], LABEL = { dark: '🌙 다크', light: '☀ 라이트', system: '🖥 시스템' };
+  const cur = () => document.documentElement.dataset.theme || 'dark';
+  const apply = t => { document.documentElement.dataset.theme = t; try { localStorage.setItem('sht_theme', t); } catch (_) {} document.querySelectorAll('.theme-btn').forEach(b => { b.textContent = LABEL[t]; b.title = '화면 테마 바꾸기'; }); };
+  const next = () => apply(ORDER[(ORDER.indexOf(cur()) + 1) % ORDER.length]);
+  document.getElementById('title').insertAdjacentHTML('afterbegin', '<button id="titleTheme" class="theme-btn"></button>');
+  const mb = document.querySelector('.menu-btns'); if (mb) mb.insertAdjacentHTML('beforeend', ' <button id="themeBtn" class="theme-btn" style="padding:3px 9px;font-size:13px"></button>');
+  document.querySelectorAll('.theme-btn').forEach(b => b.onclick = e => { e.stopPropagation(); next(); });
+  apply(cur());
+})();
+</script>
+<script>
+/* ---------- 이어하기: 서술 중에 만들어진 적(서술 속 상대·특색·이름 붙은 괴물)도 되살린다 — 전에는 그 적의 정의가 저장되지 않아
+   전투 중에 이어하기하면 오류로 멈췄다 ---------- */
+(() => {
+  for (const fn of ['aiGenericFoe', 'aiColorFoe', 'makeNamedFoe']) {
+    if (typeof window[fn] !== 'function') continue;
+    const orig = window[fn];
+    window[fn] = function (...args) {
+      const r = orig.apply(this, args), key = fn === 'makeNamedFoe' ? args[0] : r;
+      try { if (S && key) { S.foeRecipes = S.foeRecipes || {}; S.foeRecipes[key] = [fn, args]; } } catch (_) {}
+      return r;
+    };
+  }
+  const _restoreFoes = restoreCombat;
+  restoreCombat = function (cb) {
+    try {
+      const need = [cb.key, ...(cb.enemies || []).map(e => e.key)].filter((k, i, a) => k && a.indexOf(k) === i && !ENEMIES[k]);
+      for (const k of need) {
+        const rc = S.foeRecipes && S.foeRecipes[k];
+        if (rc && typeof window[rc[0]] === 'function') window[rc[0]](...rc[1]);
+        if (!ENEMIES[k]) {   // 기록이 없으면 저장된 수치로 대신 세운다
+          const e = (cb.enemies || []).find(x => x.key === k) || {};
+          ENEMIES[k] = { ...ENEMIES.fixer_rookie, name: String(e.name || '상대').replace(/\s*#\d+$/, ''), desc: e.desc || '서술 속에서 맞닥뜨린 상대.', hp: e.maxHp || 80, stg: e.maxStg || 35, cowed: false };
+        }
+      }
+    } catch (_) {}
+    return _restoreFoes(cb);
+  };
+})();
+</script>
+
+
 
 
 
