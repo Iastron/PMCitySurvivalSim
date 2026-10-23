@@ -7802,7 +7802,9 @@ async function aiSend(override) {
   aiLast.userEl = logEl.lastElementChild;
   aiOut('<span class="dim ai-wait">서술자가 장면을 쓰는 중… (그동안 시간은 멈춰 있다)</span>', 'ai-line');
   S.aiHist = (S.aiHist || []).slice(-AI_HIST);
-  const turn = { role: 'user', content: `${aiStateText()}\n\n[플레이어의 입력]\n${msg}` };
+  const mvHint = (() => { const m = aiMoveFromInput(msg); if (!m) return ''; const l = m.match(/([A-Y])사/), n = m.match(/(\d{1,2})구/); const k = l ? l[1].charCodeAt(0) - 64 : n ? +n[1] : 0;
+    return `\n\n[이동 — 플레이어가 향하는 곳: ${k ? `${k}구 ${String.fromCharCode(64 + k)}사` : ''}${/둥지|뒷골목|외곽/.test(m) ? ' ' + m.match(/둥지|뒷골목|외곽/)[0] : ''}. 서술과 태그 모두 정확히 이곳으로. 다른 구·회사로 바꾸지 말 것]`; })();
+  const turn = { role: 'user', content: `${aiStateText()}${mvHint}\n\n[플레이어의 입력]\n${msg}` };
   let reply = '';
   try { reply = await aiCall(cfg, [...S.aiHist, turn], n => { $('#aiSend').textContent = n === '모델' ? '모델 찾는 중…' : `재시도 ${n}…`; }); }
   catch (e) { document.querySelectorAll('.ai-wait').forEach(x => x.parentElement.remove()); if (!box.value.trim()) box.value = msg; aiOut(`<span class="l-bad">서술자 연결 실패 — ${escAI(e.name === 'AbortError' ? '응답 시간 초과' : e.message)}</span>`, 'ai-line'); }
@@ -7820,7 +7822,8 @@ async function aiSend(override) {
     for (const g of aiGainFromInput(msg)) if (!reply.replace(/\s/g, '').includes('[[' + g.replace(/\s/g, ''))) reply += `\n[[${g}]]`;   // 얻었다·발현했다·뒤틀렸다 같은 서술도 입력대로
     if (!/\[\[\s*직함/.test(reply)) { const tIn = aiTitleFromInput(msg); if (tIn) reply += `\n[[직함 ${tIn}]]`; }
     for (const tg of aiLifeFromInput(msg)) if (!reply.replace(/\s/g, '').includes('[[' + tg.split(' ')[0])) reply += `\n[[${tg}]]`;   // 권속·피주머니·제작·판매·사무소 같은 삶의 행동도 입력대로
-    if (!/\[\[\s*이동/.test(reply)) { const mvIn = aiMoveFromInput(msg); if (mvIn) reply += `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
+    { const mvIn = aiMoveFromInput(msg);   // 플레이어가 말한 목적지가 서술자의 이동·장소 태그보다 우선 (U사로 갔는데 K사로 보내지 않게)
+      if (mvIn) reply = reply.replace(/\[\[\s*이동[^\]]*\]\]/g, '').replace(/\[\[\s*장소([^\]]*)\]\]/g, (m, t) => /\d{1,2}\s*구|[A-Ya-y]\s*사|둥지|뒷골목|외곽/.test(t) ? '' : m) + `\n[[이동 ${mvIn}]]`; }   // 서술자가 이동을 빠뜨려도 플레이어의 입력대로
     const fightTag = aiApplyTags(reply);   // 수치 변화는 서술 뒤에
     S.aiHist.push({ role: 'user', content: msg }, { role: 'assistant', content: body });
     S.aiHist = S.aiHist.slice(-AI_HIST);
@@ -10082,6 +10085,104 @@ body.ai-on .ai-line .ai-me{box-shadow:0 1px 3px rgba(0,0,0,.12)}
   };
 })();
 </script>
+<style>
+.ai-del{background:transparent!important;border:1px solid transparent!important;color:var(--dim)!important;padding:2px 7px!important;font-size:12px!important;min-height:0!important;opacity:.45;border-radius:6px}
+.ai-del:hover{opacity:1;color:var(--red)!important;border-color:var(--line)!important}
+.ai-del.sure{opacity:1;color:var(--red)!important;border-color:var(--red)!important}
+body.ai-on .ai-line:has(.ai-me) .ai-del{order:-2;align-self:center}
+.ai-line:has(.ai-text) .ai-del{float:right;margin-left:4px}
+@media (hover:none){ .ai-del{opacity:.7} }
+</style>
+<script>
+/* ---------- 서술 모드: 메시지 삭제 — 내 입력(또는 그 서술)의 🗑을 두 번 누르면 그 대화를 지운다.
+   가장 최근 대화면 그 응답으로 바뀐 수치까지 되돌리고, 지난 대화면 기록과 서술자의 기억에서만 지운다 ---------- */
+(() => {
+  const isUser = el => el && el.classList && el.classList.contains('ai-line') && el.querySelector('.ai-me');
+  const isBody = el => el && el.classList && el.classList.contains('ai-line') && el.querySelector('.ai-text');
+  const KEEP = el => el.matches && el.matches('.l-day,.l-turn,.l-night,details,.story-ctx');
+  function addBtns(root) {
+    for (const el of root.querySelectorAll ? root.querySelectorAll('.ai-line') : []) {
+      if (el.querySelector('.ai-del') || el.querySelector('.ai-wait') || !(isUser(el) || isBody(el))) continue;
+      const b = document.createElement('button'); b.className = 'ai-del'; b.type = 'button'; b.textContent = '🗑'; b.title = '이 대화 삭제';
+      if (isUser(el)) el.insertBefore(b, el.firstChild); else el.insertBefore(b, el.firstChild);
+    }
+  }
+  for (const id of ['log', 'clog']) {
+    const box = document.getElementById(id);
+    new MutationObserver(() => addBtns(box)).observe(box, { childList: true, subtree: true });
+    addBtns(box);
+  }
+  // 이 줄이 속한 대화: 내 입력 줄부터 다음 내 입력 줄 앞까지
+  function exchange(line) {
+    let start = line;
+    if (!isUser(start)) { let p = line.previousElementSibling; while (p && !isUser(p)) p = p.previousElementSibling; start = p || line; }
+    const els = [start]; let n = start.nextElementSibling;
+    while (n && !isUser(n)) { els.push(n); n = n.nextElementSibling; }
+    return { start, els };
+  }
+  const textOf = el => { const c = el.cloneNode(true); c.querySelectorAll('button,.ai-tools').forEach(x => x.remove()); return c.textContent.replace(/\s+/g, ' ').trim(); };
+  function forget(userMsg, bodyText) {
+    const h = S.aiHist || [], norm = t => String(t || '').replace(/\s+/g, ' ').trim();
+    for (let i = h.length - 1; i >= 0; i--) {
+      if (h[i].role === 'user' && userMsg && norm(h[i].content) === userMsg) { h.splice(i, h[i + 1] && h[i + 1].role === 'assistant' ? 2 : 1); return; }
+    }
+    if (bodyText) for (let i = h.length - 1; i >= 0; i--) if (h[i].role === 'assistant' && norm(h[i].content) === bodyText) { h.splice(i - 1 >= 0 && h[i - 1].role === 'user' ? i - 1 : i, h[i - 1] && h[i - 1].role === 'user' ? 2 : 1); return; }
+  }
+  function del(line) {
+    if (!S || aiBusy) return;
+    const { start, els } = exchange(line);
+    const userMsg = isUser(start) ? textOf(start.querySelector('.ai-me')) : '';
+    const bodyEl = els.find(isBody), bodyText = bodyEl ? textOf(bodyEl.querySelector('.ai-text')) : '';
+    // 가장 최근 대화이고 아직 되돌릴 수 있으면 — 수치까지 되돌린다
+    if (aiLast && aiLast.userEl === start && typeof aiCanRewind === 'function' && aiCanRewind()) {
+      aiRewind(); aiLast = null;
+      print('🗑 마지막 대화를 지우고, 그로 인한 변화도 되돌렸다.', 'l-sys');
+      return;
+    }
+    for (const el of els) if (!KEEP(el)) el.remove();
+    forget(userMsg, bodyText);
+    if (aiLast && aiLast.userEl === start) aiLast = null;
+    if (typeof saveLife === 'function') saveLife(true);
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.ai-del'); if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!b.classList.contains('sure')) {
+      b.classList.add('sure'); b.textContent = '삭제?';
+      setTimeout(() => { if (b.isConnected) { b.classList.remove('sure'); b.textContent = '🗑'; } }, 3000);
+      return;
+    }
+    del(b.closest('.ai-line'));
+  }, true);
+})();
+</script>
+<style>
+/* ---------- 서술 모드 비율 — 읽기 좋은 폭의 가운데 기둥, 글은 아래부터 쌓이고, 큰 화면에선 글자도 크게 ---------- */
+body.ai-on .wrap,body.ai-on #topbar .wrap,body.ai-on #aiBar .in,body.ai-on #aiBar .hint{max-width:860px;margin-left:auto;margin-right:auto}
+body.ai-on #topbar .wrap{padding-left:16px;padding-right:16px}
+body.ai-on #aiBar{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+/* 대화가 적을 때 글이 창 위쪽에 붙어 아래가 텅 비지 않도록, 채팅처럼 아래에서부터 */
+body.ai-on #day > #log{display:flex;flex-direction:column}
+body.ai-on #day > #log > :first-child{margin-top:auto}
+body.ai-on #day > #log > *{flex-shrink:0}
+/* 날짜·사건 알림(l-day)은 구분선이 아니라 강조 한 줄로 — 구분선은 시간대(l-turn·l-night)만 */
+body.ai-on #log .l-day{display:block;text-align:left;font-size:13.5px;margin:10px 0 6px;padding:2px 0 2px 10px;border-left:3px solid var(--gold)}
+body.ai-on #log .l-day::before,body.ai-on #log .l-day::after{content:none}
+@media (min-width:760px){
+  body.ai-on .bar-row{font-size:14px;gap:4px 16px}
+  body.ai-on #clock{font-size:16px}
+  body.ai-on .role-stat,body.ai-on .bar-row .stat:has(#sMerit){font-size:13px}
+  body.ai-on #day > #log{font-size:16.5px;line-height:1.9;padding:22px 28px}
+  body.ai-on .ai-line .ai-me{font-size:15.5px}
+  body.ai-on #log .l-sys{font-size:13.5px}
+  body.ai-on #log .l-good,body.ai-on #log .l-bad,body.ai-on #log .l-choice{font-size:14.5px}
+  body.ai-on #log .l-turn,body.ai-on #log .l-night{font-size:13.5px}
+  body.ai-on #combat #clog{font-size:15.5px;padding:16px 20px}
+  #aiInput{font-size:15.5px}
+}
+</style>
+
+
 
 
 
