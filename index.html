@@ -9657,10 +9657,6 @@ body.ai-on #log > div{animation:none}
   const setTop = () => { const t = document.getElementById('topbar'); document.documentElement.style.setProperty('--topbar', (t && !t.classList.contains('hidden') ? t.offsetHeight : 0) + 'px'); };
   if (window.ResizeObserver) new ResizeObserver(setTop).observe(document.getElementById('topbar'));
   window.addEventListener('resize', setTop); setInterval(setTop, 1500); setTop();
-  // 새 줄이 붙으면 맨 아래로 (위로 올려 읽는 중이면 그대로 둔다)
-  const log = document.getElementById('log'); let atEnd = true;
-  log.addEventListener('scroll', () => { atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 80; });
-  new MutationObserver(() => { if (atEnd && document.body.classList.contains('ai-on')) log.scrollTop = log.scrollHeight; }).observe(log, { childList: true });
 })();
 </script>
 <style>
@@ -9903,6 +9899,49 @@ function staffDedupe() {
   window.preFlee = preFlee; window.preFight = preFight;
 })();
 </script>
+<style>
+/* 서술 모드 전투: 이야기(서술·전투 기록)를 위로, 크게 */
+body.ai-on #combat:not(.hidden){display:flex;flex-direction:column}
+body.ai-on #combat #preFight{order:-2}
+body.ai-on #combat #clog{order:-1;height:42vh;min-height:200px;margin:0 0 10px;padding:12px 14px;font-size:14.5px;line-height:1.8;background:var(--panel)}
+body.ai-on #combat .ctrl{position:static!important;box-shadow:none}
+body.ai-on #clog .story-ctx{font-size:12px;color:var(--dim);border-left:2px solid var(--line);padding-left:8px;margin-bottom:8px}
+body.ai-on #clog .l-sys{font-size:12.5px;opacity:.85}
+@media (max-width:600px){ body.ai-on #combat #clog{height:38vh;font-size:14px;padding:10px 12px} }
+#log,#clog{position:relative}
+</style>
+<script>
+/* ---------- 서술 모드: 새 응답이 오면 '맨 아래'가 아니라 '이번 응답의 첫 줄'에 맞춰 보여 준다.
+   길게 오면 위에서부터 읽을 수 있게 두고, 손으로 스크롤하면 그다음부터는 건드리지 않는다 ---------- */
+(() => {
+  const boxes = ['log', 'clog'].map(id => document.getElementById(id));
+  const st = new Map(boxes.map(b => [b, { anchor: null, pending: false, user: false }]));
+  const arm = () => { for (const v of st.values()) { v.anchor = null; v.pending = true; v.user = false; } };
+  for (const b of boxes) {
+    const v = st.get(b);
+    const mine = () => { v.user = true; };
+    b.addEventListener('wheel', mine, { passive: true }); b.addEventListener('touchmove', mine, { passive: true });
+    b.addEventListener('keydown', mine); b.addEventListener('mousedown', e => { if (e.target === b) mine(); });
+    new MutationObserver(recs => {
+      if (!document.body.classList.contains('ai-on')) return;
+      const added = recs.flatMap(r => [...r.addedNodes]).filter(n => n.nodeType === 1 && n.parentNode === b);
+      if (!added.length) return;
+      if (v.pending || !v.anchor || !v.anchor.isConnected) {
+        // 보내지 않았는데 붙은 줄(시간 경과 등)은, 읽던 자리가 맨 아래 근처일 때만 따라간다
+        if (!v.pending && b.scrollHeight - b.scrollTop - b.clientHeight > 200 + added.reduce((n, x) => n + x.offsetHeight, 0)) return;
+        v.anchor = added[0]; v.pending = false; v.user = false;
+      }
+      if (v.user) return;
+      b.scrollTop = Math.min(Math.max(0, v.anchor.offsetTop - 8), b.scrollHeight - b.clientHeight);
+    }).observe(b, { childList: true });
+  }
+  const _sendScroll = aiSend;
+  aiSend = function (...a) { arm(); return _sendScroll(...a); };
+  if (typeof aiAdvance === 'function') { const _advScroll = aiAdvance; aiAdvance = function (...a) { arm(); return _advScroll(...a); }; }
+  if (typeof aiRegenerate === 'function') { const _regScroll = aiRegenerate; aiRegenerate = function (...a) { arm(); return _regScroll(...a); }; }
+})();
+</script>
+
 
 
 
