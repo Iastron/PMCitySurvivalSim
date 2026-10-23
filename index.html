@@ -7802,7 +7802,8 @@ async function aiSend(override) {
   aiLast.userEl = logEl.lastElementChild;
   aiOut('<span class="dim ai-wait">서술자가 장면을 쓰는 중… (그동안 시간은 멈춰 있다)</span>', 'ai-line');
   S.aiHist = (S.aiHist || []).slice(-AI_HIST);
-  const mvHint = (() => { const m = aiMoveFromInput(msg); if (!m) return ''; const l = m.match(/([A-Y])사/), n = m.match(/(\d{1,2})구/); const k = l ? l[1].charCodeAt(0) - 64 : n ? +n[1] : 0;
+  const mvHint = (() => { const m = aiMoveFromInput(msg), sub = typeof aiSubPlaceFromInput === 'function' ? aiSubPlaceFromInput(msg) : '';
+    if (!m) return sub ? `\n\n[이동 — 플레이어가 향하는 곳: 지금 있는 구 안의 「${sub}」. 장소 태그는 [[장소 ${sub}]]로. 다른 구·회사로 옮기지 말 것]` : ''; const l = m.match(/([A-Y])사/), n = m.match(/(\d{1,2})구/); const k = l ? l[1].charCodeAt(0) - 64 : n ? +n[1] : 0;
     return `\n\n[이동 — 플레이어가 향하는 곳: ${k ? `${k}구 ${String.fromCharCode(64 + k)}사` : ''}${/둥지|뒷골목|외곽/.test(m) ? ' ' + m.match(/둥지|뒷골목|외곽/)[0] : ''}. 서술과 태그 모두 정확히 이곳으로. 다른 구·회사로 바꾸지 말 것]`; })();
   const turn = { role: 'user', content: `${aiStateText()}${mvHint}\n\n[플레이어의 입력]\n${msg}` };
   let reply = '';
@@ -10156,6 +10157,89 @@ body.ai-on .ai-line:has(.ai-me) .ai-del{order:-2;align-self:center}
   }, true);
 })();
 </script>
+<script>
+/* ---------- 이동 읽기 (다시 씀) — 모든 장소에 대해:
+   · 문장을 마디로 나눠, 이동 동사(갔다·왔다·들렀다·도착·향했다·출발·찾아갔다·돌아왔다…)가 있는 마디에서 그 앞의 목적지를 읽는다
+   · 회사(K사)·구(11구)·둥지/뒷골목/외곽은 ‘K사의 뒷골목’, ‘K사 본사’, ‘7구 뒷골목 쪽’, ‘T사 방향’처럼 꾸밈이 붙어도 읽는다
+   · ‘K사에서 왔다’(출발지), ‘가지 않았다’(부정), ‘갔다고 했다’(남의 말)는 이동이 아니다
+   · 구·회사가 아닌 곳(국밥집, 하얀 사무소, 카지노, 집…)은 그 구 안의 장소로 — 서술자가 다른 곳을 적어도 플레이어의 말이 우선
+   · 플레이어가 이동을 말하지 않았는데 서술자가 다른 구·외곽으로 옮기려 하면 받지 않는다 ---------- */
+(() => {
+  const GO = /(이동|간다|갔|가자|가서|가기|가본|가 본|가려|가는\s*중|걸어\s*(?:간|갔|가)|내려(?:간|갔|가|와|왔)|나가|나간|나갔|나와|나왔|나섰|향(?:한|했|하)|도착|넘어|건너(?:간|갔)|들어(?:간|갔|가|와|왔)|돌아(?:간|갔|가|와|왔|온)|옮(?:겼|긴|기)|떠나|떠났|도망|피신|달려(?:간|갔|가)|왔다|온다|와서|들렀|들른|들러|방문|찾아(?:간|갔|가|왔|온)|출발|복귀|귀환|이사|올라(?:간|갔|가))/;
+  const NEG = /(?:않|안\s*(?:가|간|갔)|못\s*(?:가|간|갔)|말자|말았|지\s*마)/;
+  const SAID = /^[^\s]*?(?:다고|라고|댔|대\s|단다|냐고)/;
+  const TIME = /^(아침|점심|저녁|밤|새벽|오후|오전|낮|내일|오늘|모레|나중|잠시|곧|다음|이따|금방|\d+\s*시|\d+\s*분|처음|마지막|드디어|결국|다시|함께|같이)$/;
+  const PRON = /^(그곳|거기|여기|저기|그쪽|이쪽|저쪽|밖|안|앞|뒤|위|아래|곳|쪽|그|그녀|그들|우리|나|너|모두|혼자|천천히|빨리|곧장|바로|직접|먼저)$/;
+  const CO = /(?:^|[^A-Za-z])([A-Ya-y])\s*사(?![가-힣]*(?:람|실|건|고|과|진|장님|원))/g, DI = /(\d{1,2})\s*구(?!역|석|조|멍)/g;
+  function scan(t) {
+    const text = String(t || '').replace(/[*_~`"“”'‘’「」『』()\[\]]/g, ' ');
+    const parts = text.split(/[.!?…\n]+|(?:하고|했고|고서|다가|다음|뒤에|후에|그리고|그러고는|그런\s*다음)\s/);
+    let dest = null;
+    for (const raw of parts) {
+      const c = raw.trim(); if (!c) continue;
+      const all = [...c.matchAll(new RegExp(GO.source, 'g'))]; if (!all.length) continue;
+      const vm = all[all.length - 1];   // 마지막 이동 동사 (둥지를 나와 → 뒷골목으로 걸어갔다)
+      const after = c.slice(vm.index + vm[0].length);
+      if (NEG.test(after.slice(0, 8)) || NEG.test(c.slice(Math.max(0, vm.index - 3), vm.index))) continue;
+      if (SAID.test(after)) continue;
+      const pre = c.slice(0, vm.index);
+      const at = (re) => { const out = []; re.lastIndex = 0; let m; while ((m = re.exec(pre))) out.push({ v: m[1], i: m.index + m[0].length, from: /^\s*(?:에서|으로부터|로부터|부터|출신)/.test(pre.slice(m.index + m[0].length)) }); return out.filter(x => !x.from); };
+      const cos = at(CO), dis = at(DI);
+      const zm = [...pre.matchAll(/(둥지|뒷골목|골목|외곽|도시)(?!\s*(?:에서|부터|를\s*나|밖|을\s*나|을\s*떠|를\s*떠))/g)];
+      const out = /둥지\s*(?:밖|를\s*나|에서\s*나)/.test(pre + vm[0]);
+      let n = 0;
+      const lastCo = cos[cos.length - 1], lastDi = dis[dis.length - 1];
+      if (lastCo && (!lastDi || lastCo.i >= lastDi.i)) n = lastCo.v.toUpperCase().charCodeAt(0) - 64; else if (lastDi) n = +lastDi.v;
+      let zone = zm.length ? zm[zm.length - 1][1] : out ? '뒷골목' : null;
+      if (zone === '골목') zone = '뒷골목';
+      // 구 안의 장소 — 동사 바로 앞의 명사(국밥집으로, 하얀 사무소에)
+      let sub = '';
+      const sm = pre.match(/(?:([가-힣A-Za-z0-9]+)\s+)?([가-힣A-Za-z0-9]+?)\s*(?:안으로|쪽으로|으로|로|에|까지)\s*$/);
+      if (sm) {
+        const noun = sm[2], mod = sm[1] || '';
+        const bad = w => !w || TIME.test(w) || PRON.test(w) || /^[A-Ya-y]\s*사(의)?$|^\d{1,2}구(의)?$|^(둥지|뒷골목|골목|외곽|도시|방향|근처|부근|주변|근방|곳|쪽)$/.test(w);
+        if (!bad(noun)) sub = ((mod && /[은는한던운얀른큰된진]$/.test(mod) && !bad(mod) ? mod + ' ' : '') + noun).slice(0, 16);
+      }
+      if (zone === '도시') zone = S && S.exiled ? '뒷골목' : null;
+      if (!n && !zone && !sub) continue;
+      dest = { n, zone, sub };
+    }
+    return dest;
+  }
+  window.aiMoveScan = scan;
+  // 기존 함수 자리를 이 읽기로 바꾼다 (반환: 'U사 뒷골목' / '21구' / '외곽' / '둥지' …)
+  aiMoveFromInput = function (t) {
+    const d = scan(t); if (!d) return null;
+    if (d.zone === '외곽' && !d.n) return '외곽';
+    if (d.n >= 1 && d.n <= 25) return `${String.fromCharCode(64 + d.n)}사${d.zone && d.zone !== '외곽' ? ' ' + d.zone : ''}`;
+    return d.zone && d.zone !== '외곽' ? d.zone : (d.zone || null);
+  };
+  window.aiSubPlaceFromInput = t => { const d = scan(t); return d && d.sub ? d.sub : ''; };
+  const TRAVEL = /택시|열차|기차|버스|차를|차에|운전|이동|떠나|떠났|향|출발|도착|돌아|가자|갔|간다|왔|들렀|방문|찾아|넘어|건너/;
+  // 서술자의 이동·장소 태그를 플레이어의 말에 맞춘다
+  const _applyPlaceMv = aiApplyPlace;
+  aiApplyPlace = function (reply) {
+    try {
+      const msg = (aiLast && aiLast.msg) || '';
+      const said = scan(msg), sub = said && said.sub;
+      // 이동을 말하지 않았는데 다른 구·외곽으로 옮기려는 서술자 태그는 버린다
+      if (!said && !TRAVEL.test(msg)) {
+        reply = reply.replace(/\[\[\s*이동\s*([^\]]+?)\s*\]\]/g, (m, t) => {
+          const l = t.match(/([A-Ya-y])\s*사/), d = t.match(/(\d{1,2})\s*구/), k = l ? l[1].toUpperCase().charCodeAt(0) - 64 : d ? +d[1] : 0;
+          return (k && S.loc && S.loc.n && k !== S.loc.n) || (/외곽/.test(t) && !S.exiled) ? '' : m;
+        });
+      }
+      // 구 안의 장소를 말했다면 그 이름으로 (서술자가 그 이름을 담아 더 자세히 적었으면 그쪽)
+      if (sub) {
+        const pl = reply.match(/\[\[\s*장소\s*([^\]]+?)\s*\]\]/);
+        if (!pl || !pl[1].replace(/\s/g, '').includes(sub.replace(/\s/g, ''))) reply = reply.replace(/\[\[\s*장소[^\]]*\]\]/g, '') + `\n[[장소 ${sub}]]`;
+      }
+    } catch (_) {}
+    return _applyPlaceMv(reply);
+  };
+})();
+</script>
+
 <style>
 /* ---------- 서술 모드 비율 — 읽기 좋은 폭의 가운데 기둥, 글은 아래부터 쌓이고, 큰 화면에선 글자도 크게 ---------- */
 body.ai-on .wrap,body.ai-on #topbar .wrap,body.ai-on #aiBar .in,body.ai-on #aiBar .hint{max-width:860px;margin-left:auto;margin-right:auto}
