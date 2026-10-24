@@ -254,7 +254,7 @@ h1{font-size:28px;letter-spacing:4px;margin:30px 0 6px;color:var(--gold)}
   .hero-controls input,.hero-controls select{width:100%;min-height:40px}
   .hero-controls #aiCfgBtn{grid-column:1 / -1;min-height:40px}
   /* 서술 모드: 시간은 대화로 흐르니 배속·제한시간 막대는 숨기고, 기록창을 넓게 */
-  body.ai-on .speed,body.ai-on .timer{display:none}
+  body.ai-on .timer{display:none}
   body.ai-on #log{max-height:none;height:calc(100dvh - 210px - var(--aibar));min-height:220px}
   body.ai-on{padding-bottom:calc(var(--aibar) + 8px) !important}
   /* 서술 모드 입력창: 첫 줄은 입력, 둘째 줄은 버튼 */
@@ -9603,7 +9603,7 @@ renderResume();
 <style>
 /* ---------- 서술 모드 화면 정리 — 위: 상태 3줄 + 메뉴(접힘), 가운데: 이야기(화면을 꽉 채움), 아래: 입력창 ---------- */
 :root{--topbar:0px}
-body.ai-on .speed,body.ai-on .timer,body.ai-on #nextBtn{display:none!important}
+body.ai-on .timer,body.ai-on #nextBtn{display:none!important}
 body.ai-on{padding-bottom:0!important}
 body.ai-on .wrap{padding-bottom:0}
 body.ai-on #topbar{padding:6px 0 5px}
@@ -10239,6 +10239,15 @@ body.ai-on .ai-line:has(.ai-me) .ai-del{order:-2;align-self:center}
   };
 })();
 </script>
+<style>
+/* 서술 모드에서도 배속 버튼 — 상태 둘째 줄 오른쪽 */
+body.ai-on .speed{display:flex!important;order:5;margin-left:auto;gap:3px}
+body.ai-on .speed button{padding:3px 8px;font-size:12px;min-width:0}
+/* 서술 모드 전투: 아래 고정 입력창에 막 진행 버튼이 가려지지 않도록 페이지 아래에 여백 */
+body.ai-on:has(#combat:not(.hidden)){padding-bottom:calc(var(--aibar) + 14px)!important}
+@media (max-width:600px){ body.ai-on .speed button{padding:5px 7px;min-width:32px} }
+</style>
+
 
 <style>
 /* ---------- 서술 모드 비율 — 읽기 좋은 폭의 가운데 기둥, 글은 아래부터 쌓이고, 큰 화면에선 글자도 크게 ---------- */
